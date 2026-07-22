@@ -42,9 +42,22 @@ export type Movimiento = {
   prioridad: string;
   observaciones: string | null;
   created_at: string;
+  reembolso_id: string | null;
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
+};
+
+export type Reembolso = {
+  id: string;
+  consecutivo: number;
+  fecha: string;
+  periodo_inicio: string;
+  periodo_fin: string;
+  total: number;
+  estado: string;
+  observaciones: string | null;
+  created_at: string;
 };
 
 export type FondoConfig = {
