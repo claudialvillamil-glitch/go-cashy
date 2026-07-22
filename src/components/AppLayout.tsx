@@ -20,7 +20,7 @@ const nav = [
   { to: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
-export function AppLayout() {
+export function AppLayout({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
