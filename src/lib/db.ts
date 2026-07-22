@@ -102,6 +102,37 @@ export async function getAgencias() {
   return data as Agencia[];
 }
 
+export async function getReembolsos() {
+  const { data, error } = await supabase
+    .from("reembolsos")
+    .select("*")
+    .order("fecha", { ascending: false })
+    .order("consecutivo", { ascending: false });
+  if (error) throw error;
+  return data as Reembolso[];
+}
+
+export async function getMovimientosPendientes() {
+  const { data, error } = await supabase
+    .from("movimientos")
+    .select("*, proveedores(*), conceptos(*), agencias(*)")
+    .is("reembolso_id", null)
+    .order("fecha", { ascending: true });
+  if (error) throw error;
+  return data as unknown as Movimiento[];
+}
+
+export async function getMovimientosDeReembolso(reembolsoId: string) {
+  const { data, error } = await supabase
+    .from("movimientos")
+    .select("*, proveedores(*), conceptos(*), agencias(*)")
+    .eq("reembolso_id", reembolsoId)
+    .order("fecha", { ascending: true });
+  if (error) throw error;
+  return data as unknown as Movimiento[];
+}
+
+
 export function computeAsiento(mov: Movimiento) {
   const c = mov.conceptos!;
   const debitos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
