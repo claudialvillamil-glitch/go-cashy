@@ -1,9 +1,67 @@
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Movimiento, FondoConfig } from "./db";
+import type { Movimiento, FondoConfig, Reembolso } from "./db";
 import { computeAsiento } from "./db";
 import { fmtDate, fmtMoney, pad } from "./format";
+
+export function exportReembolsoPDF(reembolso: Reembolso, movs: Movimiento[], fondo: FondoConfig) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Solicitud de Reembolso · Caja Menor", 105, 18, { align: "center" });
+  doc.setFontSize(11);
+  doc.text(`N° ${pad(reembolso.consecutivo)}`, 105, 26, { align: "center" });
+
+  doc.setFontSize(10);
+  const y0 = 38;
+  doc.text(`Empresa: ${fondo.empresa}`, 14, y0);
+  doc.text(`Responsable: ${fondo.responsable}`, 14, y0 + 6);
+  doc.text(`Fecha solicitud: ${fmtDate(reembolso.fecha)}`, 14, y0 + 12);
+  doc.text(
+    `Periodo: ${fmtDate(reembolso.periodo_inicio)} — ${fmtDate(reembolso.periodo_fin)}`,
+    14,
+    y0 + 18,
+  );
+  doc.text(`Estado: ${reembolso.estado.toUpperCase()}`, 130, y0);
+  doc.text(`Movimientos: ${movs.length}`, 130, y0 + 6);
+  doc.text(`Total: ${fmtMoney(reembolso.total)}`, 130, y0 + 12);
+
+  autoTable(doc, {
+    startY: y0 + 26,
+    head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "Subtotal", "IVA", "Retención", "Total"]],
+    body: movs.map((m) => [
+      pad(m.consecutivo),
+      fmtDate(m.fecha),
+      m.proveedores?.nombre ?? "",
+      m.conceptos?.nombre ?? "",
+      m.numero_factura ?? "",
+      fmtMoney(m.subtotal),
+      fmtMoney(m.iva),
+      fmtMoney(m.retencion),
+      fmtMoney(m.total),
+    ]),
+    foot: [["", "", "", "", "", "", "", "TOTAL", fmtMoney(reembolso.total)]],
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [30, 50, 90] },
+    footStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
+  });
+
+  if (reembolso.observaciones) {
+    const y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+    doc.setFontSize(9);
+    doc.text(`Observaciones: ${reembolso.observaciones}`, 14, y);
+  }
+
+  const yFirma =
+    (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 30;
+  doc.line(20, yFirma, 90, yFirma);
+  doc.line(120, yFirma, 190, yFirma);
+  doc.setFontSize(9);
+  doc.text("Solicitado por", 55, yFirma + 5, { align: "center" });
+  doc.text("Aprobado por", 155, yFirma + 5, { align: "center" });
+
+  doc.save(`reembolso-${pad(reembolso.consecutivo)}.pdf`);
+}
 
 export function exportExcel(movs: Movimiento[], fondo: FondoConfig) {
   const rows = movs.map((m) => ({
