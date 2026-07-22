@@ -14,7 +14,214 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agencias: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      conceptos: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta_contrapartida: string
+          cuenta_gasto: string
+          cuenta_iva: string | null
+          cuenta_retencion: string | null
+          id: string
+          nombre: string
+          porcentaje_retencion: number | null
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta_contrapartida?: string
+          cuenta_gasto: string
+          cuenta_iva?: string | null
+          cuenta_retencion?: string | null
+          id?: string
+          nombre: string
+          porcentaje_retencion?: number | null
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta_contrapartida?: string
+          cuenta_gasto?: string
+          cuenta_iva?: string | null
+          cuenta_retencion?: string | null
+          id?: string
+          nombre?: string
+          porcentaje_retencion?: number | null
+        }
+        Relationships: []
+      }
+      fondo_config: {
+        Row: {
+          created_at: string
+          empresa: string
+          id: string
+          monto_asignado: number
+          monto_maximo_gasto: number
+          responsable: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          empresa?: string
+          id?: string
+          monto_asignado?: number
+          monto_maximo_gasto?: number
+          responsable?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          empresa?: string
+          id?: string
+          monto_asignado?: number
+          monto_maximo_gasto?: number
+          responsable?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      movimientos: {
+        Row: {
+          agencia_id: string | null
+          concepto_id: string
+          consecutivo: number
+          created_at: string
+          detalle: string | null
+          estado: string
+          factura_path: string | null
+          factura_url: string | null
+          fecha: string
+          id: string
+          impoconsumo: number
+          iva: number
+          numero_factura: string | null
+          observaciones: string | null
+          prioridad: string
+          proveedor_id: string
+          retencion: number
+          subtotal: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          agencia_id?: string | null
+          concepto_id: string
+          consecutivo?: number
+          created_at?: string
+          detalle?: string | null
+          estado?: string
+          factura_path?: string | null
+          factura_url?: string | null
+          fecha?: string
+          id?: string
+          impoconsumo?: number
+          iva?: number
+          numero_factura?: string | null
+          observaciones?: string | null
+          prioridad?: string
+          proveedor_id: string
+          retencion?: number
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          agencia_id?: string | null
+          concepto_id?: string
+          consecutivo?: number
+          created_at?: string
+          detalle?: string | null
+          estado?: string
+          factura_path?: string | null
+          factura_url?: string | null
+          fecha?: string
+          id?: string
+          impoconsumo?: number
+          iva?: number
+          numero_factura?: string | null
+          observaciones?: string | null
+          prioridad?: string
+          proveedor_id?: string
+          retencion?: number
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_concepto_id_fkey"
+            columns: ["concepto_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proveedores: {
+        Row: {
+          created_at: string
+          direccion: string | null
+          email: string | null
+          id: string
+          nit: string
+          nombre: string
+          telefono: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          direccion?: string | null
+          email?: string | null
+          id?: string
+          nit: string
+          nombre: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          direccion?: string | null
+          email?: string | null
+          id?: string
+          nit?: string
+          nombre?: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
