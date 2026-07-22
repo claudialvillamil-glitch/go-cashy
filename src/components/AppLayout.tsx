@@ -8,6 +8,7 @@ import {
   Tags,
   Settings,
   Wallet,
+  Receipt,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -15,6 +16,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/nuevo", label: "Nuevo recibo", icon: PlusCircle },
   { to: "/movimientos", label: "Movimientos", icon: ListChecks },
+  { to: "/reembolsos", label: "Reembolsos", icon: Receipt },
   { to: "/proveedores", label: "Proveedores", icon: Users },
   { to: "/conceptos", label: "Conceptos", icon: Tags },
   { to: "/configuracion", label: "Configuración", icon: Settings },

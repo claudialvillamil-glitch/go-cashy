@@ -116,6 +116,7 @@ export type Database = {
           observaciones: string | null
           prioridad: string
           proveedor_id: string
+          reembolso_id: string | null
           retencion: number
           subtotal: number
           total: number
@@ -138,6 +139,7 @@ export type Database = {
           observaciones?: string | null
           prioridad?: string
           proveedor_id: string
+          reembolso_id?: string | null
           retencion?: number
           subtotal?: number
           total?: number
@@ -160,6 +162,7 @@ export type Database = {
           observaciones?: string | null
           prioridad?: string
           proveedor_id?: string
+          reembolso_id?: string | null
           retencion?: number
           subtotal?: number
           total?: number
@@ -185,6 +188,13 @@ export type Database = {
             columns: ["proveedor_id"]
             isOneToOne: false
             referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_reembolso_id_fkey"
+            columns: ["reembolso_id"]
+            isOneToOne: false
+            referencedRelation: "reembolsos"
             referencedColumns: ["id"]
           },
         ]
@@ -218,6 +228,45 @@ export type Database = {
           nit?: string
           nombre?: string
           telefono?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reembolsos: {
+        Row: {
+          consecutivo: number
+          created_at: string
+          estado: string
+          fecha: string
+          id: string
+          observaciones: string | null
+          periodo_fin: string
+          periodo_inicio: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          consecutivo?: number
+          created_at?: string
+          estado?: string
+          fecha?: string
+          id?: string
+          observaciones?: string | null
+          periodo_fin: string
+          periodo_inicio: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          consecutivo?: number
+          created_at?: string
+          estado?: string
+          fecha?: string
+          id?: string
+          observaciones?: string | null
+          periodo_fin?: string
+          periodo_inicio?: string
+          total?: number
           updated_at?: string
         }
         Relationships: []

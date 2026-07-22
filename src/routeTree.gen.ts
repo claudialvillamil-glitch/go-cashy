@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReembolsosRouteImport } from './routes/reembolsos'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as NuevoRouteImport } from './routes/nuevo'
 import { Route as MovimientosRouteImport } from './routes/movimientos'
@@ -16,6 +17,11 @@ import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as ConceptosRouteImport } from './routes/conceptos'
 import { Route as IndexRouteImport } from './routes/index'
 
+const ReembolsosRoute = ReembolsosRouteImport.update({
+  id: '/reembolsos',
+  path: '/reembolsos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProveedoresRoute = ProveedoresRouteImport.update({
   id: '/proveedores',
   path: '/proveedores',
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/movimientos': typeof MovimientosRoute
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
+  '/reembolsos': typeof ReembolsosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/movimientos': typeof MovimientosRoute
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
+  '/reembolsos': typeof ReembolsosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/movimientos': typeof MovimientosRoute
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
+  '/reembolsos': typeof ReembolsosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/movimientos'
     | '/nuevo'
     | '/proveedores'
+    | '/reembolsos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/movimientos'
     | '/nuevo'
     | '/proveedores'
+    | '/reembolsos'
   id:
     | '__root__'
     | '/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
     | '/movimientos'
     | '/nuevo'
     | '/proveedores'
+    | '/reembolsos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,10 +118,18 @@ export interface RootRouteChildren {
   MovimientosRoute: typeof MovimientosRoute
   NuevoRoute: typeof NuevoRoute
   ProveedoresRoute: typeof ProveedoresRoute
+  ReembolsosRoute: typeof ReembolsosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reembolsos': {
+      id: '/reembolsos'
+      path: '/reembolsos'
+      fullPath: '/reembolsos'
+      preLoaderRoute: typeof ReembolsosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/proveedores': {
       id: '/proveedores'
       path: '/proveedores'
@@ -162,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   MovimientosRoute: MovimientosRoute,
   NuevoRoute: NuevoRoute,
   ProveedoresRoute: ProveedoresRoute,
+  ReembolsosRoute: ReembolsosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
