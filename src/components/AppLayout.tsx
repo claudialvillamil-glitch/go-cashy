@@ -88,7 +88,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <main className="flex-1 md:ml-0 pt-24 md:pt-0">
         <div className="max-w-7xl mx-auto p-6">
-          <Outlet />
+          {children}
         </div>
       </main>
       <Toaster position="top-right" richColors />
