@@ -161,6 +161,13 @@ function Nuevo() {
           <CardTitle className="text-base">Información del gasto</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
+          <Field label="N° Recibo">
+            <Input
+              value={nextConsQ.data ? pad(nextConsQ.data, 3) : "..."}
+              readOnly
+              className="font-mono bg-muted"
+            />
+          </Field>
           <Field label="Fecha *">
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </Field>
