@@ -49,9 +49,9 @@ function Nuevo() {
   const [detalle, setDetalle] = useState("");
   const [numeroFactura, setNumeroFactura] = useState("");
   const [subtotal, setSubtotal] = useState<string>("");
-  const [iva, setIva] = useState<string>("");
+  const [iva, setIva] = useState<string>("0");
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
-  const [retencion, setRetencion] = useState<string>("");
+  const [retencion, setRetencion] = useState<string>("0");
   const [observaciones, setObservaciones] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
