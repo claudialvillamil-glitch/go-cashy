@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2, FileText } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
+import { ProveedorPicker } from "@/components/ProveedorPicker";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
