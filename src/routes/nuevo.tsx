@@ -42,6 +42,18 @@ function Nuevo() {
   const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const nextConsQ = useQuery({
+    queryKey: ["next-consecutivo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimientos")
+        .select("consecutivo")
+        .order("consecutivo", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0]?.consecutivo ?? 0) + 1;
+    },
+  });
 
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [agencia, setAgencia] = useState<string>("");
