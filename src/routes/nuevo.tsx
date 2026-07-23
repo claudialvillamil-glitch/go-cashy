@@ -166,18 +166,7 @@ function Nuevo() {
             </Select>
           </Field>
           <Field label="Proveedor *">
-            <Select value={proveedor} onValueChange={setProveedor}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un proveedor" />
-              </SelectTrigger>
-              <SelectContent>
-                {provsQ.data?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nombre} — {p.nit}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ProveedorPicker value={proveedor} onChange={setProveedor} />
           </Field>
           <Field label="Concepto del gasto *">
             <Select value={concepto} onValueChange={setConcepto}>
