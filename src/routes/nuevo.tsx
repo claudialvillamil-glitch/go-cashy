@@ -18,7 +18,7 @@ import { getAgencias, getConceptos, getFondo, getProveedores } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2, FileText } from "lucide-react";
-import { fmtMoney } from "@/lib/format";
+import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
 
 export const Route = createFileRoute("/nuevo")({
@@ -42,6 +42,18 @@ function Nuevo() {
   const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const nextConsQ = useQuery({
+    queryKey: ["next-consecutivo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("movimientos")
+        .select("consecutivo")
+        .order("consecutivo", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0]?.consecutivo ?? 0) + 1;
+    },
+  });
 
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [agencia, setAgencia] = useState<string>("");
@@ -149,6 +161,13 @@ function Nuevo() {
           <CardTitle className="text-base">Información del gasto</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
+          <Field label="N° Recibo">
+            <Input
+              value={nextConsQ.data ? pad(nextConsQ.data, 3) : "..."}
+              readOnly
+              className="font-mono bg-muted"
+            />
+          </Field>
           <Field label="Fecha *">
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </Field>
