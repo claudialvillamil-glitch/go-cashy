@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2, FileText } from "lucide-react";
 import { fmtMoney } from "@/lib/format";
+import { ProveedorPicker } from "@/components/ProveedorPicker";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
@@ -166,18 +167,7 @@ function Nuevo() {
             </Select>
           </Field>
           <Field label="Proveedor *">
-            <Select value={proveedor} onValueChange={setProveedor}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un proveedor" />
-              </SelectTrigger>
-              <SelectContent>
-                {provsQ.data?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nombre} — {p.nit}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ProveedorPicker value={proveedor} onChange={setProveedor} />
           </Field>
           <Field label="Concepto del gasto *">
             <Select value={concepto} onValueChange={setConcepto}>
