@@ -75,6 +75,7 @@ export function exportExcel(movs: Movimiento[], fondo: FondoConfig) {
     "Cuenta gasto": m.conceptos?.cuenta_gasto ?? "",
     Detalle: m.detalle ?? "",
     Factura: m.numero_factura ?? "",
+    "Factura electrónica": m.factura_electronica ? "Sí" : "No",
     Subtotal: m.subtotal,
     IVA: m.iva,
     Impoconsumo: m.impoconsumo,
