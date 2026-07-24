@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Upload, Loader2, FileText } from "lucide-react";
 import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
