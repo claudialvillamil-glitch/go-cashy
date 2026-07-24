@@ -212,6 +212,16 @@ function Nuevo() {
               placeholder="FV-001"
             />
           </Field>
+          <div className="flex items-center gap-2 md:pt-6">
+            <Checkbox
+              id="factura-electronica"
+              checked={facturaElectronica}
+              onCheckedChange={(v) => setFacturaElectronica(v === true)}
+            />
+            <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
+              El proveedor emite factura electrónica
+            </Label>
+          </div>
           <Field label="Detalle *">
             <Input
               value={detalle}
