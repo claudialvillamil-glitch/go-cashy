@@ -28,19 +28,20 @@ export function exportReembolsoPDF(reembolso: Reembolso, movs: Movimiento[], fon
 
   autoTable(doc, {
     startY: y0 + 26,
-    head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "Subtotal", "IVA", "Retención", "Total"]],
+    head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Retención", "Total"]],
     body: movs.map((m) => [
       pad(m.consecutivo),
       fmtDate(m.fecha),
       m.proveedores?.nombre ?? "",
       m.conceptos?.nombre ?? "",
       m.numero_factura ?? "",
+      m.factura_electronica ? "Sí" : "No",
       fmtMoney(m.subtotal),
       fmtMoney(m.iva),
       fmtMoney(m.retencion),
       fmtMoney(m.total),
     ]),
-    foot: [["", "", "", "", "", "", "", "TOTAL", fmtMoney(reembolso.total)]],
+    foot: [["", "", "", "", "", "", "", "", "TOTAL", fmtMoney(reembolso.total)]],
     styles: { fontSize: 8 },
     headStyles: { fillColor: [30, 50, 90] },
     footStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
