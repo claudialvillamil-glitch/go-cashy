@@ -236,7 +236,7 @@ function Nuevo() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Información del gasto</CardTitle>
+          <CardTitle className="text-base">Información del recibo</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <Field label="N° Recibo">
@@ -263,100 +263,166 @@ function Nuevo() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Proveedor *">
-            <ProveedorPicker value={proveedor} onChange={setProveedor} />
-          </Field>
-          <Field label="Concepto del gasto *">
-            <Select value={concepto} onValueChange={setConcepto}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona el concepto" />
-              </SelectTrigger>
-              <SelectContent>
-                {consQ.data?.filter((c) => c.activo).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Número de factura">
-            <Input
-              value={numeroFactura}
-              onChange={(e) => setNumeroFactura(e.target.value)}
-              placeholder="FV-001"
-            />
-          </Field>
-          <div className="flex items-center gap-2 md:pt-6">
-            <Checkbox
-              id="factura-electronica"
-              checked={facturaElectronica}
-              onCheckedChange={(v) => setFacturaElectronica(v === true)}
-            />
-            <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
-              El proveedor emite factura electrónica
-            </Label>
-          </div>
           <Field label="Detalle *">
             <Input
               value={detalle}
               onChange={(e) => setDetalle(e.target.value)}
-              placeholder="Descripción del gasto"
+              placeholder="Ej. Legalización de viáticos, viaje a..."
             />
           </Field>
+
+          <div className="md:col-span-2 flex items-start gap-2 p-3 rounded-md border bg-muted/40">
+            <Checkbox
+              id="multi-soporte"
+              checked={multiSoporte}
+              onCheckedChange={(v) => setMultiSoporte(v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="multi-soporte" className="text-sm font-normal cursor-pointer">
+              ¿El recibo contiene varios soportes?
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Actívalo si es una legalización de viáticos o compras a varios proveedores. Podrás agregar múltiples conceptos y facturas.
+              </span>
+            </Label>
+          </div>
         </CardContent>
       </Card>
 
+      {!multiSoporte && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Proveedor y valores</CardTitle>
+            {conceptoSel && (
+              <p className="text-xs text-muted-foreground">
+                Parametrización: gasto <b>{conceptoSel.cuenta_gasto}</b>
+                {conceptoSel.cuenta_retencion &&
+                  ` · retención ${conceptoSel.cuenta_retencion} (${conceptoSel.porcentaje_retencion}%)`}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <Field label="Proveedor *">
+              <ProveedorPicker value={proveedor} onChange={setProveedor} />
+            </Field>
+            <Field label="Concepto del gasto *">
+              <Select value={concepto} onValueChange={setConcepto}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el concepto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {consQ.data?.filter((c) => c.activo).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Número de factura">
+              <Input
+                value={numeroFactura}
+                onChange={(e) => setNumeroFactura(e.target.value)}
+                placeholder="FV-001"
+              />
+            </Field>
+            <div className="flex items-center gap-2 md:pt-6">
+              <Checkbox
+                id="factura-electronica"
+                checked={facturaElectronica}
+                onCheckedChange={(v) => setFacturaElectronica(v === true)}
+              />
+              <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
+                El proveedor emite factura electrónica
+              </Label>
+            </div>
+
+            <div className="md:col-span-2 grid gap-4 md:grid-cols-4">
+              <Field label="Subtotal *">
+                <Input
+                  type="number"
+                  min="0"
+                  value={subtotal}
+                  onChange={(e) => onSubtotalChange(e.target.value)}
+                />
+              </Field>
+              <Field label="IVA">
+                <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
+              </Field>
+              <Field label="Impoconsumo">
+                <Input
+                  type="number"
+                  min="0"
+                  value={impoconsumo}
+                  onChange={(e) => setImpoconsumo(e.target.value)}
+                />
+              </Field>
+              <Field label="Retención">
+                <Input
+                  type="number"
+                  min="0"
+                  value={retencion}
+                  onChange={(e) => setRetencion(e.target.value)}
+                />
+              </Field>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {multiSoporte && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Soportes del recibo</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Agrega una línea por cada factura o soporte. Cada línea puede tener su propio proveedor y concepto contable.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setItems((p) => [...p, blankItem()])}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Agregar soporte
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {items.map((it, idx) => (
+              <ItemRow
+                key={it.key}
+                index={idx}
+                item={it}
+                total={itemTotals[idx] ?? 0}
+                conceptos={consQ.data ?? []}
+                onChange={(patch) => setItem(idx, patch)}
+                onSubtotalChange={(v) => onItemSubtotalChange(idx, v)}
+                onRemove={() =>
+                  setItems((p) => (p.length > 1 ? p.filter((_, i) => i !== idx) : p))
+                }
+                canRemove={items.length > 1}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Valores</CardTitle>
-          {conceptoSel && (
-            <p className="text-xs text-muted-foreground">
-              Parametrización: gasto <b>{conceptoSel.cuenta_gasto}</b>
-              {conceptoSel.cuenta_retencion &&
-                ` · retención ${conceptoSel.cuenta_retencion} (${conceptoSel.porcentaje_retencion}%)`}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-4">
-          <Field label="Subtotal *">
-            <Input
-              type="number"
-              min="0"
-              value={subtotal}
-              onChange={(e) => onSubtotalChange(e.target.value)}
-            />
-          </Field>
-          <Field label="IVA">
-            <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
-          </Field>
-          <Field label="Impoconsumo">
-            <Input
-              type="number"
-              min="0"
-              value={impoconsumo}
-              onChange={(e) => setImpoconsumo(e.target.value)}
-            />
-          </Field>
-          <Field label="Retención">
-            <Input
-              type="number"
-              min="0"
-              value={retencion}
-              onChange={(e) => setRetencion(e.target.value)}
-            />
-          </Field>
-          <div className="md:col-span-4 flex items-center justify-between p-4 rounded-lg bg-muted">
-            <span className="text-sm text-muted-foreground">Monto a pagar</span>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+            <span className="text-sm text-muted-foreground">
+              {multiSoporte ? `Total del recibo (${items.length} soportes)` : "Monto a pagar"}
+            </span>
             <span className="text-2xl font-semibold">{fmtMoney(total)}</span>
           </div>
           {excedeLimite && (
-            <div className="md:col-span-4 text-sm p-3 rounded-md bg-destructive/10 text-destructive">
+            <div className="mt-3 text-sm p-3 rounded-md bg-destructive/10 text-destructive">
               El monto supera el límite autorizado por gasto ({fmtMoney(fondoQ.data?.monto_maximo_gasto)}).
             </div>
           )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader>
