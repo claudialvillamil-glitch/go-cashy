@@ -138,13 +138,14 @@ export function exportPDF(movs: Movimiento[], fondo: FondoConfig) {
 
   autoTable(doc, {
     startY: 40,
-    head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "Subtotal", "IVA", "Retención", "Total"]],
+    head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Retención", "Total"]],
     body: movs.map((m) => [
       pad(m.consecutivo),
       fmtDate(m.fecha),
       m.proveedores?.nombre ?? "",
       m.conceptos?.nombre ?? "",
       m.numero_factura ?? "",
+      m.factura_electronica ? "Sí" : "No",
       fmtMoney(m.subtotal),
       fmtMoney(m.iva),
       fmtMoney(m.retencion),
