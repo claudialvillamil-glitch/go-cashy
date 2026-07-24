@@ -1,0 +1,1 @@
+ALTER TABLE public.movimientos ADD COLUMN IF NOT EXISTS factura_electronica boolean NOT NULL DEFAULT false;

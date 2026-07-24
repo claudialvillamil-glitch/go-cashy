@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Upload, Loader2, FileText } from "lucide-react";
 import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
@@ -66,6 +67,7 @@ function Nuevo() {
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
   const [retencion, setRetencion] = useState<string>("0");
   const [observaciones, setObservaciones] = useState("");
+  const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
   const conceptoSel = useMemo(
@@ -133,6 +135,7 @@ function Nuevo() {
           factura_path: path,
           factura_url: urlData?.signedUrl ?? null,
           observaciones: observaciones || null,
+          factura_electronica: facturaElectronica,
         })
         .select()
         .single();
@@ -209,6 +212,16 @@ function Nuevo() {
               placeholder="FV-001"
             />
           </Field>
+          <div className="flex items-center gap-2 md:pt-6">
+            <Checkbox
+              id="factura-electronica"
+              checked={facturaElectronica}
+              onCheckedChange={(v) => setFacturaElectronica(v === true)}
+            />
+            <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
+              El proveedor emite factura electrónica
+            </Label>
+          </div>
           <Field label="Detalle *">
             <Input
               value={detalle}

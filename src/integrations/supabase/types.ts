@@ -106,6 +106,7 @@ export type Database = {
           created_at: string
           detalle: string | null
           estado: string
+          factura_electronica: boolean
           factura_path: string | null
           factura_url: string | null
           fecha: string
@@ -129,6 +130,7 @@ export type Database = {
           created_at?: string
           detalle?: string | null
           estado?: string
+          factura_electronica?: boolean
           factura_path?: string | null
           factura_url?: string | null
           fecha?: string
@@ -152,6 +154,7 @@ export type Database = {
           created_at?: string
           detalle?: string | null
           estado?: string
+          factura_electronica?: boolean
           factura_path?: string | null
           factura_url?: string | null
           fecha?: string
