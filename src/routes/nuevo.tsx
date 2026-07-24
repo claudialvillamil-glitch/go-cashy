@@ -67,6 +67,7 @@ function Nuevo() {
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
   const [retencion, setRetencion] = useState<string>("0");
   const [observaciones, setObservaciones] = useState("");
+  const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
   const conceptoSel = useMemo(
