@@ -135,6 +135,7 @@ function Nuevo() {
           factura_path: path,
           factura_url: urlData?.signedUrl ?? null,
           observaciones: observaciones || null,
+          factura_electronica: facturaElectronica,
         })
         .select()
         .single();
