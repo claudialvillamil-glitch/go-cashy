@@ -493,3 +493,168 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+type ItemDraft = {
+  key: string;
+  proveedor_id: string;
+  concepto_id: string;
+  numero_factura: string;
+  factura_electronica: boolean;
+  detalle: string;
+  subtotal: string;
+  iva: string;
+  impoconsumo: string;
+  retencion: string;
+};
+
+function blankItem(): ItemDraft {
+  return {
+    key: Math.random().toString(36).slice(2),
+    proveedor_id: "",
+    concepto_id: "",
+    numero_factura: "",
+    factura_electronica: false,
+    detalle: "",
+    subtotal: "",
+    iva: "0",
+    impoconsumo: "0",
+    retencion: "0",
+  };
+}
+
+function ItemRow({
+  index,
+  item,
+  total,
+  conceptos,
+  onChange,
+  onSubtotalChange,
+  onRemove,
+  canRemove,
+}: {
+  index: number;
+  item: ItemDraft;
+  total: number;
+  conceptos: Concepto[];
+  onChange: (patch: Partial<ItemDraft>) => void;
+  onSubtotalChange: (v: string) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const c = conceptos.find((x) => x.id === item.concepto_id);
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">
+          Soporte #{index + 1}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!canRemove}
+          onClick={onRemove}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Proveedor *">
+          <ProveedorPicker
+            value={item.proveedor_id}
+            onChange={(v) => onChange({ proveedor_id: v })}
+          />
+        </Field>
+        <Field label="Concepto *">
+          <Select
+            value={item.concepto_id}
+            onValueChange={(v) => onChange({ concepto_id: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona el concepto" />
+            </SelectTrigger>
+            <SelectContent>
+              {conceptos.filter((x) => x.activo).map((x) => (
+                <SelectItem key={x.id} value={x.id}>
+                  {x.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="N° factura">
+          <Input
+            value={item.numero_factura}
+            onChange={(e) => onChange({ numero_factura: e.target.value })}
+            placeholder="FV-001"
+          />
+        </Field>
+        <div className="flex items-center gap-2 md:pt-6">
+          <Checkbox
+            id={`fe-${item.key}`}
+            checked={item.factura_electronica}
+            onCheckedChange={(v) => onChange({ factura_electronica: v === true })}
+          />
+          <Label
+            htmlFor={`fe-${item.key}`}
+            className="text-sm font-normal cursor-pointer"
+          >
+            Factura electrónica
+          </Label>
+        </div>
+        <Field label="Detalle">
+          <Input
+            value={item.detalle}
+            onChange={(e) => onChange({ detalle: e.target.value })}
+            placeholder="Descripción del soporte"
+          />
+        </Field>
+      </div>
+      <div className="grid gap-3 md:grid-cols-5">
+        <Field label="Subtotal *">
+          <Input
+            type="number"
+            min="0"
+            value={item.subtotal}
+            onChange={(e) => onSubtotalChange(e.target.value)}
+          />
+        </Field>
+        <Field label="IVA">
+          <Input
+            type="number"
+            min="0"
+            value={item.iva}
+            onChange={(e) => onChange({ iva: e.target.value })}
+          />
+        </Field>
+        <Field label="Impoconsumo">
+          <Input
+            type="number"
+            min="0"
+            value={item.impoconsumo}
+            onChange={(e) => onChange({ impoconsumo: e.target.value })}
+          />
+        </Field>
+        <Field label="Retención">
+          <Input
+            type="number"
+            min="0"
+            value={item.retencion}
+            onChange={(e) => onChange({ retencion: e.target.value })}
+          />
+        </Field>
+        <Field label="Total línea">
+          <Input readOnly value={fmtMoney(total)} className="font-mono bg-muted" />
+        </Field>
+      </div>
+      {c && (
+        <p className="text-xs text-muted-foreground">
+          Cuenta gasto <b>{c.cuenta_gasto}</b>
+          {c.cuenta_retencion && ` · retención ${c.cuenta_retencion} (${c.porcentaje_retencion}%)`}
+        </p>
+      )}
+    </div>
+  );
+}
+
