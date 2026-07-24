@@ -43,6 +43,7 @@ export type Movimiento = {
   observaciones: string | null;
   created_at: string;
   reembolso_id: string | null;
+  factura_electronica: boolean;
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
