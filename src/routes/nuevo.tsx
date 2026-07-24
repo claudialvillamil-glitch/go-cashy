@@ -70,6 +70,8 @@ function Nuevo() {
   const [observaciones, setObservaciones] = useState("");
   const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [multiSoporte, setMultiSoporte] = useState(false);
+  const [items, setItems] = useState<ItemDraft[]>([blankItem()]);
 
   const conceptoSel = useMemo(
     () => consQ.data?.find((c) => c.id === concepto),
