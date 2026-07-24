@@ -98,6 +98,79 @@ export type Database = {
         }
         Relationships: []
       }
+      movimiento_items: {
+        Row: {
+          concepto_id: string
+          created_at: string
+          detalle: string | null
+          factura_electronica: boolean
+          id: string
+          impoconsumo: number
+          iva: number
+          movimiento_id: string
+          numero_factura: string | null
+          orden: number
+          proveedor_id: string
+          retencion: number
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          concepto_id: string
+          created_at?: string
+          detalle?: string | null
+          factura_electronica?: boolean
+          id?: string
+          impoconsumo?: number
+          iva?: number
+          movimiento_id: string
+          numero_factura?: string | null
+          orden?: number
+          proveedor_id: string
+          retencion?: number
+          subtotal?: number
+          total?: number
+        }
+        Update: {
+          concepto_id?: string
+          created_at?: string
+          detalle?: string | null
+          factura_electronica?: boolean
+          id?: string
+          impoconsumo?: number
+          iva?: number
+          movimiento_id?: string
+          numero_factura?: string | null
+          orden?: number
+          proveedor_id?: string
+          retencion?: number
+          subtotal?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_items_concepto_id_fkey"
+            columns: ["concepto_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_items_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimiento_items_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimientos: {
         Row: {
           agencia_id: string | null
@@ -113,6 +186,7 @@ export type Database = {
           id: string
           impoconsumo: number
           iva: number
+          multi_soporte: boolean
           numero_factura: string | null
           observaciones: string | null
           prioridad: string
@@ -137,6 +211,7 @@ export type Database = {
           id?: string
           impoconsumo?: number
           iva?: number
+          multi_soporte?: boolean
           numero_factura?: string | null
           observaciones?: string | null
           prioridad?: string
@@ -161,6 +236,7 @@ export type Database = {
           id?: string
           impoconsumo?: number
           iva?: number
+          multi_soporte?: boolean
           numero_factura?: string | null
           observaciones?: string | null
           prioridad?: string
