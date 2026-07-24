@@ -78,7 +78,7 @@ function Nuevo() {
     [consQ.data, concepto],
   );
 
-  // Auto-calcular retención sugerida
+  // Auto-calcular retención sugerida (modo simple)
   const onSubtotalChange = (v: string) => {
     setSubtotal(v);
     if (conceptoSel?.porcentaje_retencion) {
@@ -87,24 +87,61 @@ function Nuevo() {
     }
   };
 
-  const total =
+  const itemTotals = useMemo(() => {
+    return items.map((it) => {
+      const s = parseFloat(it.subtotal) || 0;
+      const i = parseFloat(it.iva) || 0;
+      const p = parseFloat(it.impoconsumo) || 0;
+      const r = parseFloat(it.retencion) || 0;
+      return s + i + p - r;
+    });
+  }, [items]);
+
+  const totalSimple =
     (parseFloat(subtotal) || 0) +
     (parseFloat(iva) || 0) +
     (parseFloat(impoconsumo) || 0) -
     (parseFloat(retencion) || 0);
 
+  const totalMulti = itemTotals.reduce((a, b) => a + b, 0);
+  const total = multiSoporte ? totalMulti : totalSimple;
+
   const excedeLimite =
     fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
 
+  const itemsValidos =
+    !multiSoporte ||
+    (items.length > 0 &&
+      items.every(
+        (it) =>
+          it.proveedor_id &&
+          it.concepto_id &&
+          it.subtotal !== "" &&
+          parseFloat(it.subtotal) >= 0,
+      ));
+
   const canSubmit =
     fecha &&
-    proveedor &&
-    concepto &&
     detalle.trim() &&
-    subtotal !== "" &&
-    parseFloat(subtotal) >= 0 &&
     file &&
-    !excedeLimite;
+    !excedeLimite &&
+    itemsValidos &&
+    (multiSoporte
+      ? items.length > 0
+      : proveedor && concepto && subtotal !== "" && parseFloat(subtotal) >= 0);
+
+  const setItem = (idx: number, patch: Partial<ItemDraft>) =>
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+
+  const onItemSubtotalChange = (idx: number, v: string) => {
+    const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
+    const patch: Partial<ItemDraft> = { subtotal: v };
+    if (c?.porcentaje_retencion) {
+      const s = parseFloat(v) || 0;
+      patch.retencion = String(Math.round((s * Number(c.porcentaje_retencion)) / 100));
+    }
+    setItem(idx, patch);
+  };
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -121,28 +158,63 @@ function Nuevo() {
         ? await supabase.storage.from("facturas").createSignedUrl(path, 60 * 60 * 24 * 365)
         : { data: { signedUrl: "" } };
 
+      // Cabecera: en modo multi tomamos la 1a línea como proveedor/concepto principal
+      const first = multiSoporte ? items[0] : null;
+      const proveedorId = multiSoporte ? first!.proveedor_id : proveedor;
+      const conceptoId = multiSoporte ? first!.concepto_id : concepto;
+      const nFact = multiSoporte
+        ? (items.map((i) => i.numero_factura).filter(Boolean).join(", ") || null)
+        : (numeroFactura || null);
+      const fe = multiSoporte ? items.some((i) => i.factura_electronica) : facturaElectronica;
+
+      const sumSub = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.subtotal) || 0), 0) : parseFloat(subtotal);
+      const sumIva = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.iva) || 0), 0) : (parseFloat(iva) || 0);
+      const sumImp = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.impoconsumo) || 0), 0) : (parseFloat(impoconsumo) || 0);
+      const sumRet = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.retencion) || 0), 0) : (parseFloat(retencion) || 0);
+
       const { data, error } = await supabase
         .from("movimientos")
         .insert({
           fecha,
           agencia_id: agencia || null,
-          proveedor_id: proveedor,
-          concepto_id: concepto,
+          proveedor_id: proveedorId,
+          concepto_id: conceptoId,
           detalle,
-          subtotal: parseFloat(subtotal),
-          iva: parseFloat(iva) || 0,
-          impoconsumo: parseFloat(impoconsumo) || 0,
-          retencion: parseFloat(retencion) || 0,
+          subtotal: sumSub,
+          iva: sumIva,
+          impoconsumo: sumImp,
+          retencion: sumRet,
           total,
-          numero_factura: numeroFactura || null,
+          numero_factura: nFact,
           factura_path: path,
           factura_url: urlData?.signedUrl ?? null,
           observaciones: observaciones || null,
-          factura_electronica: facturaElectronica,
+          factura_electronica: fe,
+          multi_soporte: multiSoporte,
         })
         .select()
         .single();
       if (error) throw error;
+
+      if (multiSoporte && data) {
+        const rows = items.map((it, idx) => ({
+          movimiento_id: data.id,
+          proveedor_id: it.proveedor_id,
+          concepto_id: it.concepto_id,
+          numero_factura: it.numero_factura || null,
+          factura_electronica: it.factura_electronica,
+          detalle: it.detalle || null,
+          subtotal: parseFloat(it.subtotal) || 0,
+          iva: parseFloat(it.iva) || 0,
+          impoconsumo: parseFloat(it.impoconsumo) || 0,
+          retencion: parseFloat(it.retencion) || 0,
+          total: itemTotals[idx],
+          orden: idx,
+        }));
+        const ins = await supabase.from("movimiento_items").insert(rows);
+        if (ins.error) throw ins.error;
+      }
+
       return data;
     },
     onSuccess: () => {
