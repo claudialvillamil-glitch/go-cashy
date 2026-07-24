@@ -44,9 +44,29 @@ export type Movimiento = {
   created_at: string;
   reembolso_id: string | null;
   factura_electronica: boolean;
+  multi_soporte: boolean;
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
+  movimiento_items?: MovimientoItem[];
+};
+
+export type MovimientoItem = {
+  id: string;
+  movimiento_id: string;
+  proveedor_id: string;
+  concepto_id: string;
+  numero_factura: string | null;
+  factura_electronica: boolean;
+  detalle: string | null;
+  subtotal: number;
+  iva: number;
+  impoconsumo: number;
+  retencion: number;
+  total: number;
+  orden: number;
+  proveedores?: Proveedor;
+  conceptos?: Concepto;
 };
 
 export type Reembolso = {
