@@ -98,7 +98,7 @@ export async function getFondo(): Promise<FondoConfig> {
 export async function getMovimientos() {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*)")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
     .order("fecha", { ascending: false })
     .order("consecutivo", { ascending: false });
   if (error) throw error;
@@ -136,7 +136,7 @@ export async function getReembolsos() {
 export async function getMovimientosPendientes() {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*)")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
     .is("reembolso_id", null)
     .order("fecha", { ascending: true });
   if (error) throw error;
@@ -146,7 +146,7 @@ export async function getMovimientosPendientes() {
 export async function getMovimientosDeReembolso(reembolsoId: string) {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*)")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
     .eq("reembolso_id", reembolsoId)
     .order("fecha", { ascending: true });
   if (error) throw error;
@@ -155,9 +155,32 @@ export async function getMovimientosDeReembolso(reembolsoId: string) {
 
 
 export function computeAsiento(mov: Movimiento) {
-  const c = mov.conceptos!;
   const debitos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
   const creditos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
+
+  const items = mov.multi_soporte && mov.movimiento_items && mov.movimiento_items.length > 0
+    ? [...mov.movimiento_items].sort((a, b) => a.orden - b.orden)
+    : null;
+
+  if (items) {
+    let contrapartida = mov.conceptos?.cuenta_contrapartida ?? "11050501";
+    items.forEach((it) => {
+      const c = it.conceptos;
+      if (!c) return;
+      contrapartida = c.cuenta_contrapartida;
+      debitos.push({ cuenta: c.cuenta_gasto, descripcion: `Gasto ${c.nombre}`, valor: Number(it.subtotal) });
+      if (Number(it.iva) > 0 && c.cuenta_iva)
+        debitos.push({ cuenta: c.cuenta_iva, descripcion: `IVA descontable · ${c.nombre}`, valor: Number(it.iva) });
+      if (Number(it.impoconsumo) > 0)
+        debitos.push({ cuenta: "51959501", descripcion: `Impoconsumo · ${c.nombre}`, valor: Number(it.impoconsumo) });
+      if (Number(it.retencion) > 0 && c.cuenta_retencion)
+        creditos.push({ cuenta: c.cuenta_retencion, descripcion: `Retención · ${c.nombre}`, valor: Number(it.retencion) });
+    });
+    creditos.push({ cuenta: contrapartida, descripcion: "Caja menor", valor: Number(mov.total) });
+    return { debitos, creditos };
+  }
+
+  const c = mov.conceptos!;
   debitos.push({ cuenta: c.cuenta_gasto, descripcion: `Gasto ${c.nombre}`, valor: mov.subtotal });
   if (mov.iva > 0 && c.cuenta_iva)
     debitos.push({ cuenta: c.cuenta_iva, descripcion: "IVA descontable", valor: mov.iva });
