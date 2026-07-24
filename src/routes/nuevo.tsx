@@ -17,10 +17,11 @@ import { useMemo, useState } from "react";
 import { getAgencias, getConceptos, getFondo, getProveedores } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Loader2, FileText } from "lucide-react";
+import { Upload, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { Concepto } from "@/lib/db";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
