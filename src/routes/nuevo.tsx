@@ -17,10 +17,11 @@ import { useMemo, useState } from "react";
 import { getAgencias, getConceptos, getFondo, getProveedores } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Loader2, FileText } from "lucide-react";
+import { Upload, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { Concepto } from "@/lib/db";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
@@ -69,13 +70,15 @@ function Nuevo() {
   const [observaciones, setObservaciones] = useState("");
   const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [multiSoporte, setMultiSoporte] = useState(false);
+  const [items, setItems] = useState<ItemDraft[]>([blankItem()]);
 
   const conceptoSel = useMemo(
     () => consQ.data?.find((c) => c.id === concepto),
     [consQ.data, concepto],
   );
 
-  // Auto-calcular retención sugerida
+  // Auto-calcular retención sugerida (modo simple)
   const onSubtotalChange = (v: string) => {
     setSubtotal(v);
     if (conceptoSel?.porcentaje_retencion) {
@@ -84,24 +87,61 @@ function Nuevo() {
     }
   };
 
-  const total =
+  const itemTotals = useMemo(() => {
+    return items.map((it) => {
+      const s = parseFloat(it.subtotal) || 0;
+      const i = parseFloat(it.iva) || 0;
+      const p = parseFloat(it.impoconsumo) || 0;
+      const r = parseFloat(it.retencion) || 0;
+      return s + i + p - r;
+    });
+  }, [items]);
+
+  const totalSimple =
     (parseFloat(subtotal) || 0) +
     (parseFloat(iva) || 0) +
     (parseFloat(impoconsumo) || 0) -
     (parseFloat(retencion) || 0);
 
+  const totalMulti = itemTotals.reduce((a, b) => a + b, 0);
+  const total = multiSoporte ? totalMulti : totalSimple;
+
   const excedeLimite =
     fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
 
+  const itemsValidos =
+    !multiSoporte ||
+    (items.length > 0 &&
+      items.every(
+        (it) =>
+          it.proveedor_id &&
+          it.concepto_id &&
+          it.subtotal !== "" &&
+          parseFloat(it.subtotal) >= 0,
+      ));
+
   const canSubmit =
     fecha &&
-    proveedor &&
-    concepto &&
     detalle.trim() &&
-    subtotal !== "" &&
-    parseFloat(subtotal) >= 0 &&
     file &&
-    !excedeLimite;
+    !excedeLimite &&
+    itemsValidos &&
+    (multiSoporte
+      ? items.length > 0
+      : proveedor && concepto && subtotal !== "" && parseFloat(subtotal) >= 0);
+
+  const setItem = (idx: number, patch: Partial<ItemDraft>) =>
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+
+  const onItemSubtotalChange = (idx: number, v: string) => {
+    const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
+    const patch: Partial<ItemDraft> = { subtotal: v };
+    if (c?.porcentaje_retencion) {
+      const s = parseFloat(v) || 0;
+      patch.retencion = String(Math.round((s * Number(c.porcentaje_retencion)) / 100));
+    }
+    setItem(idx, patch);
+  };
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -118,28 +158,63 @@ function Nuevo() {
         ? await supabase.storage.from("facturas").createSignedUrl(path, 60 * 60 * 24 * 365)
         : { data: { signedUrl: "" } };
 
+      // Cabecera: en modo multi tomamos la 1a línea como proveedor/concepto principal
+      const first = multiSoporte ? items[0] : null;
+      const proveedorId = multiSoporte ? first!.proveedor_id : proveedor;
+      const conceptoId = multiSoporte ? first!.concepto_id : concepto;
+      const nFact = multiSoporte
+        ? (items.map((i) => i.numero_factura).filter(Boolean).join(", ") || null)
+        : (numeroFactura || null);
+      const fe = multiSoporte ? items.some((i) => i.factura_electronica) : facturaElectronica;
+
+      const sumSub = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.subtotal) || 0), 0) : parseFloat(subtotal);
+      const sumIva = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.iva) || 0), 0) : (parseFloat(iva) || 0);
+      const sumImp = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.impoconsumo) || 0), 0) : (parseFloat(impoconsumo) || 0);
+      const sumRet = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.retencion) || 0), 0) : (parseFloat(retencion) || 0);
+
       const { data, error } = await supabase
         .from("movimientos")
         .insert({
           fecha,
           agencia_id: agencia || null,
-          proveedor_id: proveedor,
-          concepto_id: concepto,
+          proveedor_id: proveedorId,
+          concepto_id: conceptoId,
           detalle,
-          subtotal: parseFloat(subtotal),
-          iva: parseFloat(iva) || 0,
-          impoconsumo: parseFloat(impoconsumo) || 0,
-          retencion: parseFloat(retencion) || 0,
+          subtotal: sumSub,
+          iva: sumIva,
+          impoconsumo: sumImp,
+          retencion: sumRet,
           total,
-          numero_factura: numeroFactura || null,
+          numero_factura: nFact,
           factura_path: path,
           factura_url: urlData?.signedUrl ?? null,
           observaciones: observaciones || null,
-          factura_electronica: facturaElectronica,
+          factura_electronica: fe,
+          multi_soporte: multiSoporte,
         })
         .select()
         .single();
       if (error) throw error;
+
+      if (multiSoporte && data) {
+        const rows = items.map((it, idx) => ({
+          movimiento_id: data.id,
+          proveedor_id: it.proveedor_id,
+          concepto_id: it.concepto_id,
+          numero_factura: it.numero_factura || null,
+          factura_electronica: it.factura_electronica,
+          detalle: it.detalle || null,
+          subtotal: parseFloat(it.subtotal) || 0,
+          iva: parseFloat(it.iva) || 0,
+          impoconsumo: parseFloat(it.impoconsumo) || 0,
+          retencion: parseFloat(it.retencion) || 0,
+          total: itemTotals[idx],
+          orden: idx,
+        }));
+        const ins = await supabase.from("movimiento_items").insert(rows);
+        if (ins.error) throw ins.error;
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -161,7 +236,7 @@ function Nuevo() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Información del gasto</CardTitle>
+          <CardTitle className="text-base">Información del recibo</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <Field label="N° Recibo">
@@ -188,100 +263,166 @@ function Nuevo() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Proveedor *">
-            <ProveedorPicker value={proveedor} onChange={setProveedor} />
-          </Field>
-          <Field label="Concepto del gasto *">
-            <Select value={concepto} onValueChange={setConcepto}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona el concepto" />
-              </SelectTrigger>
-              <SelectContent>
-                {consQ.data?.filter((c) => c.activo).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Número de factura">
-            <Input
-              value={numeroFactura}
-              onChange={(e) => setNumeroFactura(e.target.value)}
-              placeholder="FV-001"
-            />
-          </Field>
-          <div className="flex items-center gap-2 md:pt-6">
-            <Checkbox
-              id="factura-electronica"
-              checked={facturaElectronica}
-              onCheckedChange={(v) => setFacturaElectronica(v === true)}
-            />
-            <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
-              El proveedor emite factura electrónica
-            </Label>
-          </div>
           <Field label="Detalle *">
             <Input
               value={detalle}
               onChange={(e) => setDetalle(e.target.value)}
-              placeholder="Descripción del gasto"
+              placeholder="Ej. Legalización de viáticos, viaje a..."
             />
           </Field>
+
+          <div className="md:col-span-2 flex items-start gap-2 p-3 rounded-md border bg-muted/40">
+            <Checkbox
+              id="multi-soporte"
+              checked={multiSoporte}
+              onCheckedChange={(v) => setMultiSoporte(v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="multi-soporte" className="text-sm font-normal cursor-pointer">
+              ¿El recibo contiene varios soportes?
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Actívalo si es una legalización de viáticos o compras a varios proveedores. Podrás agregar múltiples conceptos y facturas.
+              </span>
+            </Label>
+          </div>
         </CardContent>
       </Card>
 
+      {!multiSoporte && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Proveedor y valores</CardTitle>
+            {conceptoSel && (
+              <p className="text-xs text-muted-foreground">
+                Parametrización: gasto <b>{conceptoSel.cuenta_gasto}</b>
+                {conceptoSel.cuenta_retencion &&
+                  ` · retención ${conceptoSel.cuenta_retencion} (${conceptoSel.porcentaje_retencion}%)`}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <Field label="Proveedor *">
+              <ProveedorPicker value={proveedor} onChange={setProveedor} />
+            </Field>
+            <Field label="Concepto del gasto *">
+              <Select value={concepto} onValueChange={setConcepto}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el concepto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {consQ.data?.filter((c) => c.activo).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Número de factura">
+              <Input
+                value={numeroFactura}
+                onChange={(e) => setNumeroFactura(e.target.value)}
+                placeholder="FV-001"
+              />
+            </Field>
+            <div className="flex items-center gap-2 md:pt-6">
+              <Checkbox
+                id="factura-electronica"
+                checked={facturaElectronica}
+                onCheckedChange={(v) => setFacturaElectronica(v === true)}
+              />
+              <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
+                El proveedor emite factura electrónica
+              </Label>
+            </div>
+
+            <div className="md:col-span-2 grid gap-4 md:grid-cols-4">
+              <Field label="Subtotal *">
+                <Input
+                  type="number"
+                  min="0"
+                  value={subtotal}
+                  onChange={(e) => onSubtotalChange(e.target.value)}
+                />
+              </Field>
+              <Field label="IVA">
+                <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
+              </Field>
+              <Field label="Impoconsumo">
+                <Input
+                  type="number"
+                  min="0"
+                  value={impoconsumo}
+                  onChange={(e) => setImpoconsumo(e.target.value)}
+                />
+              </Field>
+              <Field label="Retención">
+                <Input
+                  type="number"
+                  min="0"
+                  value={retencion}
+                  onChange={(e) => setRetencion(e.target.value)}
+                />
+              </Field>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {multiSoporte && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Soportes del recibo</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Agrega una línea por cada factura o soporte. Cada línea puede tener su propio proveedor y concepto contable.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setItems((p) => [...p, blankItem()])}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Agregar soporte
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {items.map((it, idx) => (
+              <ItemRow
+                key={it.key}
+                index={idx}
+                item={it}
+                total={itemTotals[idx] ?? 0}
+                conceptos={consQ.data ?? []}
+                onChange={(patch) => setItem(idx, patch)}
+                onSubtotalChange={(v) => onItemSubtotalChange(idx, v)}
+                onRemove={() =>
+                  setItems((p) => (p.length > 1 ? p.filter((_, i) => i !== idx) : p))
+                }
+                canRemove={items.length > 1}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Valores</CardTitle>
-          {conceptoSel && (
-            <p className="text-xs text-muted-foreground">
-              Parametrización: gasto <b>{conceptoSel.cuenta_gasto}</b>
-              {conceptoSel.cuenta_retencion &&
-                ` · retención ${conceptoSel.cuenta_retencion} (${conceptoSel.porcentaje_retencion}%)`}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-4">
-          <Field label="Subtotal *">
-            <Input
-              type="number"
-              min="0"
-              value={subtotal}
-              onChange={(e) => onSubtotalChange(e.target.value)}
-            />
-          </Field>
-          <Field label="IVA">
-            <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
-          </Field>
-          <Field label="Impoconsumo">
-            <Input
-              type="number"
-              min="0"
-              value={impoconsumo}
-              onChange={(e) => setImpoconsumo(e.target.value)}
-            />
-          </Field>
-          <Field label="Retención">
-            <Input
-              type="number"
-              min="0"
-              value={retencion}
-              onChange={(e) => setRetencion(e.target.value)}
-            />
-          </Field>
-          <div className="md:col-span-4 flex items-center justify-between p-4 rounded-lg bg-muted">
-            <span className="text-sm text-muted-foreground">Monto a pagar</span>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
+            <span className="text-sm text-muted-foreground">
+              {multiSoporte ? `Total del recibo (${items.length} soportes)` : "Monto a pagar"}
+            </span>
             <span className="text-2xl font-semibold">{fmtMoney(total)}</span>
           </div>
           {excedeLimite && (
-            <div className="md:col-span-4 text-sm p-3 rounded-md bg-destructive/10 text-destructive">
+            <div className="mt-3 text-sm p-3 rounded-md bg-destructive/10 text-destructive">
               El monto supera el límite autorizado por gasto ({fmtMoney(fondoQ.data?.monto_maximo_gasto)}).
             </div>
           )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader>
@@ -352,3 +493,168 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+type ItemDraft = {
+  key: string;
+  proveedor_id: string;
+  concepto_id: string;
+  numero_factura: string;
+  factura_electronica: boolean;
+  detalle: string;
+  subtotal: string;
+  iva: string;
+  impoconsumo: string;
+  retencion: string;
+};
+
+function blankItem(): ItemDraft {
+  return {
+    key: Math.random().toString(36).slice(2),
+    proveedor_id: "",
+    concepto_id: "",
+    numero_factura: "",
+    factura_electronica: false,
+    detalle: "",
+    subtotal: "",
+    iva: "0",
+    impoconsumo: "0",
+    retencion: "0",
+  };
+}
+
+function ItemRow({
+  index,
+  item,
+  total,
+  conceptos,
+  onChange,
+  onSubtotalChange,
+  onRemove,
+  canRemove,
+}: {
+  index: number;
+  item: ItemDraft;
+  total: number;
+  conceptos: Concepto[];
+  onChange: (patch: Partial<ItemDraft>) => void;
+  onSubtotalChange: (v: string) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const c = conceptos.find((x) => x.id === item.concepto_id);
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">
+          Soporte #{index + 1}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!canRemove}
+          onClick={onRemove}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Proveedor *">
+          <ProveedorPicker
+            value={item.proveedor_id}
+            onChange={(v) => onChange({ proveedor_id: v })}
+          />
+        </Field>
+        <Field label="Concepto *">
+          <Select
+            value={item.concepto_id}
+            onValueChange={(v) => onChange({ concepto_id: v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona el concepto" />
+            </SelectTrigger>
+            <SelectContent>
+              {conceptos.filter((x) => x.activo).map((x) => (
+                <SelectItem key={x.id} value={x.id}>
+                  {x.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="N° factura">
+          <Input
+            value={item.numero_factura}
+            onChange={(e) => onChange({ numero_factura: e.target.value })}
+            placeholder="FV-001"
+          />
+        </Field>
+        <div className="flex items-center gap-2 md:pt-6">
+          <Checkbox
+            id={`fe-${item.key}`}
+            checked={item.factura_electronica}
+            onCheckedChange={(v) => onChange({ factura_electronica: v === true })}
+          />
+          <Label
+            htmlFor={`fe-${item.key}`}
+            className="text-sm font-normal cursor-pointer"
+          >
+            Factura electrónica
+          </Label>
+        </div>
+        <Field label="Detalle">
+          <Input
+            value={item.detalle}
+            onChange={(e) => onChange({ detalle: e.target.value })}
+            placeholder="Descripción del soporte"
+          />
+        </Field>
+      </div>
+      <div className="grid gap-3 md:grid-cols-5">
+        <Field label="Subtotal *">
+          <Input
+            type="number"
+            min="0"
+            value={item.subtotal}
+            onChange={(e) => onSubtotalChange(e.target.value)}
+          />
+        </Field>
+        <Field label="IVA">
+          <Input
+            type="number"
+            min="0"
+            value={item.iva}
+            onChange={(e) => onChange({ iva: e.target.value })}
+          />
+        </Field>
+        <Field label="Impoconsumo">
+          <Input
+            type="number"
+            min="0"
+            value={item.impoconsumo}
+            onChange={(e) => onChange({ impoconsumo: e.target.value })}
+          />
+        </Field>
+        <Field label="Retención">
+          <Input
+            type="number"
+            min="0"
+            value={item.retencion}
+            onChange={(e) => onChange({ retencion: e.target.value })}
+          />
+        </Field>
+        <Field label="Total línea">
+          <Input readOnly value={fmtMoney(total)} className="font-mono bg-muted" />
+        </Field>
+      </div>
+      {c && (
+        <p className="text-xs text-muted-foreground">
+          Cuenta gasto <b>{c.cuenta_gasto}</b>
+          {c.cuenta_retencion && ` · retención ${c.cuenta_retencion} (${c.porcentaje_retencion}%)`}
+        </p>
+      )}
+    </div>
+  );
+}
+

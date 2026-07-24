@@ -201,18 +201,42 @@ export function exportReciboPDF(mov: Movimiento, fondo: FondoConfig) {
   doc.text(`Factura: ${mov.numero_factura ?? "—"}`, 14, y0 + 42);
   doc.text(`Detalle: ${mov.detalle ?? ""}`, 14, y0 + 48);
 
-  autoTable(doc, {
-    startY: y0 + 56,
-    head: [["Concepto", "Valor"]],
-    body: [
-      ["Subtotal", fmtMoney(mov.subtotal)],
-      ["IVA", fmtMoney(mov.iva)],
-      ["Impoconsumo", fmtMoney(mov.impoconsumo)],
-      ["Retención", `- ${fmtMoney(mov.retencion)}`],
-      ["Total pagado", fmtMoney(mov.total)],
-    ],
-    headStyles: { fillColor: [30, 50, 90] },
-  });
+  if (mov.multi_soporte && mov.movimiento_items && mov.movimiento_items.length > 0) {
+    const its = [...mov.movimiento_items].sort((a, b) => a.orden - b.orden);
+    autoTable(doc, {
+      startY: y0 + 56,
+      head: [["#", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Impoc.", "Ret.", "Total"]],
+      body: its.map((it, i) => [
+        String(i + 1),
+        it.proveedores?.nombre ?? "",
+        it.conceptos?.nombre ?? "",
+        it.numero_factura ?? "",
+        it.factura_electronica ? "Sí" : "No",
+        fmtMoney(it.subtotal),
+        fmtMoney(it.iva),
+        fmtMoney(it.impoconsumo),
+        fmtMoney(it.retencion),
+        fmtMoney(it.total),
+      ]),
+      foot: [["", "", "", "", "", "", "", "", "TOTAL", fmtMoney(mov.total)]],
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [30, 50, 90] },
+      footStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
+    });
+  } else {
+    autoTable(doc, {
+      startY: y0 + 56,
+      head: [["Concepto", "Valor"]],
+      body: [
+        ["Subtotal", fmtMoney(mov.subtotal)],
+        ["IVA", fmtMoney(mov.iva)],
+        ["Impoconsumo", fmtMoney(mov.impoconsumo)],
+        ["Retención", `- ${fmtMoney(mov.retencion)}`],
+        ["Total pagado", fmtMoney(mov.total)],
+      ],
+      headStyles: { fillColor: [30, 50, 90] },
+    });
+  }
 
   const { debitos, creditos } = computeAsiento(mov);
   const y2 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
