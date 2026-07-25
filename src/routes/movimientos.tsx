@@ -119,8 +119,8 @@ function Movs() {
       </header>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="relative">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por proveedor, concepto, recibo o factura…"
@@ -129,6 +129,16 @@ function Movs() {
               className="pl-9"
             />
           </div>
+          <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
+            <SelectTrigger className="md:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los recibos</SelectItem>
+              <SelectItem value="multi">Solo con varios soportes</SelectItem>
+              <SelectItem value="simple">Solo con un soporte</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
