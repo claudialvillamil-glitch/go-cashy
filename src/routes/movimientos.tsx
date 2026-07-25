@@ -45,10 +45,13 @@ function Movs() {
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const [q, setQ] = useState("");
+  const [tipo, setTipo] = useState<"todos" | "multi" | "simple">("todos");
   const [detail, setDetail] = useState<Movimiento | null>(null);
 
   const filtered = useMemo(() => {
-    const list = movsQ.data ?? [];
+    let list = movsQ.data ?? [];
+    if (tipo === "multi") list = list.filter((m) => m.multi_soporte);
+    else if (tipo === "simple") list = list.filter((m) => !m.multi_soporte);
     if (!q.trim()) return list;
     const s = q.toLowerCase();
     return list.filter(
@@ -57,9 +60,14 @@ function Movs() {
         m.conceptos?.nombre?.toLowerCase().includes(s) ||
         m.detalle?.toLowerCase().includes(s) ||
         String(m.consecutivo).includes(s) ||
-        m.numero_factura?.toLowerCase().includes(s),
+        m.numero_factura?.toLowerCase().includes(s) ||
+        m.movimiento_items?.some(
+          (it) =>
+            it.proveedores?.nombre?.toLowerCase().includes(s) ||
+            it.numero_factura?.toLowerCase().includes(s),
+        ),
     );
-  }, [movsQ.data, q]);
+  }, [movsQ.data, q, tipo]);
 
   const del = useMutation({
     mutationFn: async (m: Movimiento) => {
