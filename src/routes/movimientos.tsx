@@ -162,7 +162,17 @@ function Movs() {
                 <tr key={m.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{pad(m.consecutivo)}</td>
                   <td className="px-4 py-3">{fmtDate(m.fecha)}</td>
-                  <td className="px-4 py-3">{m.proveedores?.nombre}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span>{m.proveedores?.nombre}</span>
+                      {m.multi_soporte && (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <Layers className="h-3 w-3" />
+                          {m.movimiento_items?.length ?? 0} soportes
+                        </Badge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{m.conceptos?.nombre}</td>
                   <td className="px-4 py-3 text-muted-foreground">{m.numero_factura ?? "—"}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmtMoney(m.total)}</td>
