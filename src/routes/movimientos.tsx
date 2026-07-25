@@ -14,7 +14,14 @@ import {
 import { useMemo, useState } from "react";
 import { computeAsiento, getFondo, getMovimientos, type Movimiento } from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye, Layers } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { exportExcel, exportPDF, exportReciboPDF } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
