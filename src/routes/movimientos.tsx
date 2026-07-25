@@ -14,7 +14,14 @@ import {
 import { useMemo, useState } from "react";
 import { computeAsiento, getFondo, getMovimientos, type Movimiento } from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye, Layers } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { exportExcel, exportPDF, exportReciboPDF } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -38,10 +45,13 @@ function Movs() {
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const [q, setQ] = useState("");
+  const [tipo, setTipo] = useState<"todos" | "multi" | "simple">("todos");
   const [detail, setDetail] = useState<Movimiento | null>(null);
 
   const filtered = useMemo(() => {
-    const list = movsQ.data ?? [];
+    let list = movsQ.data ?? [];
+    if (tipo === "multi") list = list.filter((m) => m.multi_soporte);
+    else if (tipo === "simple") list = list.filter((m) => !m.multi_soporte);
     if (!q.trim()) return list;
     const s = q.toLowerCase();
     return list.filter(
@@ -50,9 +60,14 @@ function Movs() {
         m.conceptos?.nombre?.toLowerCase().includes(s) ||
         m.detalle?.toLowerCase().includes(s) ||
         String(m.consecutivo).includes(s) ||
-        m.numero_factura?.toLowerCase().includes(s),
+        m.numero_factura?.toLowerCase().includes(s) ||
+        m.movimiento_items?.some(
+          (it) =>
+            it.proveedores?.nombre?.toLowerCase().includes(s) ||
+            it.numero_factura?.toLowerCase().includes(s),
+        ),
     );
-  }, [movsQ.data, q]);
+  }, [movsQ.data, q, tipo]);
 
   const del = useMutation({
     mutationFn: async (m: Movimiento) => {
@@ -104,8 +119,8 @@ function Movs() {
       </header>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="relative">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por proveedor, concepto, recibo o factura…"
@@ -114,6 +129,16 @@ function Movs() {
               className="pl-9"
             />
           </div>
+          <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
+            <SelectTrigger className="md:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los recibos</SelectItem>
+              <SelectItem value="multi">Solo con varios soportes</SelectItem>
+              <SelectItem value="simple">Solo con un soporte</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -137,7 +162,17 @@ function Movs() {
                 <tr key={m.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{pad(m.consecutivo)}</td>
                   <td className="px-4 py-3">{fmtDate(m.fecha)}</td>
-                  <td className="px-4 py-3">{m.proveedores?.nombre}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span>{m.proveedores?.nombre}</span>
+                      {m.multi_soporte && (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <Layers className="h-3 w-3" />
+                          {m.movimiento_items?.length ?? 0} soportes
+                        </Badge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{m.conceptos?.nombre}</td>
                   <td className="px-4 py-3 text-muted-foreground">{m.numero_factura ?? "—"}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmtMoney(m.total)}</td>
