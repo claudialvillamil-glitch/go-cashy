@@ -111,6 +111,15 @@ export type Database = {
           numero_factura: string | null
           orden: number
           proveedor_id: string
+          retefuente_aplica: boolean
+          retefuente_concepto: string | null
+          retefuente_tarifa: number
+          reteica_actividad: string | null
+          reteica_aplica: boolean
+          reteica_tarifa: number
+          reteica_valor: number
+          reteiva_aplica: boolean
+          reteiva_valor: number
           retencion: number
           subtotal: number
           total: number
@@ -127,6 +136,15 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id: string
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
           retencion?: number
           subtotal?: number
           total?: number
@@ -143,6 +161,15 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id?: string
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
           retencion?: number
           subtotal?: number
           total?: number
@@ -192,6 +219,15 @@ export type Database = {
           prioridad: string
           proveedor_id: string
           reembolso_id: string | null
+          retefuente_aplica: boolean
+          retefuente_concepto: string | null
+          retefuente_tarifa: number
+          reteica_actividad: string | null
+          reteica_aplica: boolean
+          reteica_tarifa: number
+          reteica_valor: number
+          reteiva_aplica: boolean
+          reteiva_valor: number
           retencion: number
           subtotal: number
           total: number
@@ -217,6 +253,15 @@ export type Database = {
           prioridad?: string
           proveedor_id: string
           reembolso_id?: string | null
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
           retencion?: number
           subtotal?: number
           total?: number
@@ -242,6 +287,15 @@ export type Database = {
           prioridad?: string
           proveedor_id?: string
           reembolso_id?: string | null
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
           retencion?: number
           subtotal?: number
           total?: number

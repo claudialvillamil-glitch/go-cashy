@@ -45,6 +45,15 @@ export type Movimiento = {
   reembolso_id: string | null;
   factura_electronica: boolean;
   multi_soporte: boolean;
+  reteica_aplica: boolean;
+  reteica_actividad: string | null;
+  reteica_tarifa: number;
+  reteica_valor: number;
+  reteiva_aplica: boolean;
+  reteiva_valor: number;
+  retefuente_aplica: boolean;
+  retefuente_concepto: string | null;
+  retefuente_tarifa: number;
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
@@ -65,6 +74,15 @@ export type MovimientoItem = {
   retencion: number;
   total: number;
   orden: number;
+  reteica_aplica: boolean;
+  reteica_actividad: string | null;
+  reteica_tarifa: number;
+  reteica_valor: number;
+  reteiva_aplica: boolean;
+  reteiva_valor: number;
+  retefuente_aplica: boolean;
+  retefuente_concepto: string | null;
+  retefuente_tarifa: number;
   proveedores?: Proveedor;
   conceptos?: Concepto;
 };
@@ -162,6 +180,9 @@ export function computeAsiento(mov: Movimiento) {
     ? [...mov.movimiento_items].sort((a, b) => a.orden - b.orden)
     : null;
 
+  let sumReteIca = 0;
+  let sumReteIva = 0;
+
   if (items) {
     let contrapartida = mov.conceptos?.cuenta_contrapartida ?? "11050501";
     items.forEach((it) => {
@@ -174,8 +195,14 @@ export function computeAsiento(mov: Movimiento) {
       if (Number(it.impoconsumo) > 0)
         debitos.push({ cuenta: "51959501", descripcion: `Impoconsumo · ${c.nombre}`, valor: Number(it.impoconsumo) });
       if (Number(it.retencion) > 0 && c.cuenta_retencion)
-        creditos.push({ cuenta: c.cuenta_retencion, descripcion: `Retención · ${c.nombre}`, valor: Number(it.retencion) });
+        creditos.push({ cuenta: c.cuenta_retencion, descripcion: `Retefuente · ${c.nombre}`, valor: Number(it.retencion) });
+      sumReteIca += Number(it.reteica_valor) || 0;
+      sumReteIva += Number(it.reteiva_valor) || 0;
     });
+    if (sumReteIca > 0)
+      creditos.push({ cuenta: "2368", descripcion: "ReteICA", valor: sumReteIca });
+    if (sumReteIva > 0)
+      creditos.push({ cuenta: "2367", descripcion: "ReteIVA", valor: sumReteIva });
     creditos.push({ cuenta: contrapartida, descripcion: "Caja menor", valor: Number(mov.total) });
     return { debitos, creditos };
   }
@@ -192,6 +219,10 @@ export function computeAsiento(mov: Movimiento) {
       descripcion: "Retención en la fuente",
       valor: mov.retencion,
     });
+  if (Number(mov.reteica_valor) > 0)
+    creditos.push({ cuenta: "2368", descripcion: "ReteICA", valor: Number(mov.reteica_valor) });
+  if (Number(mov.reteiva_valor) > 0)
+    creditos.push({ cuenta: "2367", descripcion: "ReteIVA", valor: Number(mov.reteiva_valor) });
   creditos.push({ cuenta: c.cuenta_contrapartida, descripcion: "Caja menor", valor: mov.total });
   return { debitos, creditos };
 }
