@@ -16,7 +16,6 @@ import {
   LogOut,
   Loader2,
 } from "lucide-react";
-import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile, type Profile } from "@/lib/db";
@@ -190,7 +189,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
-      <Toaster position="top-right" richColors />
     </div>
   );
 }
