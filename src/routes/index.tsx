@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, TrendingDown, Receipt, Users } from "lucide-react";
+import { Wallet, TrendingDown, Receipt, Users, AlertTriangle } from "lucide-react";
 import { getFondo, getMovimientos, getProveedores } from "@/lib/db";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard · Caja Menor" },
+      { title: "Resumen · Caja Menor" },
       {
         name: "description",
         content: "Panel principal del fondo de caja menor: saldo disponible y últimos movimientos.",
@@ -22,12 +22,12 @@ export const Route = createFileRoute("/")({
   }),
   component: () => (
     <AppLayout>
-      <Dashboard />
+      <Resumen />
     </AppLayout>
   ),
 });
 
-function Dashboard() {
+function Resumen() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const provsQ = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
@@ -35,8 +35,24 @@ function Dashboard() {
   const fondo = fondoQ.data;
   const movs = movsQ.data ?? [];
   const total = movs.reduce((s, m) => s + Number(m.total), 0);
-  const saldo = fondo ? Number(fondo.monto_asignado) - total : 0;
-  const pct = fondo ? Math.min(100, (total / Number(fondo.monto_asignado)) * 100) : 0;
+  // El saldo disponible solo se ve afectado por gastos que aún no han sido
+  // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
+  // esos gastos ya no restan porque el fondo fue repuesto por la empresa.
+  const gastosPendientes = movs.filter((m) => m.reembolsos?.estado !== "pagado");
+  const totalPendiente = gastosPendientes.reduce((s, m) => s + Number(m.total), 0);
+  const saldo = fondo ? Number(fondo.monto_asignado) - totalPendiente : 0;
+  const pct = fondo ? Math.min(100, (totalPendiente / Number(fondo.monto_asignado)) * 100) : 0;
+
+  // Aviso de reembolso: cuando los gastos pendientes llegan al % configurado del
+  // fondo, o cuando estamos en los últimos 2 días del mes (cierre de mes).
+  const pctReal = fondo ? (totalPendiente / Number(fondo.monto_asignado)) * 100 : 0;
+  const limite = fondo ? Number(fondo.limite_alerta_reembolso_pct) : 80;
+  const alcanzoLimite = fondo ? pctReal >= limite : false;
+  const hoy = new Date();
+  const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+  const esCierreDeMes = hoy.getDate() >= ultimoDiaMes - 1;
+  const hayPendientes = gastosPendientes.length > 0;
+  const mostrarAviso = hayPendientes && (alcanzoLimite || esCierreDeMes);
 
   return (
     <div className="space-y-6">
@@ -55,6 +71,26 @@ function Dashboard() {
         </Link>
       </header>
 
+      {mostrarAviso && (
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-warning/40 bg-warning/10">
+          <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Es momento de solicitar el reembolso del fondo</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {alcanzoLimite &&
+                `Los gastos pendientes ya llegaron al ${pctReal.toFixed(0)}% del fondo (límite: ${limite}%). `}
+              {esCierreDeMes && "Estamos cerca del cierre de mes. "}
+              Tú decides cuándo crear la solicitud.
+            </p>
+          </div>
+          <Link to="/reembolsos">
+            <Button size="sm" variant="outline">
+              Ir a reembolsos
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(fondo?.monto_asignado)} tone="primary" />
         <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(total)} tone="warning" />
@@ -69,7 +105,7 @@ function Dashboard() {
         <CardContent>
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-muted-foreground">
-              {fmtMoney(total)} de {fmtMoney(fondo?.monto_asignado)}
+              {fmtMoney(totalPendiente)} de {fmtMoney(fondo?.monto_asignado)}
             </span>
             <span className="font-medium">{pct.toFixed(1)}%</span>
           </div>

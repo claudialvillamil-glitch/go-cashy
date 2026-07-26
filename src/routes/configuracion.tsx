@@ -5,10 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { getFondo } from "@/lib/db";
+import {
+  getAgencias,
+  getFondo,
+  getTarifasRetencionRenta,
+  getConceptosReteica,
+  getTarifasReteicaCiudad,
+} from "@/lib/db";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { Plus, Trash2, Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
@@ -31,6 +46,19 @@ function Conf() {
   const [responsable, setResponsable] = useState("");
   const [monto, setMonto] = useState("");
   const [maximo, setMaximo] = useState("");
+  const [cuentaBanco, setCuentaBanco] = useState("");
+  const [cuentaRetHotel, setCuentaRetHotel] = useState("");
+  const [cuentaRetServDecl, setCuentaRetServDecl] = useState("");
+  const [cuentaRetServNoDecl, setCuentaRetServNoDecl] = useState("");
+  const [cuentaRetFletes, setCuentaRetFletes] = useState("");
+  const [cuentaReteicaServicios, setCuentaReteicaServicios] = useState("");
+  const [cuentaReteicaCompras, setCuentaReteicaCompras] = useState("");
+  const [limiteAlerta, setLimiteAlerta] = useState("");
+  const [nombreAprobador, setNombreAprobador] = useState("");
+  const [codigoRecibo, setCodigoRecibo] = useState("");
+  const [versionRecibo, setVersionRecibo] = useState("");
+  const [vigenciaRecibo, setVigenciaRecibo] = useState("");
+  const [valorUvt, setValorUvt] = useState("");
 
   useEffect(() => {
     if (q.data) {
@@ -38,6 +66,19 @@ function Conf() {
       setResponsable(q.data.responsable);
       setMonto(String(q.data.monto_asignado));
       setMaximo(String(q.data.monto_maximo_gasto));
+      setCuentaBanco(q.data.cuenta_banco);
+      setCuentaRetHotel(q.data.cuenta_retencion_hotel);
+      setCuentaRetServDecl(q.data.cuenta_retencion_servicios_declarante);
+      setCuentaRetServNoDecl(q.data.cuenta_retencion_servicios_no_declarante);
+      setCuentaRetFletes(q.data.cuenta_retencion_fletes);
+      setCuentaReteicaServicios(q.data.cuenta_reteica_servicios);
+      setCuentaReteicaCompras(q.data.cuenta_reteica_compras);
+      setLimiteAlerta(String(q.data.limite_alerta_reembolso_pct));
+      setNombreAprobador(q.data.nombre_aprobador);
+      setCodigoRecibo(q.data.codigo_recibo);
+      setVersionRecibo(q.data.version_recibo);
+      setVigenciaRecibo(q.data.vigencia_recibo);
+      setValorUvt(String(q.data.valor_uvt));
     }
   }, [q.data]);
 
@@ -51,6 +92,19 @@ function Conf() {
           responsable,
           monto_asignado: Number(monto),
           monto_maximo_gasto: Number(maximo),
+          cuenta_banco: cuentaBanco,
+          cuenta_retencion_hotel: cuentaRetHotel,
+          cuenta_retencion_servicios_declarante: cuentaRetServDecl,
+          cuenta_retencion_servicios_no_declarante: cuentaRetServNoDecl,
+          cuenta_retencion_fletes: cuentaRetFletes,
+          cuenta_reteica_servicios: cuentaReteicaServicios,
+          cuenta_reteica_compras: cuentaReteicaCompras,
+          limite_alerta_reembolso_pct: Number(limiteAlerta) || 80,
+          nombre_aprobador: nombreAprobador,
+          codigo_recibo: codigoRecibo,
+          version_recibo: versionRecibo,
+          vigencia_recibo: vigenciaRecibo,
+          valor_uvt: Number(valorUvt) || 0,
         })
         .eq("id", q.data.id);
       if (error) throw error;
@@ -92,6 +146,137 @@ function Conf() {
             <Label className="text-xs">Monto máximo por gasto (COP)</Label>
             <Input type="number" value={maximo} onChange={(e) => setMaximo(e.target.value)} />
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Cuenta banco (reposición del fondo)</Label>
+            <Input value={cuentaBanco} onChange={(e) => setCuentaBanco(e.target.value)} />
+            <p className="text-xs text-muted-foreground">
+              Se usa como contrapartida al generar el asiento cuando se paga un reembolso.
+            </p>
+          </div>
+
+          <div className="md:col-span-2 rounded-md border p-3 space-y-3">
+            <p className="text-sm font-medium">Cuentas de retención en la fuente por tarifa</p>
+            <p className="text-xs text-muted-foreground">
+              Cada tarifa que se elige en el recibo se contabiliza en su propia cuenta.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Serv. hotel y restaurante (3.5%)</Label>
+                <Input value={cuentaRetHotel} onChange={(e) => setCuentaRetHotel(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Servicios generales declarante (4%)</Label>
+                <Input
+                  value={cuentaRetServDecl}
+                  onChange={(e) => setCuentaRetServDecl(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Servicios generales no declarante (6%)</Label>
+                <Input
+                  value={cuentaRetServNoDecl}
+                  onChange={(e) => setCuentaRetServNoDecl(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Fletes (1%)</Label>
+                <Input value={cuentaRetFletes} onChange={(e) => setCuentaRetFletes(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-2 rounded-md border p-3 space-y-3">
+            <p className="text-sm font-medium">Cuentas de ReteICA por concepto</p>
+            <p className="text-xs text-muted-foreground">
+              El concepto (Servicios/Compras) se elige en el recibo; cada uno tiene su propia cuenta.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">ReteICA — Servicios</Label>
+                <Input
+                  value={cuentaReteicaServicios}
+                  onChange={(e) => setCuentaReteicaServicios(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">ReteICA — Compras</Label>
+                <Input
+                  value={cuentaReteicaCompras}
+                  onChange={(e) => setCuentaReteicaCompras(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">% del fondo que dispara el aviso de reembolso</Label>
+            <Input
+              type="number"
+              min="1"
+              max="100"
+              value={limiteAlerta}
+              onChange={(e) => setLimiteAlerta(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Al llegar a este % de gastos pendientes, verás un aviso para solicitar el reembolso.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Nombre de quien autoriza los reembolsos</Label>
+            <Input
+              value={nombreAprobador}
+              onChange={(e) => setNombreAprobador(e.target.value)}
+              placeholder="Ej. Claudia Villamil"
+            />
+            <p className="text-xs text-muted-foreground">
+              Aparece como firma "Autorizado por" en el formato de libro de caja menor. El
+              "Elaborado por" usa el responsable del fondo.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Valor de la UVT vigente</Label>
+            <Input
+              type="number"
+              min="0"
+              value={valorUvt}
+              onChange={(e) => setValorUvt(e.target.value)}
+              placeholder="Ej. 49799 (año 2025)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Se usa para calcular la cuantía mínima (4 UVT) a partir de la cual se aplica
+              automáticamente la retención en la fuente. Actualízalo cada año. Si lo dejas en 0,
+              no se filtra por cuantía mínima.
+            </p>
+          </div>
+          <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Código del formato de recibo</Label>
+              <Input
+                value={codigoRecibo}
+                onChange={(e) => setCodigoRecibo(e.target.value)}
+                placeholder="Ej. GF P6 12R1"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Versión</Label>
+              <Input
+                value={versionRecibo}
+                onChange={(e) => setVersionRecibo(e.target.value)}
+                placeholder="Ej. 02"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vigencia</Label>
+              <Input
+                value={vigenciaRecibo}
+                onChange={(e) => setVigenciaRecibo(e.target.value)}
+                placeholder="Ej. 02-sept-19"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground md:col-span-3">
+              Datos de control documental que se imprimen al pie del recibo individual en PDF.
+            </p>
+          </div>
           <div className="md:col-span-2 flex justify-end">
             <Button onClick={() => save.mutate()} disabled={save.isPending}>
               Guardar cambios
@@ -99,6 +284,502 @@ function Conf() {
           </div>
         </CardContent>
       </Card>
+
+      <AgenciasCard />
+      <TarifasRetencionCard />
+      <ConceptosReteicaCard />
+      <TarifasReteicaCiudadCard />
     </div>
   );
+}
+
+function AgenciasCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const [nombre, setNombre] = useState("");
+  const [codigo, setCodigo] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("agencias").insert({
+        nombre: nombre.trim(),
+        codigo: codigo ? Number(codigo) : null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Agencia creada");
+      setNombre("");
+      setCodigo("");
+      qc.invalidateQueries({ queryKey: ["agencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("agencias").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Agencia eliminada");
+      qc.invalidateQueries({ queryKey: ["agencias"] });
+    },
+    onError: (e: Error) =>
+      toast.error(
+        "No se pudo eliminar. Verifica que no tenga movimientos registrados. " + e.message,
+      ),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Building2 className="h-4 w-4" /> Agencias
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Crea las agencias o sucursales del fondo de caja menor. Próximamente podrás vincular
+          un usuario responsable a cada agencia, para que solo pueda registrar gastos en la suya.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Código"
+            className="w-24"
+            type="number"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+          />
+          <Input
+            placeholder="Nombre de la agencia (ej. Norte)"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && nombre.trim()) crear.mutate();
+            }}
+          />
+          <Button onClick={() => crear.mutate()} disabled={!nombre.trim() || crear.isPending}>
+            <Plus className="h-4 w-4 mr-2" /> Agregar
+          </Button>
+        </div>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((a) => (
+            <div key={a.id} className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-sm font-medium">
+                {a.codigo != null && (
+                  <span className="text-muted-foreground font-mono mr-2">{a.codigo}</span>
+                )}
+                {a.nombre}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm(`¿Eliminar la agencia "${a.nombre}"?`)) eliminar.mutate(a.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay agencias registradas.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TarifasRetencionCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const [nombre, setNombre] = useState("");
+  const [porcentaje, setPorcentaje] = useState("");
+  const [minimoUvt, setMinimoUvt] = useState("4");
+  const [cuenta, setCuenta] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("tarifas_retencion_renta").insert({
+        nombre: nombre.trim(),
+        porcentaje: Number(porcentaje) || 0,
+        minimo_uvt: Number(minimoUvt) || 0,
+        cuenta: cuenta.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tarifa creada");
+      setNombre("");
+      setPorcentaje("");
+      setMinimoUvt("4");
+      setCuenta("");
+      qc.invalidateQueries({ queryKey: ["tarifas-retencion"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase
+        .from("tarifas_retencion_renta")
+        .update({ activo })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tarifas-retencion"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tarifas_retencion_renta").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tarifa eliminada");
+      qc.invalidateQueries({ queryKey: ["tarifas-retencion"] });
+    },
+    onError: (e: Error) =>
+      toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Tarifas de retención en la fuente</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Estas son las opciones que aparecen al elegir "Aplica retención en la fuente" en un
+          recibo. Crea las que necesites, con su % y su cuenta contable.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <Input
+            className="md:col-span-2"
+            placeholder="Nombre (ej. Honorarios)"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+          />
+          <Input
+            type="number"
+            step="0.1"
+            placeholder="%"
+            value={porcentaje}
+            onChange={(e) => setPorcentaje(e.target.value)}
+          />
+          <Input
+            type="number"
+            step="0.1"
+            placeholder="UVT mínimo"
+            value={minimoUvt}
+            onChange={(e) => setMinimoUvt(e.target.value)}
+          />
+          <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
+        </div>
+        <Button
+          onClick={() => crear.mutate()}
+          disabled={!nombre.trim() || !porcentaje || crear.isPending}
+        >
+          <Plus className="h-4 w-4 mr-2" /> Agregar tarifa
+        </Button>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((t) => (
+            <div key={t.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Checkbox
+                  checked={t.activo}
+                  onCheckedChange={(v) => toggleActivo.mutate({ id: t.id, activo: v === true })}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {t.nombre} · {Number(t.porcentaje)}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Mín. {Number(t.minimo_uvt)} UVT · Cuenta {t.cuenta || "—"}
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm(`¿Eliminar la tarifa "${t.nombre}"?`)) eliminar.mutate(t.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay tarifas registradas.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConceptosReteicaCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const [nombre, setNombre] = useState("");
+  const [cuenta, setCuenta] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("conceptos_reteica").insert({
+        nombre: nombre.trim(),
+        cuenta: cuenta.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Concepto creado");
+      setNombre("");
+      setCuenta("");
+      qc.invalidateQueries({ queryKey: ["conceptos-reteica"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase.from("conceptos_reteica").update({ activo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["conceptos-reteica"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("conceptos_reteica").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Concepto eliminado");
+      qc.invalidateQueries({ queryKey: ["conceptos-reteica"] });
+    },
+    onError: (e: Error) =>
+      toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Conceptos de ReteICA</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Son las opciones del campo "Concepto" al activar ReteICA en un recibo (ej. Servicios,
+          Compras). Cada uno con su cuenta contable; la tarifa por mil se sigue digitando en el recibo.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            placeholder="Nombre (ej. Servicios)"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+          />
+          <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
+        </div>
+        <Button onClick={() => crear.mutate()} disabled={!nombre.trim() || crear.isPending}>
+          <Plus className="h-4 w-4 mr-2" /> Agregar concepto
+        </Button>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((c) => (
+            <div key={c.id} className="flex items-center justify-between px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={c.activo}
+                  onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
+                />
+                <div>
+                  <div className="text-sm font-medium">{c.nombre}</div>
+                  <div className="text-xs text-muted-foreground">Cuenta {c.cuenta || "—"}</div>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm(`¿Eliminar el concepto "${c.nombre}"?`)) eliminar.mutate(c.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay conceptos registrados.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TarifasReteicaCiudadCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
+  const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const [agenciaId, setAgenciaId] = useState("");
+  const [codigoCiiu, setCodigoCiiu] = useState("");
+  const [tarifa, setTarifa] = useState("");
+  const [tope, setTope] = useState("");
+  const [cuenta, setCuenta] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      if (!agenciaId) throw new Error("Selecciona la agencia");
+      const { error } = await supabase.from("tarifas_reteica_ciudad").insert({
+        agencia_id: agenciaId,
+        codigo_ciiu: codigoCiiu.trim() || null,
+        tarifa: Number(tarifa) || 0,
+        tope: Number(tope) || 0,
+        cuenta: cuenta.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tarifa creada");
+      setCodigoCiiu("");
+      setTarifa("");
+      setTope("");
+      setCuenta("");
+      qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase
+        .from("tarifas_reteica_ciudad")
+        .update({ activo })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tarifas_reteica_ciudad").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tarifa eliminada");
+      qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] });
+    },
+    onError: (e: Error) =>
+      toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Tarifas de ReteICA por agencia / actividad (CIIU)</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          El ICA varía por ciudad y por actividad económica. Configura aquí la tarifa por mil, el
+          tope mínimo (base gravable) y la cuenta contable de cada combinación agencia + CIIU.
+          Deja el CIIU en blanco para que sea la tarifa general de esa agencia.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <Select value={agenciaId} onValueChange={setAgenciaId}>
+            <SelectTrigger className="md:col-span-1">
+              <SelectValue placeholder="Agencia" />
+            </SelectTrigger>
+            <SelectContent>
+              {agsQ.data?.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="CIIU (opcional)"
+            value={codigoCiiu}
+            onChange={(e) => setCodigoCiiu(e.target.value)}
+          />
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="Tarifa (‰)"
+            value={tarifa}
+            onChange={(e) => setTarifa(e.target.value)}
+          />
+          <Input
+            type="number"
+            placeholder="Tope mínimo ($)"
+            value={tope}
+            onChange={(e) => setTope(e.target.value)}
+          />
+          <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
+        </div>
+        <Button onClick={() => crear.mutate()} disabled={!agenciaId || !tarifa || crear.isPending}>
+          <Plus className="h-4 w-4 mr-2" /> Agregar tarifa
+        </Button>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((t) => (
+            <div key={t.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Checkbox
+                  checked={t.activo}
+                  onCheckedChange={(v) => toggleActivo.mutate({ id: t.id, activo: v === true })}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {t.agencias?.codigo != null ? `${t.agencias.codigo} - ${t.agencias?.nombre}` : t.agencias?.nombre}
+                    {t.codigo_ciiu ? ` · CIIU ${t.codigo_ciiu}` : " · Tarifa general"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {Number(t.tarifa)}‰ · Tope {fmtMoneyLocal(t.tope)} · Cuenta {t.cuenta || "—"}
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm("¿Eliminar esta tarifa?")) eliminar.mutate(t.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay tarifas registradas.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function fmtMoneyLocal(n: number) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(Number(n ?? 0));
 }

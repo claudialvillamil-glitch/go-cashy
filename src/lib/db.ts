@@ -4,9 +4,27 @@ export type Proveedor = {
   id: string;
   nombre: string;
   nit: string;
+  tipo_proveedor: string;
+  tipo_identificacion: string;
+  digito_verificacion: string | null;
   telefono: string | null;
   email: string | null;
   direccion: string | null;
+  codigo_ciiu: string | null;
+  pais: string;
+  departamento: string | null;
+  ciudad: string | null;
+  aplica_retencion: boolean;
+  tipo_retencion_renta: string | null;
+  tarifa_retencion_id: string | null;
+  aplica_reteica: boolean;
+  concepto_reteica: string;
+  concepto_reteica_id: string | null;
+  tarifa_reteica: number;
+  aplica_reteiva: boolean;
+  responsable_iva: boolean;
+  regimen_tributario: string;
+  tipo_impuesto: string;
 };
 
 export type Concepto = {
@@ -14,13 +32,70 @@ export type Concepto = {
   nombre: string;
   cuenta_gasto: string;
   cuenta_iva: string | null;
+  cuenta_impoconsumo: string | null;
   cuenta_retencion: string | null;
+  cuenta_reteica: string | null;
+  cuenta_reteiva: string | null;
   cuenta_contrapartida: string;
   porcentaje_retencion: number | null;
+  porcentaje_iva: number;
+  porcentaje_impoconsumo: number;
+  porcentaje_reteica: number;
+  porcentaje_reteiva: number;
   activo: boolean;
 };
 
-export type Agencia = { id: string; nombre: string };
+export type Agencia = { id: string; nombre: string; codigo: number | null };
+
+export type TarifaRetencionRenta = {
+  id: string;
+  nombre: string;
+  porcentaje: number;
+  minimo_uvt: number;
+  cuenta: string | null;
+  activo: boolean;
+};
+
+export type ConceptoReteicaDB = {
+  id: string;
+  nombre: string;
+  cuenta: string | null;
+  activo: boolean;
+};
+
+export type TarifaReteicaCiudad = {
+  id: string;
+  agencia_id: string;
+  codigo_ciiu: string | null;
+  tarifa: number;
+  tope: number;
+  cuenta: string | null;
+  activo: boolean;
+};
+
+export async function getTarifasReteicaCiudad() {
+  const { data, error } = await supabase
+    .from("tarifas_reteica_ciudad")
+    .select("*, agencias(*)")
+    .order("created_at");
+  if (error) throw error;
+  return data as unknown as (TarifaReteicaCiudad & { agencias?: Agencia })[];
+}
+
+export async function getTarifasRetencionRenta() {
+  const { data, error } = await supabase
+    .from("tarifas_retencion_renta")
+    .select("*")
+    .order("nombre");
+  if (error) throw error;
+  return data as TarifaRetencionRenta[];
+}
+
+export async function getConceptosReteica() {
+  const { data, error } = await supabase.from("conceptos_reteica").select("*").order("nombre");
+  if (error) throw error;
+  return data as ConceptoReteicaDB[];
+}
 
 export type Movimiento = {
   id: string;
@@ -34,6 +109,13 @@ export type Movimiento = {
   iva: number;
   impoconsumo: number;
   retencion: number;
+  tipo_retencion_renta: string | null;
+  tarifa_retencion_id: string | null;
+  reteica: number;
+  concepto_reteica_usado: string | null;
+  concepto_reteica_id: string | null;
+  tarifa_reteica_ciudad_id: string | null;
+  reteiva: number;
   total: number;
   numero_factura: string | null;
   factura_url: string | null;
@@ -44,20 +126,13 @@ export type Movimiento = {
   created_at: string;
   reembolso_id: string | null;
   factura_electronica: boolean;
+  doc_soporte_generado: boolean;
   multi_soporte: boolean;
-  reteica_aplica: boolean;
-  reteica_actividad: string | null;
-  reteica_tarifa: number;
-  reteica_valor: number;
-  reteiva_aplica: boolean;
-  reteiva_valor: number;
-  retefuente_aplica: boolean;
-  retefuente_concepto: string | null;
-  retefuente_tarifa: number;
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
   movimiento_items?: MovimientoItem[];
+  reembolsos?: { id: string; estado: string } | null;
 };
 
 export type MovimientoItem = {
@@ -72,19 +147,27 @@ export type MovimientoItem = {
   iva: number;
   impoconsumo: number;
   retencion: number;
+  reteica: number;
+  reteiva: number;
   total: number;
   orden: number;
-  reteica_aplica: boolean;
-  reteica_actividad: string | null;
-  reteica_tarifa: number;
-  reteica_valor: number;
-  reteiva_aplica: boolean;
-  reteiva_valor: number;
-  retefuente_aplica: boolean;
-  retefuente_concepto: string | null;
-  retefuente_tarifa: number;
   proveedores?: Proveedor;
   conceptos?: Concepto;
+};
+
+export type ReciboProvisional = {
+  tercero: string;
+  concepto: string;
+  monto: number;
+};
+
+export type ArqueoCaja = {
+  cantidades: Record<number, number>;
+  provisionales: ReciboProvisional[];
+  esCierreMes: boolean;
+  totalContado: number;
+  saldoTeorico: number;
+  diferencia: number;
 };
 
 export type Reembolso = {
@@ -97,6 +180,7 @@ export type Reembolso = {
   estado: string;
   observaciones: string | null;
   created_at: string;
+  arqueo: ArqueoCaja | null;
 };
 
 export type FondoConfig = {
@@ -105,6 +189,19 @@ export type FondoConfig = {
   responsable: string;
   monto_asignado: number;
   monto_maximo_gasto: number;
+  cuenta_banco: string;
+  limite_alerta_reembolso_pct: number;
+  nombre_aprobador: string;
+  codigo_recibo: string;
+  version_recibo: string;
+  vigencia_recibo: string;
+  valor_uvt: number;
+  cuenta_retencion_hotel: string;
+  cuenta_retencion_servicios_declarante: string;
+  cuenta_retencion_servicios_no_declarante: string;
+  cuenta_retencion_fletes: string;
+  cuenta_reteica_servicios: string;
+  cuenta_reteica_compras: string;
 };
 
 export async function getFondo(): Promise<FondoConfig> {
@@ -116,7 +213,7 @@ export async function getFondo(): Promise<FondoConfig> {
 export async function getMovimientos() {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*)), reembolsos(id, estado)")
     .order("fecha", { ascending: false })
     .order("consecutivo", { ascending: false });
   if (error) throw error;
@@ -136,9 +233,40 @@ export async function getConceptos() {
 }
 
 export async function getAgencias() {
-  const { data, error } = await supabase.from("agencias").select("*").order("nombre");
+  const { data, error } = await supabase.from("agencias").select("*").order("codigo");
   if (error) throw error;
   return data as Agencia[];
+}
+
+export type Profile = {
+  id: string;
+  nombre: string;
+  email: string;
+  rol: "pendiente" | "admin" | "responsable" | "contador" | "auditoria" | "analista_contable";
+  agencia_id: string | null;
+  activo: boolean;
+  agencias?: Agencia | null;
+};
+
+export async function getMyProfile() {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*, agencias(*)")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as unknown as Profile | null;
+}
+
+export async function getProfiles() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*, agencias(*)")
+    .order("created_at");
+  if (error) throw error;
+  return data as unknown as Profile[];
 }
 
 export async function getReembolsos() {
@@ -172,16 +300,74 @@ export async function getMovimientosDeReembolso(reembolsoId: string) {
 }
 
 
-export function computeAsiento(mov: Movimiento) {
+// Devuelve la cuenta configurada para la tarifa de retención en la fuente
+// usada en el recibo. Prioriza la tabla editable (por id); si el recibo es
+// viejo y solo tiene la clave de texto, cae al catálogo fijo en fondo_config;
+// si no hay nada, usa la cuenta del concepto contable (comportamiento previo).
+function cuentaRetencionPorTipo(
+  tarifaId: string | null | undefined,
+  tipoTexto: string | null | undefined,
+  tarifas: TarifaRetencionRenta[] | undefined,
+  fondo: FondoConfig | undefined,
+  fallback: string | null,
+): { cuenta: string | null; nombre: string } {
+  if (tarifaId && tarifas) {
+    const t = tarifas.find((x) => x.id === tarifaId);
+    if (t) return { cuenta: t.cuenta || fallback, nombre: t.nombre };
+  }
+  if (fondo && tipoTexto) {
+    if (tipoTexto === "hotel") return { cuenta: fondo.cuenta_retencion_hotel, nombre: "Serv. hotel y restaurante" };
+    if (tipoTexto === "servicios_declarante")
+      return { cuenta: fondo.cuenta_retencion_servicios_declarante, nombre: "Servicios generales (declarante)" };
+    if (tipoTexto === "servicios_no_declarante")
+      return { cuenta: fondo.cuenta_retencion_servicios_no_declarante, nombre: "Servicios generales (no declarante)" };
+    if (tipoTexto === "fletes") return { cuenta: fondo.cuenta_retencion_fletes, nombre: "Fletes" };
+  }
+  return { cuenta: fallback, nombre: "" };
+}
+
+// Igual que arriba, pero para el concepto de ReteICA (Servicios/Compras).
+// Prioriza la tarifa específica de agencia + CIIU (tarifas_reteica_ciudad)
+// sobre el concepto genérico, ya que es la configuración más precisa.
+function cuentaReteicaPorConcepto(
+  tarifaCiudadId: string | null | undefined,
+  tarifasCiudad: TarifaReteicaCiudad[] | undefined,
+  conceptoId: string | null | undefined,
+  conceptoTexto: string | null | undefined,
+  conceptos: ConceptoReteicaDB[] | undefined,
+  fondo: FondoConfig | undefined,
+  fallback: string | null,
+): { cuenta: string | null; nombre: string } {
+  if (tarifaCiudadId && tarifasCiudad) {
+    const t = tarifasCiudad.find((x) => x.id === tarifaCiudadId);
+    if (t?.cuenta) return { cuenta: t.cuenta, nombre: "Tarifa por agencia/CIIU" };
+  }
+  if (conceptoId && conceptos) {
+    const c = conceptos.find((x) => x.id === conceptoId);
+    if (c) return { cuenta: c.cuenta || fallback, nombre: c.nombre };
+  }
+  if (fondo && conceptoTexto === "servicios" && fondo.cuenta_reteica_servicios) {
+    return { cuenta: fondo.cuenta_reteica_servicios, nombre: "Servicios" };
+  }
+  if (fondo && conceptoTexto === "compras" && fondo.cuenta_reteica_compras) {
+    return { cuenta: fondo.cuenta_reteica_compras, nombre: "Compras" };
+  }
+  return { cuenta: fallback, nombre: "" };
+}
+
+export function computeAsiento(
+  mov: Movimiento,
+  fondo?: FondoConfig,
+  tarifas?: TarifaRetencionRenta[],
+  conceptosReteica?: ConceptoReteicaDB[],
+  tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+) {
   const debitos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
   const creditos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
 
   const items = mov.multi_soporte && mov.movimiento_items && mov.movimiento_items.length > 0
     ? [...mov.movimiento_items].sort((a, b) => a.orden - b.orden)
     : null;
-
-  let sumReteIca = 0;
-  let sumReteIva = 0;
 
   if (items) {
     let contrapartida = mov.conceptos?.cuenta_contrapartida ?? "11050501";
@@ -193,16 +379,22 @@ export function computeAsiento(mov: Movimiento) {
       if (Number(it.iva) > 0 && c.cuenta_iva)
         debitos.push({ cuenta: c.cuenta_iva, descripcion: `IVA descontable · ${c.nombre}`, valor: Number(it.iva) });
       if (Number(it.impoconsumo) > 0)
-        debitos.push({ cuenta: "51959501", descripcion: `Impoconsumo · ${c.nombre}`, valor: Number(it.impoconsumo) });
-      if (Number(it.retencion) > 0 && c.cuenta_retencion)
-        creditos.push({ cuenta: c.cuenta_retencion, descripcion: `Retefuente · ${c.nombre}`, valor: Number(it.retencion) });
-      sumReteIca += Number(it.reteica_valor) || 0;
-      sumReteIva += Number(it.reteiva_valor) || 0;
+        debitos.push({
+          cuenta: c.cuenta_impoconsumo || "51959501",
+          descripcion: `Impoconsumo · ${c.nombre}`,
+          valor: Number(it.impoconsumo),
+        });
+      if (Number(it.retencion) > 0) {
+        const { cuenta } = cuentaRetencionPorTipo(null, null, tarifas, fondo, c.cuenta_retencion);
+        if (cuenta) creditos.push({ cuenta, descripcion: `Rete Fuente · ${c.nombre}`, valor: Number(it.retencion) });
+      }
+      if (Number(it.reteica) > 0) {
+        const { cuenta } = cuentaReteicaPorConcepto(null, undefined, null, null, conceptosReteica, fondo, c.cuenta_reteica);
+        if (cuenta) creditos.push({ cuenta, descripcion: `ReteICA · ${c.nombre}`, valor: Number(it.reteica) });
+      }
+      if (Number(it.reteiva) > 0 && c.cuenta_reteiva)
+        creditos.push({ cuenta: c.cuenta_reteiva, descripcion: `ReteIVA · ${c.nombre}`, valor: Number(it.reteiva) });
     });
-    if (sumReteIca > 0)
-      creditos.push({ cuenta: "2368", descripcion: "ReteICA", valor: sumReteIca });
-    if (sumReteIva > 0)
-      creditos.push({ cuenta: "2367", descripcion: "ReteIVA", valor: sumReteIva });
     creditos.push({ cuenta: contrapartida, descripcion: "Caja menor", valor: Number(mov.total) });
     return { debitos, creditos };
   }
@@ -212,17 +404,75 @@ export function computeAsiento(mov: Movimiento) {
   if (mov.iva > 0 && c.cuenta_iva)
     debitos.push({ cuenta: c.cuenta_iva, descripcion: "IVA descontable", valor: mov.iva });
   if (mov.impoconsumo > 0)
-    debitos.push({ cuenta: "51959501", descripcion: "Impoconsumo", valor: mov.impoconsumo });
-  if (mov.retencion > 0 && c.cuenta_retencion)
-    creditos.push({
-      cuenta: c.cuenta_retencion,
-      descripcion: "Retención en la fuente",
-      valor: mov.retencion,
+    debitos.push({
+      cuenta: c.cuenta_impoconsumo || "51959501",
+      descripcion: "Impoconsumo",
+      valor: mov.impoconsumo,
     });
-  if (Number(mov.reteica_valor) > 0)
-    creditos.push({ cuenta: "2368", descripcion: "ReteICA", valor: Number(mov.reteica_valor) });
-  if (Number(mov.reteiva_valor) > 0)
-    creditos.push({ cuenta: "2367", descripcion: "ReteIVA", valor: Number(mov.reteiva_valor) });
+  if (mov.retencion > 0) {
+    const { cuenta, nombre } = cuentaRetencionPorTipo(
+      mov.tarifa_retencion_id,
+      mov.tipo_retencion_renta,
+      tarifas,
+      fondo,
+      c.cuenta_retencion,
+    );
+    if (cuenta) {
+      creditos.push({
+        cuenta,
+        descripcion: `Retención en la fuente${nombre ? ` · ${nombre}` : ""}`,
+        valor: mov.retencion,
+      });
+    }
+  }
+  if (mov.reteica > 0) {
+    const { cuenta, nombre } = cuentaReteicaPorConcepto(
+      mov.tarifa_reteica_ciudad_id,
+      tarifasReteicaCiudad,
+      mov.concepto_reteica_id,
+      mov.concepto_reteica_usado,
+      conceptosReteica,
+      fondo,
+      c.cuenta_reteica,
+    );
+    if (cuenta) {
+      creditos.push({
+        cuenta,
+        descripcion: `ReteICA${nombre ? ` · ${nombre}` : ""}`,
+        valor: mov.reteica,
+      });
+    }
+  }
+  if (mov.reteiva > 0 && c.cuenta_reteiva)
+    creditos.push({
+      cuenta: c.cuenta_reteiva,
+      descripcion: "ReteIVA",
+      valor: mov.reteiva,
+    });
   creditos.push({ cuenta: c.cuenta_contrapartida, descripcion: "Caja menor", valor: mov.total });
+  return { debitos, creditos };
+}
+
+// Asiento de reposición: cuando la empresa repone el fondo (reembolso pagado),
+// se debita la(s) cuenta(s) de caja menor por el total y se acredita la cuenta
+// bancaria/contable configurada en el fondo (fondo_config.cuenta_banco).
+export function computeAsientoReposicion(movs: Movimiento[], fondo: FondoConfig) {
+  const debitos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
+  const porCuenta = new Map<string, number>();
+
+  movs.forEach((mov) => {
+    const cuenta = mov.conceptos?.cuenta_contrapartida ?? "11050501";
+    porCuenta.set(cuenta, (porCuenta.get(cuenta) ?? 0) + Number(mov.total));
+  });
+
+  porCuenta.forEach((valor, cuenta) => {
+    debitos.push({ cuenta, descripcion: "Reposición caja menor", valor });
+  });
+
+  const total = movs.reduce((s, m) => s + Number(m.total), 0);
+  const creditos = [
+    { cuenta: fondo.cuenta_banco, descripcion: "Reposición fondo caja menor", valor: total },
+  ];
+
   return { debitos, creditos };
 }

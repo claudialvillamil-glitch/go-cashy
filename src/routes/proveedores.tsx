@@ -5,6 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +20,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useState } from "react";
-import { getProveedores, type Proveedor } from "@/lib/db";
+import { useRef, useState } from "react";
+import * as XLSX from "xlsx";
+import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, type Proveedor } from "@/lib/db";
+import { REGIMENES_TRIBUTARIOS, TIPOS_IDENTIFICACION } from "@/lib/retenciones";
+import { DEPARTAMENTOS_COLOMBIA, CIUDADES_POR_DEPARTAMENTO } from "@/lib/colombia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Download } from "lucide-react";
 
 export const Route = createFileRoute("/proveedores")({
   head: () => ({
@@ -32,35 +43,196 @@ export const Route = createFileRoute("/proveedores")({
   ),
 });
 
-const empty = { nombre: "", nit: "", telefono: "", email: "", direccion: "" };
+const empty = {
+  nombre: "",
+  nit: "",
+  tipo_proveedor: "juridica",
+  tipo_identificacion: "CC",
+  digito_verificacion: "",
+  telefono: "",
+  email: "",
+  direccion: "",
+  codigo_ciiu: "",
+  pais: "Colombia",
+  departamento: "",
+  ciudad: "",
+  aplica_retencion: false,
+  tipo_retencion_renta: "",
+  tarifa_retencion_id: "",
+  aplica_reteica: false,
+  concepto_reteica: "servicios",
+  concepto_reteica_id: "",
+  tarifa_reteica: 0,
+  aplica_reteiva: false,
+  responsable_iva: true,
+  regimen_tributario: "comun",
+  tipo_impuesto: "iva",
+};
 
 function Provs() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
+  const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Proveedor>>(empty);
+  const [ciudadManual, setCiudadManual] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const descargarPlantilla = () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        Nombre: "ALFOMBRANDO S.A.S",
+        NIT: "900123456-1",
+        Teléfono: "3001234567",
+        Email: "contacto@alfombrando.com",
+        Dirección: "Cra 10 # 20-30",
+        "Responsable de IVA (Sí/No)": "Sí",
+        "Régimen (comun/simple/gran_contribuyente/autorretenedor)": "comun",
+      },
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
+    XLSX.writeFile(wb, "plantilla-proveedores.xlsx");
+  };
+
+  const exportarProveedores = () => {
+    const filas = (q.data ?? []).map((p) => ({
+      Nombre: p.nombre,
+      "Tipo de proveedor": p.tipo_proveedor === "natural" ? "Persona natural" : "Persona jurídica",
+      "Tipo identificación": p.tipo_proveedor === "natural" ? p.tipo_identificacion : "NIT",
+      Identificación: p.nit,
+      "Dígito verificación": p.digito_verificacion ?? "",
+      Teléfono: p.telefono ?? "",
+      Email: p.email ?? "",
+      Dirección: p.direccion ?? "",
+      "Código CIIU": p.codigo_ciiu ?? "",
+      País: p.pais,
+      Departamento: p.departamento ?? "",
+      Ciudad: p.ciudad ?? "",
+      Régimen: REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ?? "",
+      "Responsable de IVA": p.responsable_iva ? "Sí" : "No",
+      "Impuesto que factura": p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA",
+      "Aplica Rte. Fuente": p.aplica_retencion ? "Sí" : "No",
+      "Tipo Rte. Fuente": tarifasQ.data?.find((t) => t.id === p.tarifa_retencion_id)?.nombre ?? "",
+      "Aplica ReteICA": p.aplica_reteica ? "Sí" : "No",
+      "Aplica ReteIVA": p.aplica_reteiva ? "Sí" : "No",
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filas);
+    XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
+    XLSX.writeFile(wb, `proveedores-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const importar = useMutation({
+    mutationFn: async (file: File) => {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+
+      const existentes = new Set((q.data ?? []).map((p) => p.nit.trim()));
+      const payload: Array<{
+        nombre: string;
+        nit: string;
+        telefono: string | null;
+        email: string | null;
+        direccion: string | null;
+        codigo_ciiu: string | null;
+        responsable_iva: boolean;
+        regimen_tributario: string;
+      }> = [];
+      let omitidos = 0;
+
+      for (const row of rows) {
+        const nombre = String(row["Nombre"] ?? row["nombre"] ?? "").trim();
+        const nit = String(row["NIT"] ?? row["nit"] ?? "").trim();
+        if (!nombre || !nit) {
+          omitidos++;
+          continue;
+        }
+        if (existentes.has(nit)) {
+          omitidos++;
+          continue;
+        }
+        existentes.add(nit);
+        const respIvaRaw = String(
+          row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "sí",
+        )
+          .trim()
+          .toLowerCase();
+        const regimenRaw = String(
+          row["Régimen (comun/simple/gran_contribuyente/autorretenedor)"] ?? row["Régimen"] ?? "comun",
+        )
+          .trim()
+          .toLowerCase();
+        payload.push({
+          nombre,
+          nit,
+          telefono: String(row["Teléfono"] ?? row["Telefono"] ?? "").trim() || null,
+          email: String(row["Email"] ?? "").trim() || null,
+          direccion: String(row["Dirección"] ?? row["Direccion"] ?? "").trim() || null,
+          codigo_ciiu: String(row["Código CIIU"] ?? row["Codigo CIIU"] ?? "").trim() || null,
+          responsable_iva: !["no", "n", "false"].includes(respIvaRaw),
+          regimen_tributario: ["comun", "simple", "gran_contribuyente", "autorretenedor"].includes(
+            regimenRaw,
+          )
+            ? regimenRaw
+            : "comun",
+        });
+      }
+
+      if (payload.length > 0) {
+        const { error } = await supabase.from("proveedores").insert(payload);
+        if (error) throw error;
+      }
+      return { creados: payload.length, omitidos };
+    },
+    onSuccess: ({ creados, omitidos }) => {
+      qc.invalidateQueries({ queryKey: ["proveedores"] });
+      toast.success(
+        `${creados} proveedor${creados === 1 ? "" : "es"} importado${creados === 1 ? "" : "s"}` +
+          (omitidos > 0 ? ` · ${omitidos} omitido${omitidos === 1 ? "" : "s"} (sin datos o NIT repetido)` : ""),
+      );
+    },
+    onError: (e: Error) => toast.error("Error al importar: " + e.message),
+  });
 
   const save = useMutation({
     mutationFn: async () => {
+      const esRegimenSimple = form.regimen_tributario === "simple";
+      const payload = {
+        nombre: form.nombre,
+        nit: form.nit,
+        tipo_proveedor: form.tipo_proveedor || "juridica",
+        tipo_identificacion: form.tipo_proveedor === "natural" ? form.tipo_identificacion || "CC" : "CC",
+        digito_verificacion:
+          form.tipo_proveedor === "juridica" ? form.digito_verificacion || null : null,
+        telefono: form.telefono || null,
+        email: form.email || null,
+        direccion: form.direccion || null,
+        codigo_ciiu: form.codigo_ciiu || null,
+        pais: form.pais || "Colombia",
+        departamento: form.departamento || null,
+        ciudad: form.ciudad || null,
+        aplica_retencion: esRegimenSimple ? false : form.aplica_retencion ?? false,
+        tarifa_retencion_id: esRegimenSimple ? null : form.tarifa_retencion_id || null,
+        aplica_reteica: esRegimenSimple ? false : form.aplica_reteica ?? false,
+        concepto_reteica_id: form.concepto_reteica_id || null,
+        tarifa_reteica: Number(form.tarifa_reteica) || 0,
+        aplica_reteiva: form.aplica_reteiva ?? false,
+        responsable_iva: form.responsable_iva ?? true,
+        regimen_tributario: form.regimen_tributario || "comun",
+        tipo_impuesto: form.tipo_impuesto || "iva",
+      };
       if (form.id) {
-        const { error } = await supabase
-          .from("proveedores")
-          .update({
-            nombre: form.nombre,
-            nit: form.nit,
-            telefono: form.telefono || null,
-            email: form.email || null,
-            direccion: form.direccion || null,
-          })
-          .eq("id", form.id);
+        const { error } = await supabase.from("proveedores").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("proveedores").insert({
+          ...payload,
           nombre: form.nombre!,
           nit: form.nit!,
-          telefono: form.telefono || null,
-          email: form.email || null,
-          direccion: form.direccion || null,
         });
         if (error) throw error;
       }
@@ -70,6 +242,7 @@ function Provs() {
       qc.invalidateQueries({ queryKey: ["proveedores"] });
       setOpen(false);
       setForm(empty);
+      setCiudadManual(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -88,36 +261,192 @@ function Provs() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Proveedores</h1>
           <p className="text-sm text-muted-foreground">
             {q.data?.length ?? 0} proveedores registrados
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setForm(empty)}>
-              <Plus className="h-4 w-4 mr-2" /> Nuevo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{form.id ? "Editar proveedor" : "Nuevo proveedor"}</DialogTitle>
-            </DialogHeader>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={descargarPlantilla}>
+            <Download className="h-4 w-4 mr-2" /> Plantilla Excel
+          </Button>
+          <Button variant="outline" onClick={exportarProveedores} disabled={!q.data?.length}>
+            <Download className="h-4 w-4 mr-2" /> Exportar Excel
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importar.mutate(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importar.isPending}
+          >
+            <Upload className="h-4 w-4 mr-2" /> Importar Excel
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                onClick={() => {
+                  setForm(empty);
+                  setCiudadManual(false);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Nuevo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{form.id ? "Editar proveedor" : "Nuevo proveedor"}</DialogTitle>
+              </DialogHeader>
             <div className="space-y-3">
-              <F label="Nombre / Razón social *">
+              <F label="Tipo de proveedor">
+                <Select
+                  value={form.tipo_proveedor ?? "juridica"}
+                  onValueChange={(v) => setForm({ ...form, tipo_proveedor: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="natural">Persona natural</SelectItem>
+                    <SelectItem value="juridica">Persona jurídica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </F>
+              <F
+                label={
+                  form.tipo_proveedor === "natural"
+                    ? "Nombres y apellidos *"
+                    : "Razón social *"
+                }
+              >
                 <Input
                   value={form.nombre ?? ""}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 />
               </F>
-              <F label="NIT / Identificación *">
+              <div className="grid grid-cols-2 gap-3">
+                {form.tipo_proveedor === "natural" ? (
+                  <F label="Tipo de identificación">
+                    <Select
+                      value={form.tipo_identificacion ?? "CC"}
+                      onValueChange={(v) => setForm({ ...form, tipo_identificacion: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIPOS_IDENTIFICACION.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </F>
+                ) : (
+                  <F label="NIT *">
+                    <Input
+                      value={form.nit ?? ""}
+                      onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                    />
+                  </F>
+                )}
+                {form.tipo_proveedor === "natural" ? (
+                  <F label="Número de identificación *">
+                    <Input
+                      value={form.nit ?? ""}
+                      onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                    />
+                  </F>
+                ) : (
+                  <F label="Dígito de verificación">
+                    <Input
+                      maxLength={1}
+                      value={form.digito_verificacion ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })
+                      }
+                    />
+                  </F>
+                )}
+              </div>
+
+              <F label="Dirección">
                 <Input
-                  value={form.nit ?? ""}
-                  onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                  value={form.direccion ?? ""}
+                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
                 />
               </F>
+              <div className="grid grid-cols-3 gap-3">
+                <F label="País">
+                  <Input value={form.pais ?? "Colombia"} disabled />
+                </F>
+                <F label="Departamento">
+                  <Select
+                    value={form.departamento ?? ""}
+                    onValueChange={(v) => setForm({ ...form, departamento: v, ciudad: "" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEPARTAMENTOS_COLOMBIA.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </F>
+                <F label="Ciudad">
+                  <Select
+                    value={ciudadManual ? "Otra" : form.ciudad ?? ""}
+                    onValueChange={(v) => {
+                      if (v === "Otra") {
+                        setCiudadManual(true);
+                        setForm({ ...form, ciudad: "" });
+                      } else {
+                        setCiudadManual(false);
+                        setForm({ ...form, ciudad: v });
+                      }
+                    }}
+                    disabled={!form.departamento}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={form.departamento ? "Selecciona..." : "Elige depto."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(CIUDADES_POR_DEPARTAMENTO[form.departamento ?? ""] ?? []).map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="Otra">Otra (escribir)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </F>
+              </div>
+              {ciudadManual && (
+                <F label="Nombre de la ciudad/municipio">
+                  <Input
+                    placeholder="Escribe el municipio"
+                    value={form.ciudad ?? ""}
+                    onChange={(e) => setForm({ ...form, ciudad: e.target.value })}
+                  />
+                </F>
+              )}
+
               <F label="Teléfono">
                 <Input
                   value={form.telefono ?? ""}
@@ -130,12 +459,173 @@ function Provs() {
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </F>
-              <F label="Dirección">
-                <Input
-                  value={form.direccion ?? ""}
-                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-                />
-              </F>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Información tributaria</p>
+                <F label="Régimen tributario">
+                  <Select
+                    value={form.regimen_tributario ?? "comun"}
+                    onValueChange={(v) =>
+                      setForm({
+                        ...form,
+                        regimen_tributario: v,
+                        // En régimen simple no aplica retención en la fuente ni ReteICA;
+                        // el ReteIVA sí puede aplicar si supera la base de retención.
+                        ...(v === "simple" ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REGIMENES_TRIBUTARIOS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </F>
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="prov-resp-iva"
+                    checked={form.responsable_iva ?? true}
+                    onCheckedChange={(v) => setForm({ ...form, responsable_iva: v === true })}
+                  />
+                  <Label htmlFor="prov-resp-iva" className="text-sm font-normal cursor-pointer">
+                    Responsable de IVA (cobra IVA en sus facturas)
+                  </Label>
+                </div>
+                <F label="Impuesto que factura este proveedor">
+                  <Select
+                    value={form.tipo_impuesto ?? "iva"}
+                    onValueChange={(v) => setForm({ ...form, tipo_impuesto: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="iva">IVA</SelectItem>
+                      <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Se usa para preseleccionar el tipo de impuesto en el recibo al elegir este
+                    proveedor (ej. restaurantes y bares suelen cobrar Impoconsumo, no IVA).
+                  </p>
+                </F>
+                <F label="Código CIIU (actividad económica)">
+                  <Input
+                    value={form.codigo_ciiu ?? ""}
+                    onChange={(e) => setForm({ ...form, codigo_ciiu: e.target.value })}
+                    placeholder="Ej. 4711"
+                  />
+                </F>
+                {form.regimen_tributario === "simple" && (
+                  <p className="text-xs text-warning">
+                    Régimen simple: no aplica retención en la fuente ni ReteICA (se desactivaron
+                    automáticamente). El ReteIVA sí aplica si el monto supera la cuantía mínima.
+                  </p>
+                )}
+                {(form.regimen_tributario === "gran_contribuyente" ||
+                  form.regimen_tributario === "autorretenedor") && (
+                  <p className="text-xs text-warning">
+                    Los grandes contribuyentes y autorretenedores generalmente no llevan retención
+                    en la fuente normal — verifica antes de aplicarla.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Retenciones automáticas
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Al elegir este proveedor en un recibo, se autocompletan estas retenciones
+                  (siguen siendo editables en el momento).
+                </p>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="prov-retencion"
+                    checked={form.aplica_retencion ?? false}
+                    onCheckedChange={(v) => setForm({ ...form, aplica_retencion: v === true })}
+                  />
+                  <Label htmlFor="prov-retencion" className="text-sm font-normal cursor-pointer">
+                    Aplica retención en la fuente (renta)
+                  </Label>
+                </div>
+                {form.aplica_retencion && (
+                  <Select
+                    value={form.tarifa_retencion_id ?? ""}
+                    onValueChange={(v) => setForm({ ...form, tarifa_retencion_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona el tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tarifasQ.data?.filter((t) => t.activo).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nombre} ({Number(t.porcentaje)}%)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Checkbox
+                    id="prov-reteica"
+                    checked={form.aplica_reteica ?? false}
+                    onCheckedChange={(v) => setForm({ ...form, aplica_reteica: v === true })}
+                  />
+                  <Label htmlFor="prov-reteica" className="text-sm font-normal cursor-pointer">
+                    Aplica ReteICA
+                  </Label>
+                </div>
+                {form.aplica_reteica && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={form.concepto_reteica_id ?? ""}
+                      onValueChange={(v) => setForm({ ...form, concepto_reteica_id: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Servicios o compras" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reteicaConceptosQ.data?.filter((t) => t.activo).map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Tarifa por mil, ej. 9.66"
+                      value={form.tarifa_reteica ?? 0}
+                      onChange={(e) =>
+                        setForm({ ...form, tarifa_reteica: Number(e.target.value) })
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Checkbox
+                    id="prov-reteiva"
+                    checked={form.aplica_reteiva ?? false}
+                    onCheckedChange={(v) => setForm({ ...form, aplica_reteiva: v === true })}
+                  />
+                  <Label htmlFor="prov-reteiva" className="text-sm font-normal cursor-pointer">
+                    Aplica ReteIVA (15% del IVA)
+                  </Label>
+                </div>
+              </div>
+
               <Button
                 className="w-full"
                 onClick={() => save.mutate()}
@@ -146,6 +636,7 @@ function Provs() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </header>
 
       <Card>
@@ -157,6 +648,8 @@ function Provs() {
                 <th className="px-4 py-3 font-medium">NIT</th>
                 <th className="px-4 py-3 font-medium">Teléfono</th>
                 <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Régimen</th>
+                <th className="px-4 py-3 font-medium">Retenciones</th>
                 <th className="px-4 py-3 text-right"></th>
               </tr>
             </thead>
@@ -164,9 +657,49 @@ function Provs() {
               {q.data?.map((p) => (
                 <tr key={p.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{p.nombre}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{p.nit}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {p.tipo_proveedor === "natural" &&
+                      `${TIPOS_IDENTIFICACION.find((t) => t.value === p.tipo_identificacion)?.value ?? "CC"} `}
+                    {p.nit}
+                    {p.digito_verificacion && `-${p.digito_verificacion}`}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.telefono ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.email ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs">
+                      {REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ??
+                        "—"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Factura: {p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA"}
+                      {!p.responsable_iva && p.tipo_impuesto !== "impoconsumo" && " · No resp. IVA"}
+                    </div>
+                    {p.codigo_ciiu && (
+                      <div className="text-xs text-muted-foreground">CIIU {p.codigo_ciiu}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 flex-wrap">
+                      {p.aplica_retencion && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          Rte.Fuente
+                        </span>
+                      )}
+                      {p.aplica_reteica && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          ReteICA
+                        </span>
+                      )}
+                      {p.aplica_reteiva && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          ReteIVA
+                        </span>
+                      )}
+                      {!p.aplica_retencion && !p.aplica_reteica && !p.aplica_reteiva && (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
                       <Button
@@ -174,6 +707,8 @@ function Provs() {
                         variant="ghost"
                         onClick={() => {
                           setForm(p);
+                          const listaCiudades = CIUDADES_POR_DEPARTAMENTO[p.departamento ?? ""] ?? [];
+                          setCiudadManual(!!p.ciudad && !listaCiudades.includes(p.ciudad));
                           setOpen(true);
                         }}
                       >

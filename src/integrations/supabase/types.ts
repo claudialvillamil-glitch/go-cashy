@@ -14,18 +14,138 @@ export type Database = {
   }
   public: {
     Tables: {
+      tarifas_retencion_renta: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          minimo_uvt: number
+          nombre: string
+          porcentaje: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre: string
+          porcentaje?: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre?: string
+          porcentaje?: number
+        }
+        Relationships: []
+      }
+      conceptos_reteica: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      tarifas_reteica_ciudad: {
+        Row: {
+          activo: boolean
+          agencia_id: string
+          codigo_ciiu: string | null
+          created_at: string
+          cuenta: string | null
+          id: string
+          tarifa: number
+          tope: number
+        }
+        Insert: {
+          activo?: boolean
+          agencia_id: string
+          codigo_ciiu?: string | null
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          tarifa?: number
+          tope?: number
+        }
+        Update: {
+          activo?: boolean
+          agencia_id?: string
+          codigo_ciiu?: string | null
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          tarifa?: number
+          tope?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          activo: boolean
+          agencia_id: string | null
+          created_at: string
+          email: string
+          id: string
+          nombre: string
+          rol: string
+        }
+        Insert: {
+          activo?: boolean
+          agencia_id?: string | null
+          created_at?: string
+          email: string
+          id: string
+          nombre?: string
+          rol?: string
+        }
+        Update: {
+          activo?: boolean
+          agencia_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string
+          rol?: string
+        }
+        Relationships: []
+      }
       agencias: {
         Row: {
+          codigo: number | null
           created_at: string
           id: string
           nombre: string
         }
         Insert: {
+          codigo?: number | null
           created_at?: string
           id?: string
           nombre: string
         }
         Update: {
+          codigo?: number | null
           created_at?: string
           id?: string
           nombre?: string
@@ -38,63 +158,123 @@ export type Database = {
           created_at: string
           cuenta_contrapartida: string
           cuenta_gasto: string
+          cuenta_impoconsumo: string | null
           cuenta_iva: string | null
           cuenta_retencion: string | null
+          cuenta_reteica: string | null
+          cuenta_reteiva: string | null
           id: string
           nombre: string
+          porcentaje_impoconsumo: number
+          porcentaje_iva: number
           porcentaje_retencion: number | null
+          porcentaje_reteica: number
+          porcentaje_reteiva: number
         }
         Insert: {
           activo?: boolean
           created_at?: string
           cuenta_contrapartida?: string
           cuenta_gasto: string
+          cuenta_impoconsumo?: string | null
           cuenta_iva?: string | null
           cuenta_retencion?: string | null
+          cuenta_reteica?: string | null
+          cuenta_reteiva?: string | null
           id?: string
           nombre: string
+          porcentaje_impoconsumo?: number
+          porcentaje_iva?: number
           porcentaje_retencion?: number | null
+          porcentaje_reteica?: number
+          porcentaje_reteiva?: number
         }
         Update: {
           activo?: boolean
           created_at?: string
           cuenta_contrapartida?: string
           cuenta_gasto?: string
+          cuenta_impoconsumo?: string | null
           cuenta_iva?: string | null
           cuenta_retencion?: string | null
+          cuenta_reteica?: string | null
+          cuenta_reteiva?: string | null
           id?: string
           nombre?: string
+          porcentaje_impoconsumo?: number
+          porcentaje_iva?: number
           porcentaje_retencion?: number | null
+          porcentaje_reteica?: number
+          porcentaje_reteiva?: number
         }
         Relationships: []
       }
       fondo_config: {
         Row: {
+          codigo_recibo: string
           created_at: string
+          cuenta_banco: string
+          cuenta_reteica_compras: string
+          cuenta_reteica_servicios: string
+          cuenta_retencion_fletes: string
+          cuenta_retencion_hotel: string
+          cuenta_retencion_servicios_declarante: string
+          cuenta_retencion_servicios_no_declarante: string
           empresa: string
           id: string
+          limite_alerta_reembolso_pct: number
           monto_asignado: number
           monto_maximo_gasto: number
+          nombre_aprobador: string
           responsable: string
           updated_at: string
+          valor_uvt: number
+          version_recibo: string
+          vigencia_recibo: string
         }
         Insert: {
+          codigo_recibo?: string
           created_at?: string
+          cuenta_banco?: string
+          cuenta_reteica_compras?: string
+          cuenta_reteica_servicios?: string
+          cuenta_retencion_fletes?: string
+          cuenta_retencion_hotel?: string
+          cuenta_retencion_servicios_declarante?: string
+          cuenta_retencion_servicios_no_declarante?: string
           empresa?: string
           id?: string
+          limite_alerta_reembolso_pct?: number
           monto_asignado?: number
           monto_maximo_gasto?: number
+          nombre_aprobador?: string
           responsable?: string
           updated_at?: string
+          valor_uvt?: number
+          version_recibo?: string
+          vigencia_recibo?: string
         }
         Update: {
+          codigo_recibo?: string
           created_at?: string
+          cuenta_banco?: string
+          cuenta_reteica_compras?: string
+          cuenta_reteica_servicios?: string
+          cuenta_retencion_fletes?: string
+          cuenta_retencion_hotel?: string
+          cuenta_retencion_servicios_declarante?: string
+          cuenta_retencion_servicios_no_declarante?: string
           empresa?: string
           id?: string
+          limite_alerta_reembolso_pct?: number
           monto_asignado?: number
           monto_maximo_gasto?: number
+          nombre_aprobador?: string
           responsable?: string
           updated_at?: string
+          valor_uvt?: number
+          version_recibo?: string
+          vigencia_recibo?: string
         }
         Relationships: []
       }
@@ -111,16 +291,9 @@ export type Database = {
           numero_factura: string | null
           orden: number
           proveedor_id: string
-          retefuente_aplica: boolean
-          retefuente_concepto: string | null
-          retefuente_tarifa: number
-          reteica_actividad: string | null
-          reteica_aplica: boolean
-          reteica_tarifa: number
-          reteica_valor: number
-          reteiva_aplica: boolean
-          reteiva_valor: number
           retencion: number
+          reteica: number
+          reteiva: number
           subtotal: number
           total: number
         }
@@ -136,16 +309,9 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id: string
-          retefuente_aplica?: boolean
-          retefuente_concepto?: string | null
-          retefuente_tarifa?: number
-          reteica_actividad?: string | null
-          reteica_aplica?: boolean
-          reteica_tarifa?: number
-          reteica_valor?: number
-          reteiva_aplica?: boolean
-          reteiva_valor?: number
           retencion?: number
+          reteica?: number
+          reteiva?: number
           subtotal?: number
           total?: number
         }
@@ -161,16 +327,9 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id?: string
-          retefuente_aplica?: boolean
-          retefuente_concepto?: string | null
-          retefuente_tarifa?: number
-          reteica_actividad?: string | null
-          reteica_aplica?: boolean
-          reteica_tarifa?: number
-          reteica_valor?: number
-          reteiva_aplica?: boolean
-          reteiva_valor?: number
           retencion?: number
+          reteica?: number
+          reteiva?: number
           subtotal?: number
           total?: number
         }
@@ -205,6 +364,7 @@ export type Database = {
           consecutivo: number
           created_at: string
           detalle: string | null
+          doc_soporte_generado: boolean
           estado: string
           factura_electronica: boolean
           factura_path: string | null
@@ -219,17 +379,15 @@ export type Database = {
           prioridad: string
           proveedor_id: string
           reembolso_id: string | null
-          retefuente_aplica: boolean
-          retefuente_concepto: string | null
-          retefuente_tarifa: number
-          reteica_actividad: string | null
-          reteica_aplica: boolean
-          reteica_tarifa: number
-          reteica_valor: number
-          reteiva_aplica: boolean
-          reteiva_valor: number
+          concepto_reteica_id: string | null
+          concepto_reteica_usado: string | null
           retencion: number
+          reteica: number
+          reteiva: number
           subtotal: number
+          tarifa_reteica_ciudad_id: string | null
+          tarifa_retencion_id: string | null
+          tipo_retencion_renta: string | null
           total: number
           updated_at: string
         }
@@ -239,6 +397,7 @@ export type Database = {
           consecutivo?: number
           created_at?: string
           detalle?: string | null
+          doc_soporte_generado?: boolean
           estado?: string
           factura_electronica?: boolean
           factura_path?: string | null
@@ -253,17 +412,15 @@ export type Database = {
           prioridad?: string
           proveedor_id: string
           reembolso_id?: string | null
-          retefuente_aplica?: boolean
-          retefuente_concepto?: string | null
-          retefuente_tarifa?: number
-          reteica_actividad?: string | null
-          reteica_aplica?: boolean
-          reteica_tarifa?: number
-          reteica_valor?: number
-          reteiva_aplica?: boolean
-          reteiva_valor?: number
+          concepto_reteica_id?: string | null
+          concepto_reteica_usado?: string | null
           retencion?: number
+          reteica?: number
+          reteiva?: number
           subtotal?: number
+          tarifa_reteica_ciudad_id?: string | null
+          tarifa_retencion_id?: string | null
+          tipo_retencion_renta?: string | null
           total?: number
           updated_at?: string
         }
@@ -273,6 +430,7 @@ export type Database = {
           consecutivo?: number
           created_at?: string
           detalle?: string | null
+          doc_soporte_generado?: boolean
           estado?: string
           factura_electronica?: boolean
           factura_path?: string | null
@@ -287,17 +445,15 @@ export type Database = {
           prioridad?: string
           proveedor_id?: string
           reembolso_id?: string | null
-          retefuente_aplica?: boolean
-          retefuente_concepto?: string | null
-          retefuente_tarifa?: number
-          reteica_actividad?: string | null
-          reteica_aplica?: boolean
-          reteica_tarifa?: number
-          reteica_valor?: number
-          reteiva_aplica?: boolean
-          reteiva_valor?: number
+          concepto_reteica_id?: string | null
+          concepto_reteica_usado?: string | null
           retencion?: number
+          reteica?: number
+          reteiva?: number
           subtotal?: number
+          tarifa_reteica_ciudad_id?: string | null
+          tarifa_retencion_id?: string | null
+          tipo_retencion_renta?: string | null
           total?: number
           updated_at?: string
         }
@@ -334,39 +490,94 @@ export type Database = {
       }
       proveedores: {
         Row: {
+          aplica_reteica: boolean
+          aplica_reteiva: boolean
+          aplica_retencion: boolean
+          ciudad: string | null
+          codigo_ciiu: string | null
+          concepto_reteica: string
+          concepto_reteica_id: string | null
           created_at: string
+          departamento: string | null
           direccion: string | null
           email: string | null
           id: string
           nit: string
           nombre: string
+          pais: string
+          regimen_tributario: string
+          digito_verificacion: string | null
+          responsable_iva: boolean
+          tarifa_reteica: number
+          tarifa_retencion_id: string | null
           telefono: string | null
+          tipo_identificacion: string
+          tipo_impuesto: string
+          tipo_proveedor: string
+          tipo_retencion_renta: string | null
           updated_at: string
         }
         Insert: {
+          aplica_reteica?: boolean
+          aplica_reteiva?: boolean
+          aplica_retencion?: boolean
+          ciudad?: string | null
+          codigo_ciiu?: string | null
+          concepto_reteica?: string
+          concepto_reteica_id?: string | null
           created_at?: string
+          departamento?: string | null
           direccion?: string | null
           email?: string | null
           id?: string
           nit: string
           nombre: string
+          pais?: string
+          regimen_tributario?: string
+          digito_verificacion?: string | null
+          responsable_iva?: boolean
+          tarifa_reteica?: number
+          tarifa_retencion_id?: string | null
           telefono?: string | null
+          tipo_identificacion?: string
+          tipo_impuesto?: string
+          tipo_proveedor?: string
+          tipo_retencion_renta?: string | null
           updated_at?: string
         }
         Update: {
+          aplica_reteica?: boolean
+          aplica_reteiva?: boolean
+          aplica_retencion?: boolean
+          ciudad?: string | null
+          codigo_ciiu?: string | null
+          concepto_reteica?: string
+          concepto_reteica_id?: string | null
           created_at?: string
+          departamento?: string | null
           direccion?: string | null
           email?: string | null
           id?: string
           nit?: string
           nombre?: string
+          pais?: string
+          regimen_tributario?: string
+          digito_verificacion?: string | null
+          responsable_iva?: boolean
+          tarifa_reteica?: number
+          tarifa_retencion_id?: string | null
           telefono?: string | null
+          tipo_identificacion?: string
+          tipo_impuesto?: string
+          tipo_proveedor?: string
+          tipo_retencion_renta?: string | null
           updated_at?: string
         }
         Relationships: []
       }
       reembolsos: {
         Row: {
+          arqueo: Json | null
           consecutivo: number
           created_at: string
           estado: string
@@ -379,6 +590,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arqueo?: Json | null
           consecutivo?: number
           created_at?: string
           estado?: string
@@ -391,6 +603,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arqueo?: Json | null
           consecutivo?: number
           created_at?: string
           estado?: string

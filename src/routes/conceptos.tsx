@@ -41,9 +41,16 @@ const empty: Partial<Concepto> = {
   nombre: "",
   cuenta_gasto: "",
   cuenta_iva: "24080101",
+  cuenta_impoconsumo: "",
   cuenta_retencion: "24109503",
+  cuenta_reteica: "",
+  cuenta_reteiva: "",
   cuenta_contrapartida: "11050501",
   porcentaje_retencion: 0,
+  porcentaje_iva: 19,
+  porcentaje_impoconsumo: 8,
+  porcentaje_reteica: 0,
+  porcentaje_reteiva: 0,
   activo: true,
 };
 
@@ -59,9 +66,15 @@ function Cons() {
         nombre: form.nombre!,
         cuenta_gasto: form.cuenta_gasto!,
         cuenta_iva: form.cuenta_iva || null,
+        cuenta_impoconsumo: form.cuenta_impoconsumo || null,
         cuenta_retencion: form.cuenta_retencion || null,
+        cuenta_reteica: form.cuenta_reteica || null,
+        cuenta_reteiva: form.cuenta_reteiva || null,
         cuenta_contrapartida: form.cuenta_contrapartida || "11050501",
         porcentaje_retencion: Number(form.porcentaje_retencion) || 0,
+        porcentaje_iva: Number(form.porcentaje_iva) || 0,
+        porcentaje_reteica: Number(form.porcentaje_reteica) || 0,
+        porcentaje_reteiva: Number(form.porcentaje_reteiva) || 0,
         activo: form.activo ?? true,
       };
       if (form.id) {
@@ -108,11 +121,11 @@ function Cons() {
               <Plus className="h-4 w-4 mr-2" /> Nuevo concepto
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{form.id ? "Editar concepto" : "Nuevo concepto"}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <F label="Nombre *">
                 <Input
                   value={form.nombre ?? ""}
@@ -132,29 +145,111 @@ function Cons() {
                     onChange={(e) => setForm({ ...form, cuenta_contrapartida: e.target.value })}
                   />
                 </F>
-                <F label="Cuenta IVA">
+              </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground">IVA</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <F label="Cuenta IVA">
+                    <Input
+                      value={form.cuenta_iva ?? ""}
+                      onChange={(e) => setForm({ ...form, cuenta_iva: e.target.value })}
+                    />
+                  </F>
+                  <F label="% IVA">
+                    <Input
+                      type="number"
+                      step="1"
+                      value={Math.round(Number(form.porcentaje_iva ?? 0))}
+                      onChange={(e) =>
+                        setForm({ ...form, porcentaje_iva: Math.round(Number(e.target.value)) })
+                      }
+                    />
+                  </F>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground">Impoconsumo</p>
+                <p className="text-xs text-muted-foreground">
+                  El % (8%) ya se calcula automático en el recibo; aquí solo defines la cuenta.
+                </p>
+                <F label="Cuenta impoconsumo">
                   <Input
-                    value={form.cuenta_iva ?? ""}
-                    onChange={(e) => setForm({ ...form, cuenta_iva: e.target.value })}
-                  />
-                </F>
-                <F label="Cuenta retención">
-                  <Input
-                    value={form.cuenta_retencion ?? ""}
-                    onChange={(e) => setForm({ ...form, cuenta_retencion: e.target.value })}
-                  />
-                </F>
-                <F label="% Retención">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={form.porcentaje_retencion ?? 0}
-                    onChange={(e) =>
-                      setForm({ ...form, porcentaje_retencion: Number(e.target.value) })
-                    }
+                    value={form.cuenta_impoconsumo ?? ""}
+                    onChange={(e) => setForm({ ...form, cuenta_impoconsumo: e.target.value })}
                   />
                 </F>
               </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground">Retención en la fuente</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <F label="Cuenta retención">
+                    <Input
+                      value={form.cuenta_retencion ?? ""}
+                      onChange={(e) => setForm({ ...form, cuenta_retencion: e.target.value })}
+                    />
+                  </F>
+                  <F label="% Retención">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={Number(form.porcentaje_retencion ?? 0)}
+                      onChange={(e) =>
+                        setForm({ ...form, porcentaje_retencion: Number(e.target.value) })
+                      }
+                    />
+                  </F>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground">ReteICA</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <F label="Cuenta ReteICA">
+                    <Input
+                      value={form.cuenta_reteica ?? ""}
+                      onChange={(e) => setForm({ ...form, cuenta_reteica: e.target.value })}
+                    />
+                  </F>
+                  <F label="% ReteICA">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={Number(form.porcentaje_reteica ?? 0)}
+                      onChange={(e) =>
+                        setForm({ ...form, porcentaje_reteica: Number(e.target.value) })
+                      }
+                    />
+                  </F>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  ReteIVA <span className="font-normal">(se calcula sobre el valor del IVA, no del subtotal)</span>
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <F label="Cuenta ReteIVA">
+                    <Input
+                      value={form.cuenta_reteiva ?? ""}
+                      onChange={(e) => setForm({ ...form, cuenta_reteiva: e.target.value })}
+                    />
+                  </F>
+                  <F label="% ReteIVA">
+                    <Input
+                      type="number"
+                      step="1"
+                      value={Math.round(Number(form.porcentaje_reteiva ?? 0))}
+                      onChange={(e) =>
+                        setForm({ ...form, porcentaje_reteiva: Math.round(Number(e.target.value)) })
+                      }
+                    />
+                  </F>
+                </div>
+              </div>
+
               <Button
                 className="w-full"
                 onClick={() => save.mutate()}
@@ -175,7 +270,13 @@ function Cons() {
                 <th className="px-4 py-3 font-medium">Concepto</th>
                 <th className="px-4 py-3 font-medium">Cuenta gasto</th>
                 <th className="px-4 py-3 font-medium">IVA</th>
-                <th className="px-4 py-3 font-medium">Retención</th>
+                <th className="px-4 py-3 font-medium">% IVA</th>
+                <th className="px-4 py-3 font-medium">Impoconsumo</th>
+                <th className="px-4 py-3 font-medium">Rete Fuente</th>
+                <th className="px-4 py-3 font-medium">%</th>
+                <th className="px-4 py-3 font-medium">ReteICA</th>
+                <th className="px-4 py-3 font-medium">%</th>
+                <th className="px-4 py-3 font-medium">ReteIVA</th>
                 <th className="px-4 py-3 font-medium">%</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 text-right"></th>
@@ -189,10 +290,22 @@ function Cons() {
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {c.cuenta_iva ?? "—"}
                   </td>
+                  <td className="px-4 py-3">{Math.round(Number(c.porcentaje_iva ?? 0))}%</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {c.cuenta_impoconsumo ?? "—"}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {c.cuenta_retencion ?? "—"}
                   </td>
-                  <td className="px-4 py-3">{c.porcentaje_retencion ?? 0}%</td>
+                  <td className="px-4 py-3">{Number(c.porcentaje_retencion ?? 0)}%</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {c.cuenta_reteica ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">{Number(c.porcentaje_reteica ?? 0)}%</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {c.cuenta_reteiva ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">{Math.round(Number(c.porcentaje_reteiva ?? 0))}%</td>
                   <td className="px-4 py-3">
                     <Badge variant={c.activo ? "default" : "secondary"}>
                       {c.activo ? "Activo" : "Inactivo"}

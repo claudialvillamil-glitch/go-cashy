@@ -12,9 +12,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useMemo, useState } from "react";
-import { computeAsiento, getFondo, getMovimientos, type Movimiento } from "@/lib/db";
+import {
+  computeAsiento,
+  getFondo,
+  getMovimientos,
+  getTarifasRetencionRenta,
+  getConceptosReteica,
+  getTarifasReteicaCiudad,
+  type Movimiento,
+} from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye, Layers } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye, Layers, Printer, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -22,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { exportExcel, exportPDF, exportReciboPDF } from "@/lib/exports";
+import { exportExcel, exportPDF, exportReciboPDF, exportLibroCajaMenorConSoportesPDF } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -44,6 +52,9 @@ function Movs() {
   const qc = useQueryClient();
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState<"todos" | "multi" | "simple">("todos");
   const [detail, setDetail] = useState<Movimiento | null>(null);
@@ -68,6 +79,14 @@ function Movs() {
         ),
     );
   }, [movsQ.data, q, tipo]);
+
+  const generarConSoportes = useMutation({
+    mutationFn: async () => {
+      if (!fondoQ.data) throw new Error("Falta cargar el fondo");
+      await exportLibroCajaMenorConSoportesPDF(filtered, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
+    },
+    onError: (e: Error) => toast.error("No se pudo generar el reporte: " + e.message),
+  });
 
   const del = useMutation({
     mutationFn: async (m: Movimiento) => {
@@ -101,7 +120,7 @@ function Movs() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => fondoQ.data && exportExcel(filtered, fondoQ.data)}
+            onClick={() => fondoQ.data && exportExcel(filtered, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
             disabled={!filtered.length}
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -109,11 +128,31 @@ function Movs() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => fondoQ.data && exportPDF(filtered, fondoQ.data)}
+            onClick={() => fondoQ.data && exportPDF(filtered, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
             disabled={!filtered.length}
           >
             <FileText className="h-4 w-4 mr-2" />
             PDF
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => fondoQ.data && exportPDF(filtered, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+            disabled={!filtered.length}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => generarConSoportes.mutate()}
+            disabled={generarConSoportes.isPending || !filtered.length}
+          >
+            {generarConSoportes.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            Recibos + soportes (PDF)
           </Button>
         </div>
       </header>
@@ -187,9 +226,18 @@ function Movs() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => fondoQ.data && exportReciboPDF(m, fondoQ.data)}
+                        onClick={() => fondoQ.data && exportReciboPDF(m, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+                        title="Descargar recibo"
                       >
                         <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => fondoQ.data && exportReciboPDF(m, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+                        title="Imprimir recibo"
+                      >
+                        <Printer className="h-4 w-4" />
                       </Button>
                       <Button
                         size="icon"
@@ -239,7 +287,9 @@ function Movs() {
                 <Info label="Subtotal" value={fmtMoney(detail.subtotal)} />
                 <Info label="IVA" value={fmtMoney(detail.iva)} />
                 <Info label="Impoconsumo" value={fmtMoney(detail.impoconsumo)} />
-                <Info label="Retención" value={fmtMoney(detail.retencion)} />
+                <Info label="Rete Fuente" value={fmtMoney(detail.retencion)} />
+                <Info label="ReteICA" value={fmtMoney(detail.reteica)} />
+                <Info label="ReteIVA" value={fmtMoney(detail.reteiva)} />
               </div>
               <div className="flex justify-between p-3 rounded-md bg-primary text-primary-foreground">
                 <span>Total</span>
@@ -259,7 +309,7 @@ function Movs() {
                   </thead>
                   <tbody>
                     {(() => {
-                      const { debitos, creditos } = computeAsiento(detail);
+                      const { debitos, creditos } = computeAsiento(detail, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
                       return [
                         ...debitos.map((d, i) => (
                           <tr key={"d" + i} className="border-t">
@@ -289,7 +339,13 @@ function Movs() {
                     <FileText className="h-4 w-4 mr-2" /> Ver factura
                   </Button>
                 )}
-                <Button onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data)}>
+                <Button
+                  variant="outline"
+                  onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+                >
+                  <Printer className="h-4 w-4 mr-2" /> Imprimir recibo
+                </Button>
+                <Button onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}>
                   <Download className="h-4 w-4 mr-2" /> Descargar recibo
                 </Button>
               </div>

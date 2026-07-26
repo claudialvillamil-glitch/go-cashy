@@ -13,8 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useMemo, useState } from "react";
-import { getAgencias, getConceptos, getFondo, getProveedores } from "@/lib/db";
+import { useEffect, useMemo, useState } from "react";
+import {
+  getAgencias,
+  getConceptos,
+  getFondo,
+  getProveedores,
+  getTarifasRetencionRenta,
+  getConceptosReteica,
+  getTarifasReteicaCiudad,
+} from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2, FileText, Plus, Trash2 } from "lucide-react";
@@ -22,6 +30,7 @@ import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Concepto } from "@/lib/db";
+import { CUANTIA_MINIMA_UVT_SERVICIOS, REGIMENES_TRIBUTARIOS } from "@/lib/retenciones";
 
 export const Route = createFileRoute("/nuevo")({
   head: () => ({
@@ -37,44 +46,6 @@ export const Route = createFileRoute("/nuevo")({
   ),
 });
 
-const RETEFUENTE_OPTIONS = [
-  { value: "hotel", label: "Serv. hotel y restaurante (3,5%)", tarifa: 3.5 },
-  { value: "serv4", label: "Servicios generales (4%)", tarifa: 4 },
-  { value: "serv6", label: "Servicios generales (6%)", tarifa: 6 },
-  { value: "fletes", label: "Fletes (1%)", tarifa: 1 },
-];
-
-type Taxes = {
-  reteica_aplica: boolean;
-  reteica_actividad: string;
-  reteica_tarifa: string; // por mil
-  reteiva_aplica: boolean;
-  retefuente_aplica: boolean;
-  retefuente_concepto: string;
-};
-
-const blankTaxes = (): Taxes => ({
-  reteica_aplica: false,
-  reteica_actividad: "servicios",
-  reteica_tarifa: "0",
-  reteiva_aplica: false,
-  retefuente_aplica: false,
-  retefuente_concepto: "serv4",
-});
-
-function calcReteIca(subtotal: number, tarifaPorMil: number) {
-  return Math.round((subtotal * tarifaPorMil) / 1000);
-}
-function calcReteIva(iva: number) {
-  return Math.round((iva * 15) / 100);
-}
-function calcRetefuente(subtotal: number, tarifa: number) {
-  return Math.round((subtotal * tarifa) / 100);
-}
-function tarifaOf(concepto: string) {
-  return RETEFUENTE_OPTIONS.find((o) => o.value === concepto)?.tarifa ?? 0;
-}
-
 function Nuevo() {
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -82,6 +53,9 @@ function Nuevo() {
   const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const nextConsQ = useQuery({
     queryKey: ["next-consecutivo"],
     queryFn: async () => {
@@ -104,59 +78,213 @@ function Nuevo() {
   const [subtotal, setSubtotal] = useState<string>("");
   const [iva, setIva] = useState<string>("0");
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
+  const [tipoImpuesto, setTipoImpuesto] = useState<"iva" | "impoconsumo">("iva");
   const [retencion, setRetencion] = useState<string>("0");
+  const [reteica, setReteica] = useState<string>("0");
+  const [reteiva, setReteiva] = useState<string>("0");
+  const [aplicaRetencion, setAplicaRetencion] = useState(false);
+  const [tarifaRetencionId, setTarifaRetencionId] = useState<string>("");
+  const [aplicaReteica, setAplicaReteica] = useState(false);
+  const [conceptoReteicaId, setConceptoReteicaId] = useState<string>("");
+  const [tarifaReteica, setTarifaReteica] = useState<string>("");
+  const [aplicaReteiva, setAplicaReteiva] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [multiSoporte, setMultiSoporte] = useState(false);
   const [items, setItems] = useState<ItemDraft[]>([blankItem()]);
-  const [taxes, setTaxes] = useState<Taxes>(blankTaxes());
+
+  // La agencia queda predeterminada a la primera disponible en cuanto carga la lista.
+  useEffect(() => {
+    if (!agencia && agsQ.data && agsQ.data.length > 0) {
+      setAgencia(agsQ.data[0].id);
+    }
+  }, [agsQ.data, agencia]);
 
   const conceptoSel = useMemo(
     () => consQ.data?.find((c) => c.id === concepto),
     [consQ.data, concepto],
   );
 
-  // Cálculos del bloque simple
-  const simpleSub = parseFloat(subtotal) || 0;
-  const simpleIva = parseFloat(iva) || 0;
-  const simpleImp = parseFloat(impoconsumo) || 0;
-  const simpleReteIca = taxes.reteica_aplica
-    ? calcReteIca(simpleSub, parseFloat(taxes.reteica_tarifa) || 0)
-    : 0;
-  const simpleReteIva = taxes.reteiva_aplica ? calcReteIva(simpleIva) : 0;
-  const simpleRetefuente = taxes.retefuente_aplica
-    ? calcRetefuente(simpleSub, tarifaOf(taxes.retefuente_concepto))
-    : parseFloat(retencion) || 0;
+  const proveedorSel = useMemo(
+    () => provsQ.data?.find((p) => p.id === proveedor),
+    [provsQ.data, proveedor],
+  );
 
+  // Auto-calcular IVA sugerido según el concepto (modo simple)
   const onSubtotalChange = (v: string) => {
     setSubtotal(v);
-    if (!taxes.retefuente_aplica && conceptoSel?.porcentaje_retencion) {
-      const s = parseFloat(v) || 0;
-      setRetencion(String(Math.round((s * Number(conceptoSel.porcentaje_retencion)) / 100)));
-    }
   };
 
-  const itemCalcs = useMemo(() => {
+  const onConceptoChange = (id: string) => {
+    setConcepto(id);
+  };
+
+  // Al elegir el proveedor, autocompletamos las retenciones que tenga
+  // configuradas (siguen siendo editables después).
+  const onProveedorChange = (id: string) => {
+    setProveedor(id);
+    const p = provsQ.data?.find((x) => x.id === id);
+    if (!p) return;
+    const esRegimenSimple = p.regimen_tributario === "simple";
+    setAplicaRetencion(esRegimenSimple ? false : p.aplica_retencion);
+    setTarifaRetencionId(p.tarifa_retencion_id ?? "");
+    setAplicaReteica(esRegimenSimple ? false : p.aplica_reteica);
+    setConceptoReteicaId(p.concepto_reteica_id ?? "");
+    setTarifaReteica(p.aplica_reteica ? String(p.tarifa_reteica) : "");
+    setAplicaReteiva(p.aplica_reteiva);
+    setTipoImpuesto(p.tipo_impuesto === "impoconsumo" ? "impoconsumo" : "iva");
+  };
+
+  // IVA: solo se calcula automático cuando el tipo de impuesto seleccionado es "IVA".
+  useEffect(() => {
+    if (tipoImpuesto !== "iva") {
+      setIva("0");
+      return;
+    }
+    const s = parseFloat(subtotal) || 0;
+    setIva(String(Math.round((s * Number(conceptoSel?.porcentaje_iva ?? 0)) / 100)));
+  }, [tipoImpuesto, subtotal, conceptoSel?.porcentaje_iva]);
+
+  // Impoconsumo: 8% del subtotal, redondeado sin decimales. Solo cuando el
+  // tipo de impuesto seleccionado es "Impoconsumo" (es excluyente con el IVA).
+  useEffect(() => {
+    if (tipoImpuesto !== "impoconsumo") {
+      setImpoconsumo("0");
+      return;
+    }
+    const s = parseFloat(subtotal) || 0;
+    setImpoconsumo(String(Math.round(s * 0.08)));
+  }, [tipoImpuesto, subtotal]);
+
+  // Valores base compartidos para validar la cuantía mínima (4 UVT) tanto en
+  // retención en la fuente como en ReteIVA.
+  const subtotalNum = parseFloat(subtotal) || 0;
+  const uvtValor = Number(fondoQ.data?.valor_uvt ?? 0);
+
+  // Retención en la fuente (renta): base * % / 100, redondeado, según el tipo de servicio elegido.
+  // Solo se aplica si el subtotal supera la cuantía mínima (en UVT) de ese tipo de retención;
+  // si no la supera, la casilla se bloquea y desmarca automáticamente.
+  const tipoRentaSel = tarifasQ.data?.find((t) => t.id === tarifaRetencionId);
+  const cuantiaMinimaRetencion =
+    tipoRentaSel && uvtValor > 0 ? Number(tipoRentaSel.minimo_uvt) * uvtValor : 0;
+  const retencionBloqueada =
+    cuantiaMinimaRetencion > 0 && subtotalNum > 0 && subtotalNum < cuantiaMinimaRetencion;
+
+  useEffect(() => {
+    if (retencionBloqueada && aplicaRetencion) {
+      setAplicaRetencion(false);
+    }
+  }, [retencionBloqueada]);
+
+  useEffect(() => {
+    if (!aplicaRetencion) {
+      setRetencion("0");
+      return;
+    }
+    const s = parseFloat(subtotal) || 0;
+    setRetencion(tipoRentaSel ? String(Math.round((s * Number(tipoRentaSel.porcentaje)) / 100)) : "0");
+  }, [aplicaRetencion, tarifaRetencionId, subtotal, tarifasQ.data]);
+
+  // ReteICA: busca la tarifa configurada para esta agencia + el CIIU del
+  // proveedor (o la tarifa general de la agencia si no hay una específica
+  // para ese CIIU). Se puede seguir ajustando manualmente si hace falta.
+  const tarifaReteicaCiudadSel = useMemo(() => {
+    const candidatas = (reteicaCiudadQ.data ?? []).filter((t) => t.activo && t.agencia_id === agencia);
+    const ciiu = proveedorSel?.codigo_ciiu?.trim();
+    const exacta = ciiu ? candidatas.find((t) => t.codigo_ciiu === ciiu) : undefined;
+    const general = candidatas.find((t) => !t.codigo_ciiu);
+    return exacta ?? general ?? null;
+  }, [reteicaCiudadQ.data, agencia, proveedorSel?.codigo_ciiu]);
+
+  // Al cambiar la tarifa detectada (por cambio de agencia o proveedor),
+  // precargamos su valor en el campo (sigue siendo editable).
+  useEffect(() => {
+    if (tarifaReteicaCiudadSel) {
+      setTarifaReteica(String(Number(tarifaReteicaCiudadSel.tarifa)));
+    }
+  }, [tarifaReteicaCiudadSel]);
+
+  const reteicaBloqueadaPorTope =
+    !!tarifaReteicaCiudadSel &&
+    Number(tarifaReteicaCiudadSel.tope) > 0 &&
+    subtotalNum > 0 &&
+    subtotalNum < Number(tarifaReteicaCiudadSel.tope);
+
+  useEffect(() => {
+    if (reteicaBloqueadaPorTope && aplicaReteica) {
+      setAplicaReteica(false);
+    }
+  }, [reteicaBloqueadaPorTope]);
+
+  // Si hay una tarifa configurada para esta agencia + proveedor (por CIIU) y
+  // no está bloqueada por el tope, el ReteICA se activa solo. El usuario
+  // puede desmarcarlo si en un caso puntual no debe aplicar.
+  useEffect(() => {
+    if (tarifaReteicaCiudadSel && !reteicaBloqueadaPorTope && subtotalNum > 0) {
+      setAplicaReteica(true);
+    }
+  }, [tarifaReteicaCiudadSel, reteicaBloqueadaPorTope, subtotalNum]);
+
+  // ReteICA: base * tarifa por mil / 1.000, redondeado sin decimales.
+  useEffect(() => {
+    if (!aplicaReteica) {
+      setReteica("0");
+      return;
+    }
+    const s = parseFloat(subtotal) || 0;
+    const tarifa = parseFloat(tarifaReteica) || 0;
+    setReteica(String(Math.round((s * tarifa) / 1000)));
+  }, [aplicaReteica, tarifaReteica, subtotal]);
+
+  // ReteIVA: 15% del valor del IVA, redondeado sin decimales. Aplica la misma
+  // cuantía mínima (en UVT) que la retención en la fuente, porque sigue la
+  // misma base de aplicación (el monto del subtotal de la operación). Si no
+  // se supera, la casilla queda bloqueada (no solo el monto en $0).
+  const cuantiaMinimaGeneral = uvtValor > 0 ? CUANTIA_MINIMA_UVT_SERVICIOS * uvtValor : 0;
+  const reteivaBloqueada =
+    cuantiaMinimaGeneral > 0 && subtotalNum > 0 && subtotalNum < cuantiaMinimaGeneral;
+
+  useEffect(() => {
+    if (reteivaBloqueada && aplicaReteiva) {
+      setAplicaReteiva(false);
+    }
+  }, [reteivaBloqueada]);
+
+  useEffect(() => {
+    if (!aplicaReteiva) {
+      setReteiva("0");
+      return;
+    }
+    const i = parseFloat(iva) || 0;
+    setReteiva(String(Math.round(i * 0.15)));
+  }, [aplicaReteiva, iva]);
+
+  const itemTotals = useMemo(() => {
     return items.map((it) => {
       const s = parseFloat(it.subtotal) || 0;
       const i = parseFloat(it.iva) || 0;
       const p = parseFloat(it.impoconsumo) || 0;
-      const reteIca = it.reteica_aplica ? calcReteIca(s, parseFloat(it.reteica_tarifa) || 0) : 0;
-      const reteIva = it.reteiva_aplica ? calcReteIva(i) : 0;
-      const retefuente = it.retefuente_aplica
-        ? calcRetefuente(s, tarifaOf(it.retefuente_concepto))
-        : parseFloat(it.retencion) || 0;
-      const total = s + i + p - retefuente - reteIca - reteIva;
-      return { reteIca, reteIva, retefuente, total };
+      const r = parseFloat(it.retencion) || 0;
+      const rica = parseFloat(it.reteica) || 0;
+      const riva = parseFloat(it.reteiva) || 0;
+      return s + i + p - r - rica - riva;
     });
   }, [items]);
 
-  const totalSimple = simpleSub + simpleIva + simpleImp - simpleRetefuente - simpleReteIca - simpleReteIva;
-  const totalMulti = itemCalcs.reduce((a, b) => a + b.total, 0);
+  const totalSimple =
+    (parseFloat(subtotal) || 0) +
+    (parseFloat(iva) || 0) +
+    (parseFloat(impoconsumo) || 0) -
+    (parseFloat(retencion) || 0) -
+    (parseFloat(reteica) || 0) -
+    (parseFloat(reteiva) || 0);
+
+  const totalMulti = itemTotals.reduce((a, b) => a + b, 0);
   const total = multiSoporte ? totalMulti : totalSimple;
 
-  const excedeLimite = fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
+  const excedeLimite =
+    fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
 
   const itemsValidos =
     !multiSoporte ||
@@ -183,12 +311,31 @@ function Nuevo() {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
   const onItemSubtotalChange = (idx: number, v: string) => {
-    const it = items[idx];
-    const c = consQ.data?.find((x) => x.id === it?.concepto_id);
+    const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
     const patch: Partial<ItemDraft> = { subtotal: v };
-    if (!it?.retefuente_aplica && c?.porcentaje_retencion) {
-      const s = parseFloat(v) || 0;
-      patch.retencion = String(Math.round((s * Number(c.porcentaje_retencion)) / 100));
+    const s = parseFloat(v) || 0;
+    if (c) {
+      const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
+      patch.iva = String(ivaCalc);
+      if (c.porcentaje_reteica) {
+        patch.reteica = String(Math.round((s * Number(c.porcentaje_reteica)) / 100));
+      }
+      if (c.porcentaje_reteiva) {
+        patch.reteiva = String(Math.round((ivaCalc * Number(c.porcentaje_reteiva)) / 100));
+      }
+    }
+    setItem(idx, patch);
+  };
+
+  const onItemConceptoChange = (idx: number, conceptoId: string) => {
+    const c = consQ.data?.find((x) => x.id === conceptoId);
+    const s = parseFloat(items[idx]?.subtotal ?? "") || 0;
+    const patch: Partial<ItemDraft> = { concepto_id: conceptoId };
+    if (c && s > 0) {
+      const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
+      patch.iva = String(ivaCalc);
+      patch.reteica = String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100));
+      patch.reteiva = String(Math.round((ivaCalc * Number(c.porcentaje_reteiva ?? 0)) / 100));
     }
     setItem(idx, patch);
   };
@@ -208,6 +355,7 @@ function Nuevo() {
         ? await supabase.storage.from("facturas").createSignedUrl(path, 60 * 60 * 24 * 365)
         : { data: { signedUrl: "" } };
 
+      // Cabecera: en modo multi tomamos la 1a línea como proveedor/concepto principal
       const first = multiSoporte ? items[0] : null;
       const proveedorId = multiSoporte ? first!.proveedor_id : proveedor;
       const conceptoId = multiSoporte ? first!.concepto_id : concepto;
@@ -216,48 +364,12 @@ function Nuevo() {
         : (numeroFactura || null);
       const fe = multiSoporte ? items.some((i) => i.factura_electronica) : facturaElectronica;
 
-      const sumSub = multiSoporte
-        ? items.reduce((a, i) => a + (parseFloat(i.subtotal) || 0), 0)
-        : simpleSub;
-      const sumIva = multiSoporte
-        ? items.reduce((a, i) => a + (parseFloat(i.iva) || 0), 0)
-        : simpleIva;
-      const sumImp = multiSoporte
-        ? items.reduce((a, i) => a + (parseFloat(i.impoconsumo) || 0), 0)
-        : simpleImp;
-      const sumRet = multiSoporte
-        ? itemCalcs.reduce((a, i) => a + i.retefuente, 0)
-        : simpleRetefuente;
-      const sumReteIca = multiSoporte
-        ? itemCalcs.reduce((a, i) => a + i.reteIca, 0)
-        : simpleReteIca;
-      const sumReteIva = multiSoporte
-        ? itemCalcs.reduce((a, i) => a + i.reteIva, 0)
-        : simpleReteIva;
-
-      const cabTaxes = multiSoporte
-        ? {
-            reteica_aplica: items.some((i) => i.reteica_aplica),
-            reteica_actividad: null,
-            reteica_tarifa: 0,
-            reteica_valor: sumReteIca,
-            reteiva_aplica: items.some((i) => i.reteiva_aplica),
-            reteiva_valor: sumReteIva,
-            retefuente_aplica: items.some((i) => i.retefuente_aplica),
-            retefuente_concepto: null,
-            retefuente_tarifa: 0,
-          }
-        : {
-            reteica_aplica: taxes.reteica_aplica,
-            reteica_actividad: taxes.reteica_aplica ? taxes.reteica_actividad : null,
-            reteica_tarifa: taxes.reteica_aplica ? parseFloat(taxes.reteica_tarifa) || 0 : 0,
-            reteica_valor: sumReteIca,
-            reteiva_aplica: taxes.reteiva_aplica,
-            reteiva_valor: sumReteIva,
-            retefuente_aplica: taxes.retefuente_aplica,
-            retefuente_concepto: taxes.retefuente_aplica ? taxes.retefuente_concepto : null,
-            retefuente_tarifa: taxes.retefuente_aplica ? tarifaOf(taxes.retefuente_concepto) : 0,
-          };
+      const sumSub = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.subtotal) || 0), 0) : parseFloat(subtotal);
+      const sumIva = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.iva) || 0), 0) : (parseFloat(iva) || 0);
+      const sumImp = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.impoconsumo) || 0), 0) : (parseFloat(impoconsumo) || 0);
+      const sumRet = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.retencion) || 0), 0) : (parseFloat(retencion) || 0);
+      const sumReteica = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.reteica) || 0), 0) : (parseFloat(reteica) || 0);
+      const sumReteiva = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.reteiva) || 0), 0) : (parseFloat(reteiva) || 0);
 
       const { data, error } = await supabase
         .from("movimientos")
@@ -271,6 +383,12 @@ function Nuevo() {
           iva: sumIva,
           impoconsumo: sumImp,
           retencion: sumRet,
+          tarifa_retencion_id: !multiSoporte && aplicaRetencion ? tarifaRetencionId || null : null,
+          concepto_reteica_id: !multiSoporte && aplicaReteica ? conceptoReteicaId || null : null,
+          tarifa_reteica_ciudad_id:
+            !multiSoporte && aplicaReteica ? tarifaReteicaCiudadSel?.id || null : null,
+          reteica: sumReteica,
+          reteiva: sumReteiva,
           total,
           numero_factura: nFact,
           factura_path: path,
@@ -278,7 +396,6 @@ function Nuevo() {
           observaciones: observaciones || null,
           factura_electronica: fe,
           multi_soporte: multiSoporte,
-          ...cabTaxes,
         })
         .select()
         .single();
@@ -295,18 +412,11 @@ function Nuevo() {
           subtotal: parseFloat(it.subtotal) || 0,
           iva: parseFloat(it.iva) || 0,
           impoconsumo: parseFloat(it.impoconsumo) || 0,
-          retencion: itemCalcs[idx].retefuente,
-          total: itemCalcs[idx].total,
+          retencion: parseFloat(it.retencion) || 0,
+          reteica: parseFloat(it.reteica) || 0,
+          reteiva: parseFloat(it.reteiva) || 0,
+          total: itemTotals[idx],
           orden: idx,
-          reteica_aplica: it.reteica_aplica,
-          reteica_actividad: it.reteica_aplica ? it.reteica_actividad : null,
-          reteica_tarifa: it.reteica_aplica ? parseFloat(it.reteica_tarifa) || 0 : 0,
-          reteica_valor: itemCalcs[idx].reteIca,
-          reteiva_aplica: it.reteiva_aplica,
-          reteiva_valor: itemCalcs[idx].reteIva,
-          retefuente_aplica: it.retefuente_aplica,
-          retefuente_concepto: it.retefuente_aplica ? it.retefuente_concepto : null,
-          retefuente_tarifa: it.retefuente_aplica ? tarifaOf(it.retefuente_concepto) : 0,
         }));
         const ins = await supabase.from("movimiento_items").insert(rows);
         if (ins.error) throw ins.error;
@@ -354,7 +464,7 @@ function Nuevo() {
               <SelectContent>
                 {agsQ.data?.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
-                    {a.nombre}
+                    {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -392,17 +502,40 @@ function Nuevo() {
             {conceptoSel && (
               <p className="text-xs text-muted-foreground">
                 Parametrización: gasto <b>{conceptoSel.cuenta_gasto}</b>
-                {conceptoSel.cuenta_retencion &&
-                  ` · retención ${conceptoSel.cuenta_retencion} (${conceptoSel.porcentaje_retencion}%)`}
+                {conceptoSel.cuenta_iva &&
+                  ` · IVA ${conceptoSel.cuenta_iva} (${Math.round(Number(conceptoSel.porcentaje_iva))}%)`}
+                {conceptoSel.cuenta_retencion && ` · cta. retención ${conceptoSel.cuenta_retencion}`}
+                {conceptoSel.cuenta_reteica && ` · cta. ReteICA ${conceptoSel.cuenta_reteica}`}
+                {conceptoSel.cuenta_reteiva && ` · cta. ReteIVA ${conceptoSel.cuenta_reteiva}`}
               </p>
             )}
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <Field label="Proveedor *">
-              <ProveedorPicker value={proveedor} onChange={setProveedor} />
+              <ProveedorPicker value={proveedor} onChange={onProveedorChange} />
+              {proveedorSel && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {REGIMENES_TRIBUTARIOS.find((r) => r.value === proveedorSel.regimen_tributario)?.label}
+                  {!proveedorSel.responsable_iva && " · No responsable de IVA"}
+                </p>
+              )}
+              {proveedorSel && proveedorSel.regimen_tributario === "simple" && (
+                <p className="text-xs text-warning mt-0.5">
+                  Régimen simple: no aplica retención en la fuente ni ReteICA (quedaron
+                  deshabilitadas). El ReteIVA sí aplica si el monto supera la cuantía mínima.
+                </p>
+              )}
+              {proveedorSel &&
+                (proveedorSel.regimen_tributario === "gran_contribuyente" ||
+                  proveedorSel.regimen_tributario === "autorretenedor") && (
+                  <p className="text-xs text-warning mt-0.5">
+                    Este proveedor generalmente no lleva retención en la fuente normal — verifica
+                    antes de aplicarla.
+                  </p>
+                )}
             </Field>
             <Field label="Concepto del gasto *">
-              <Select value={concepto} onValueChange={setConcepto}>
+              <Select value={concepto} onValueChange={onConceptoChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona el concepto" />
                 </SelectTrigger>
@@ -433,7 +566,7 @@ function Nuevo() {
               </Label>
             </div>
 
-            <div className="md:col-span-2 grid gap-4 md:grid-cols-4">
+            <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
               <Field label="Subtotal *">
                 <Input
                   type="number"
@@ -442,37 +575,193 @@ function Nuevo() {
                   onChange={(e) => onSubtotalChange(e.target.value)}
                 />
               </Field>
-              <Field label="IVA">
-                <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
-              </Field>
-              <Field label="Impoconsumo">
-                <Input
-                  type="number"
-                  min="0"
-                  value={impoconsumo}
-                  onChange={(e) => setImpoconsumo(e.target.value)}
-                />
-              </Field>
-              <Field label={taxes.retefuente_aplica ? "Retención (auto)" : "Retención"}>
-                <Input
-                  type="number"
-                  min="0"
-                  value={taxes.retefuente_aplica ? String(simpleRetefuente) : retencion}
-                  readOnly={taxes.retefuente_aplica}
-                  className={taxes.retefuente_aplica ? "bg-muted" : ""}
-                  onChange={(e) => setRetencion(e.target.value)}
-                />
-              </Field>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tipo de impuesto</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={tipoImpuesto === "iva" ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setTipoImpuesto("iva")}
+                  >
+                    IVA
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={tipoImpuesto === "impoconsumo" ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setTipoImpuesto("impoconsumo")}
+                  >
+                    Impoconsumo (8%)
+                  </Button>
+                </div>
+              </div>
+              {tipoImpuesto === "iva" ? (
+                <Field label="IVA (sugerido, editable)">
+                  <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
+                </Field>
+              ) : (
+                <Field label="Impoconsumo (8%, editable)">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={impoconsumo}
+                    onChange={(e) => setImpoconsumo(e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
 
-            <div className="md:col-span-2">
-              <TaxesBlock
-                taxes={taxes}
-                onChange={(patch) => setTaxes((p) => ({ ...p, ...patch }))}
-                reteIcaValor={simpleReteIca}
-                reteIvaValor={simpleReteIva}
-                retefuenteValor={simpleRetefuente}
-              />
+            <div className="md:col-span-2 space-y-3">
+              <Label className="text-sm font-medium">Retenciones practicadas</Label>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="aplica-retencion"
+                    checked={aplicaRetencion}
+                    disabled={proveedorSel?.regimen_tributario === "simple" || retencionBloqueada}
+                    onCheckedChange={(v) => setAplicaRetencion(v === true)}
+                  />
+                  <Label htmlFor="aplica-retencion" className="text-sm font-normal cursor-pointer">
+                    Aplica retención en la fuente (renta)
+                  </Label>
+                </div>
+                {aplicaRetencion && (
+                  <div className="grid gap-3 md:grid-cols-2 pt-1">
+                    <Field label="Tipo de servicio">
+                      <Select value={tarifaRetencionId} onValueChange={setTarifaRetencionId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona el tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tarifasQ.data?.filter((t) => t.activo).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.nombre} ({Number(t.porcentaje)}%)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Retención calculada (automática)">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={retencion}
+                        readOnly
+                        disabled
+                        className="bg-muted font-mono"
+                      />
+                    </Field>
+                  </div>
+                )}
+                {retencionBloqueada && (
+                  <p className="text-xs text-warning">
+                    El monto no supera la cuantía mínima ({Number(tipoRentaSel?.minimo_uvt ?? 4)} UVT ={" "}
+                    {fmtMoney(Number(tipoRentaSel?.minimo_uvt ?? 4) * uvtValor)}), así que la retención en
+                    la fuente queda bloqueada para este gasto.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="aplica-reteiva"
+                    checked={aplicaReteiva}
+                    disabled={reteivaBloqueada}
+                    onCheckedChange={(v) => setAplicaReteiva(v === true)}
+                  />
+                  <Label htmlFor="aplica-reteiva" className="text-sm font-normal cursor-pointer">
+                    Aplica ReteIVA (15% del IVA)
+                  </Label>
+                </div>
+                {aplicaReteiva && (
+                  <div className="grid gap-3 md:grid-cols-2 pt-1">
+                    <Field label="ReteIVA calculado (automático)">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={reteiva}
+                        readOnly
+                        disabled
+                        className="bg-muted font-mono"
+                      />
+                    </Field>
+                  </div>
+                )}
+                {reteivaBloqueada && (
+                  <p className="text-xs text-warning">
+                    El monto no supera la cuantía mínima (4 UVT ={" "}
+                    {fmtMoney(cuantiaMinimaGeneral)}), la misma base que la retención en la
+                    fuente, así que el ReteIVA queda bloqueado para este gasto.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="aplica-reteica"
+                    checked={aplicaReteica}
+                    disabled={proveedorSel?.regimen_tributario === "simple" || reteicaBloqueadaPorTope}
+                    onCheckedChange={(v) => setAplicaReteica(v === true)}
+                  />
+                  <Label htmlFor="aplica-reteica" className="text-sm font-normal cursor-pointer">
+                    Aplica ReteICA
+                  </Label>
+                </div>
+                {aplicaReteica && (
+                  <div className="grid gap-3 md:grid-cols-3 pt-1">
+                    <Field label="Concepto">
+                      <Select value={conceptoReteicaId} onValueChange={setConceptoReteicaId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Servicios o compras" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {reteicaConceptosQ.data?.filter((t) => t.activo).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Tarifa por mil (‰)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Ej. 9.66"
+                        value={tarifaReteica}
+                        onChange={(e) => setTarifaReteica(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="ReteICA calculado (editable)">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={reteica}
+                        onChange={(e) => setReteica(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                )}
+                {tarifaReteicaCiudadSel && !reteicaBloqueadaPorTope && (
+                  <p className="text-xs text-muted-foreground">
+                    Tarifa detectada para esta agencia
+                    {tarifaReteicaCiudadSel.codigo_ciiu ? ` y CIIU ${tarifaReteicaCiudadSel.codigo_ciiu}` : " (general)"}:{" "}
+                    {Number(tarifaReteicaCiudadSel.tarifa)}‰. Se aplicó automáticamente.
+                  </p>
+                )}
+                {reteicaBloqueadaPorTope && (
+                  <p className="text-xs text-warning">
+                    El subtotal no supera el tope mínimo ({fmtMoney(Number(tarifaReteicaCiudadSel?.tope ?? 0))}) configurado
+                    para esta agencia/actividad, así que el ReteICA queda bloqueado.
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -502,9 +791,10 @@ function Nuevo() {
                 key={it.key}
                 index={idx}
                 item={it}
-                calc={itemCalcs[idx] ?? { reteIca: 0, reteIva: 0, retefuente: 0, total: 0 }}
+                total={itemTotals[idx] ?? 0}
                 conceptos={consQ.data ?? []}
                 onChange={(patch) => setItem(idx, patch)}
+                onConceptoChange={(v) => onItemConceptoChange(idx, v)}
                 onSubtotalChange={(v) => onItemSubtotalChange(idx, v)}
                 onRemove={() =>
                   setItems((p) => (p.length > 1 ? p.filter((_, i) => i !== idx) : p))
@@ -603,120 +893,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function TaxesBlock({
-  taxes,
-  onChange,
-  reteIcaValor,
-  reteIvaValor,
-  retefuenteValor,
-  compact = false,
-}: {
-  taxes: Taxes;
-  onChange: (patch: Partial<Taxes>) => void;
-  reteIcaValor: number;
-  reteIvaValor: number;
-  retefuenteValor: number;
-  compact?: boolean;
-}) {
-  return (
-    <div className={`rounded-md border bg-muted/30 p-3 space-y-3 ${compact ? "text-sm" : ""}`}>
-      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        Retenciones e impuestos
-      </div>
-
-      {/* ReteICA */}
-      <div className="grid gap-2 md:grid-cols-[auto_1fr_1fr_1fr] md:items-end">
-        <div className="flex items-center gap-2 pt-1">
-          <Checkbox
-            checked={taxes.reteica_aplica}
-            onCheckedChange={(v) => onChange({ reteica_aplica: v === true })}
-          />
-          <Label className="text-sm font-normal">ReteICA</Label>
-        </div>
-        <Field label="Actividad">
-          <Select
-            value={taxes.reteica_actividad}
-            onValueChange={(v) => onChange({ reteica_actividad: v })}
-            disabled={!taxes.reteica_aplica}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="servicios">Servicios</SelectItem>
-              <SelectItem value="compras">Compras</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Tarifa (‰ por mil)">
-          <Input
-            type="number"
-            step="0.001"
-            min="0"
-            value={taxes.reteica_tarifa}
-            disabled={!taxes.reteica_aplica}
-            onChange={(e) => onChange({ reteica_tarifa: e.target.value })}
-            placeholder="Ej. 9.66"
-          />
-        </Field>
-        <Field label="Valor">
-          <Input readOnly value={fmtMoney(reteIcaValor)} className="font-mono bg-muted" />
-        </Field>
-      </div>
-
-      {/* ReteIVA */}
-      <div className="grid gap-2 md:grid-cols-[auto_1fr_1fr_1fr] md:items-end">
-        <div className="flex items-center gap-2 pt-1">
-          <Checkbox
-            checked={taxes.reteiva_aplica}
-            onCheckedChange={(v) => onChange({ reteiva_aplica: v === true })}
-          />
-          <Label className="text-sm font-normal">ReteIVA</Label>
-        </div>
-        <div className="md:col-span-2 text-xs text-muted-foreground">
-          Se calcula como 15% del IVA facturado.
-        </div>
-        <Field label="Valor">
-          <Input readOnly value={fmtMoney(reteIvaValor)} className="font-mono bg-muted" />
-        </Field>
-      </div>
-
-      {/* Retefuente renta */}
-      <div className="grid gap-2 md:grid-cols-[auto_1fr_1fr_1fr] md:items-end">
-        <div className="flex items-center gap-2 pt-1">
-          <Checkbox
-            checked={taxes.retefuente_aplica}
-            onCheckedChange={(v) => onChange({ retefuente_aplica: v === true })}
-          />
-          <Label className="text-sm font-normal">Retefuente renta</Label>
-        </div>
-        <Field label="Concepto">
-          <Select
-            value={taxes.retefuente_concepto}
-            onValueChange={(v) => onChange({ retefuente_concepto: v })}
-            disabled={!taxes.retefuente_aplica}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RETEFUENTE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <div className="hidden md:block" />
-        <Field label="Valor">
-          <Input readOnly value={fmtMoney(retefuenteValor)} className="font-mono bg-muted" />
-        </Field>
-      </div>
-    </div>
-  );
-}
-
 type ItemDraft = {
   key: string;
   proveedor_id: string;
@@ -728,12 +904,8 @@ type ItemDraft = {
   iva: string;
   impoconsumo: string;
   retencion: string;
-  reteica_aplica: boolean;
-  reteica_actividad: string;
-  reteica_tarifa: string;
-  reteiva_aplica: boolean;
-  retefuente_aplica: boolean;
-  retefuente_concepto: string;
+  reteica: string;
+  reteiva: string;
 };
 
 function blankItem(): ItemDraft {
@@ -748,43 +920,33 @@ function blankItem(): ItemDraft {
     iva: "0",
     impoconsumo: "0",
     retencion: "0",
-    reteica_aplica: false,
-    reteica_actividad: "servicios",
-    reteica_tarifa: "0",
-    reteiva_aplica: false,
-    retefuente_aplica: false,
-    retefuente_concepto: "serv4",
+    reteica: "0",
+    reteiva: "0",
   };
 }
 
 function ItemRow({
   index,
   item,
-  calc,
+  total,
   conceptos,
   onChange,
+  onConceptoChange,
   onSubtotalChange,
   onRemove,
   canRemove,
 }: {
   index: number;
   item: ItemDraft;
-  calc: { reteIca: number; reteIva: number; retefuente: number; total: number };
+  total: number;
   conceptos: Concepto[];
   onChange: (patch: Partial<ItemDraft>) => void;
+  onConceptoChange: (v: string) => void;
   onSubtotalChange: (v: string) => void;
   onRemove: () => void;
   canRemove: boolean;
 }) {
   const c = conceptos.find((x) => x.id === item.concepto_id);
-  const itemTaxes: Taxes = {
-    reteica_aplica: item.reteica_aplica,
-    reteica_actividad: item.reteica_actividad,
-    reteica_tarifa: item.reteica_tarifa,
-    reteiva_aplica: item.reteiva_aplica,
-    retefuente_aplica: item.retefuente_aplica,
-    retefuente_concepto: item.retefuente_concepto,
-  };
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -812,7 +974,7 @@ function ItemRow({
         <Field label="Concepto *">
           <Select
             value={item.concepto_id}
-            onValueChange={(v) => onChange({ concepto_id: v })}
+            onValueChange={onConceptoChange}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecciona el concepto" />
@@ -854,7 +1016,7 @@ function ItemRow({
           />
         </Field>
       </div>
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-4">
         <Field label="Subtotal *">
           <Input
             type="number"
@@ -879,36 +1041,35 @@ function ItemRow({
             onChange={(e) => onChange({ impoconsumo: e.target.value })}
           />
         </Field>
-        <Field label={item.retefuente_aplica ? "Retención (auto)" : "Retención"}>
+        <Field label="ReteICA">
           <Input
             type="number"
             min="0"
-            value={item.retefuente_aplica ? String(calc.retefuente) : item.retencion}
-            readOnly={item.retefuente_aplica}
-            className={item.retefuente_aplica ? "bg-muted" : ""}
-            onChange={(e) => onChange({ retencion: e.target.value })}
+            value={item.reteica}
+            onChange={(e) => onChange({ reteica: e.target.value })}
+          />
+        </Field>
+        <Field label="ReteIVA">
+          <Input
+            type="number"
+            min="0"
+            value={item.reteiva}
+            onChange={(e) => onChange({ reteiva: e.target.value })}
           />
         </Field>
         <Field label="Total línea">
-          <Input readOnly value={fmtMoney(calc.total)} className="font-mono bg-muted" />
+          <Input readOnly value={fmtMoney(total)} className="font-mono bg-muted" />
         </Field>
       </div>
-
-      <TaxesBlock
-        taxes={itemTaxes}
-        onChange={(patch) => onChange(patch as Partial<ItemDraft>)}
-        reteIcaValor={calc.reteIca}
-        reteIvaValor={calc.reteIva}
-        retefuenteValor={calc.retefuente}
-        compact
-      />
-
       {c && (
         <p className="text-xs text-muted-foreground">
           Cuenta gasto <b>{c.cuenta_gasto}</b>
-          {c.cuenta_retencion && ` · retención ${c.cuenta_retencion} (${c.porcentaje_retencion}%)`}
+          {c.cuenta_iva && ` · IVA ${c.cuenta_iva} (${Math.round(Number(c.porcentaje_iva))}%)`}
+          {c.cuenta_reteica && ` · ReteICA ${c.cuenta_reteica} (${Number(c.porcentaje_reteica)}%)`}
+          {c.cuenta_reteiva && ` · ReteIVA ${c.cuenta_reteiva} (${Math.round(Number(c.porcentaje_reteiva))}%)`}
         </p>
       )}
     </div>
   );
 }
+
