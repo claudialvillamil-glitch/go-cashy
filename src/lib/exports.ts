@@ -79,7 +79,9 @@ export function exportExcel(movs: Movimiento[], fondo: FondoConfig) {
     Subtotal: m.subtotal,
     IVA: m.iva,
     Impoconsumo: m.impoconsumo,
-    Retención: m.retencion,
+    "Retefuente": m.retencion,
+    "ReteICA": Number(m.reteica_valor) || 0,
+    "ReteIVA": Number(m.reteiva_valor) || 0,
     Total: m.total,
     Estado: m.estado,
   }));
