@@ -72,6 +72,7 @@ function Page() {
   const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const puedeSolicitar = profileQ.data?.rol === "admin" || profileQ.data?.rol === "responsable";
+  const esAdmin = profileQ.data?.rol === "admin";
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Reembolso | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -93,10 +94,18 @@ function Page() {
     mutationFn: async ({ id, estado }: { id: string; estado: string }) => {
       const { error } = await supabase.from("reembolsos").update({ estado }).eq("id", id);
       if (error) throw error;
+      return estado;
     },
-    onSuccess: () => {
-      toast.success("Estado actualizado");
+    onSuccess: (estado) => {
       qc.invalidateQueries({ queryKey: ["reembolsos"] });
+      if (estado === "pagado") {
+        toast.success(
+          "Reembolso marcado como pagado. Recuerda realizar el cheque y el cobro del mismo para terminar el proceso de reembolso.",
+          { duration: 10000 },
+        );
+      } else {
+        toast.success("Estado actualizado");
+      }
     },
   });
 
@@ -189,15 +198,17 @@ function Page() {
                       <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>
                         <FileText className="h-4 w-4 mr-1" /> Ver
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm("¿Eliminar la solicitud? Los movimientos quedarán pendientes.")) del.mutate(r);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {esAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm("¿Eliminar la solicitud? Los movimientos quedarán pendientes.")) del.mutate(r);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -247,6 +258,7 @@ function ArqueoCaja() {
   }, 0);
   const totalProvisionales = provisionales.reduce((s, p) => s + p.monto, 0);
   const totalContado = totalEfectivo + totalProvisionales;
+  const hayAlgoIngresado = totalEfectivo > 0 || provisionales.length > 0;
 
   const diferencia = totalContado - saldoTeorico;
 
@@ -384,42 +396,48 @@ function ArqueoCaja() {
           </p>
         )}
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="p-3 rounded-md bg-muted">
-            <div className="text-xs text-muted-foreground">
-              Total contado {totalProvisionales > 0 && `(incl. ${fmtMoney(totalProvisionales)} provisionales)`}
+        {hayAlgoIngresado ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="p-3 rounded-md bg-muted">
+              <div className="text-xs text-muted-foreground">
+                Total contado {totalProvisionales > 0 && `(incl. ${fmtMoney(totalProvisionales)} provisionales)`}
+              </div>
+              <div className="text-lg font-semibold">{fmtMoney(totalContado)}</div>
             </div>
-            <div className="text-lg font-semibold">{fmtMoney(totalContado)}</div>
-          </div>
-          <div className="p-3 rounded-md bg-muted">
-            <div className="text-xs text-muted-foreground">Saldo teórico del fondo</div>
-            <div className="text-lg font-semibold">{fmtMoney(saldoTeorico)}</div>
-          </div>
-          <div
-            className={`p-3 rounded-md ${
-              diferencia === 0
-                ? "bg-success/10"
-                : diferencia > 0
-                  ? "bg-warning/10"
-                  : "bg-destructive/10"
-            }`}
-          >
-            <div className="text-xs text-muted-foreground">
-              {diferencia === 0 ? "Cuadra" : diferencia > 0 ? "Sobante" : "Faltante"}
+            <div className="p-3 rounded-md bg-muted">
+              <div className="text-xs text-muted-foreground">Saldo teórico del fondo</div>
+              <div className="text-lg font-semibold">{fmtMoney(saldoTeorico)}</div>
             </div>
             <div
-              className={`text-lg font-semibold ${
+              className={`p-3 rounded-md ${
                 diferencia === 0
-                  ? "text-success"
+                  ? "bg-success/10"
                   : diferencia > 0
-                    ? "text-warning"
-                    : "text-destructive"
+                    ? "bg-warning/10"
+                    : "bg-destructive/10"
               }`}
             >
-              {fmtMoney(Math.abs(diferencia))}
+              <div className="text-xs text-muted-foreground">
+                {diferencia === 0 ? "Cuadra" : diferencia > 0 ? "Sobante" : "Faltante"}
+              </div>
+              <div
+                className={`text-lg font-semibold ${
+                  diferencia === 0
+                    ? "text-success"
+                    : diferencia > 0
+                      ? "text-warning"
+                      : "text-destructive"
+                }`}
+              >
+                {fmtMoney(Math.abs(diferencia))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Ingresa la cantidad de billetes/monedas (o un provisional) para calcular el arqueo.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
@@ -470,6 +488,16 @@ function NuevaSolicitud({
 
   const totalPendienteFondo = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
   const saldoTeorico = fondoQ.data ? Number(fondoQ.data.monto_asignado) - totalPendienteFondo : 0;
+
+  // La solicitud de reembolso debe hacerse cuando el fondo alcanza el % límite
+  // configurado (recomendado 90%) o siempre en cierre de mes. Si no se cumple
+  // ninguna de las dos, avisamos (no bloqueamos, por si hay una razón válida).
+  const limitePct = fondoQ.data ? Number(fondoQ.data.limite_alerta_reembolso_pct) : 90;
+  const pctFondoActual = fondoQ.data
+    ? (totalPendienteFondo / Number(fondoQ.data.monto_asignado)) * 100
+    : 0;
+  const cumpleLimite = pctFondoActual >= limitePct;
+  const noCumpleRequisito = !esCierreMes && !cumpleLimite;
   const totalEfectivoArqueo = DENOMINACIONES.reduce((sum, d) => {
     const cant = parseInt(cantidadesArqueo[d.valor] ?? "0", 10) || 0;
     return sum + cant * d.valor;
@@ -480,6 +508,7 @@ function NuevaSolicitud({
   // legalizado como gasto formal.
   const totalContadoArqueo = totalEfectivoArqueo + totalProvisionales;
   const diferenciaArqueo = totalContadoArqueo - saldoTeorico;
+  const hayAlgoIngresadoArqueo = totalEfectivoArqueo > 0 || provisionales.length > 0;
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -741,33 +770,47 @@ function NuevaSolicitud({
                   o conviértelos primero en gastos reales.
                 </p>
               )}
+              {noCumpleRequisito && (
+                <div className="text-xs p-2 rounded-md bg-warning/10 text-warning">
+                  ⚠ Esta solicitud no cumple el requisito habitual: el fondo lleva{" "}
+                  {pctFondoActual.toFixed(1)}% gastado (se recomienda solicitar reembolso al llegar
+                  al {limitePct}%), y no marcaste que es cierre de mes. Verifica si de verdad
+                  corresponde hacerla ahora.
+                </div>
+              )}
 
-              <div className="grid gap-2 md:grid-cols-3 text-sm">
-                <div className="p-2 rounded-md bg-muted">
-                  <div className="text-xs text-muted-foreground">
-                    Total contado {totalProvisionales > 0 && `(incluye ${fmtMoney(totalProvisionales)} en provisionales)`}
+              {hayAlgoIngresadoArqueo ? (
+                <div className="grid gap-2 md:grid-cols-3 text-sm">
+                  <div className="p-2 rounded-md bg-muted">
+                    <div className="text-xs text-muted-foreground">
+                      Total contado {totalProvisionales > 0 && `(incluye ${fmtMoney(totalProvisionales)} en provisionales)`}
+                    </div>
+                    <div className="font-semibold">{fmtMoney(totalContadoArqueo)}</div>
                   </div>
-                  <div className="font-semibold">{fmtMoney(totalContadoArqueo)}</div>
-                </div>
-                <div className="p-2 rounded-md bg-muted">
-                  <div className="text-xs text-muted-foreground">Saldo teórico</div>
-                  <div className="font-semibold">{fmtMoney(saldoTeorico)}</div>
-                </div>
-                <div
-                  className={`p-2 rounded-md ${
-                    diferenciaArqueo === 0
-                      ? "bg-success/10"
-                      : diferenciaArqueo > 0
-                        ? "bg-warning/10"
-                        : "bg-destructive/10"
-                  }`}
-                >
-                  <div className="text-xs text-muted-foreground">
-                    {diferenciaArqueo === 0 ? "Cuadra" : diferenciaArqueo > 0 ? "Sobante" : "Faltante"}
+                  <div className="p-2 rounded-md bg-muted">
+                    <div className="text-xs text-muted-foreground">Saldo teórico</div>
+                    <div className="font-semibold">{fmtMoney(saldoTeorico)}</div>
                   </div>
-                  <div className="font-semibold">{fmtMoney(Math.abs(diferenciaArqueo))}</div>
+                  <div
+                    className={`p-2 rounded-md ${
+                      diferenciaArqueo === 0
+                        ? "bg-success/10"
+                        : diferenciaArqueo > 0
+                          ? "bg-warning/10"
+                          : "bg-destructive/10"
+                    }`}
+                  >
+                    <div className="text-xs text-muted-foreground">
+                      {diferenciaArqueo === 0 ? "Cuadra" : diferenciaArqueo > 0 ? "Sobante" : "Faltante"}
+                    </div>
+                    <div className="font-semibold">{fmtMoney(Math.abs(diferenciaArqueo))}</div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Ingresa la cantidad de billetes/monedas (o un provisional) para calcular el arqueo.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -801,6 +844,8 @@ function DetalleReembolso({
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
+  const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
+  const totalGastosFondo = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
   const movsQ = useQuery({
     queryKey: ["reembolso-movs", reembolso?.id],
     queryFn: () => getMovimientosDeReembolso(reembolso!.id),
@@ -826,10 +871,18 @@ function DetalleReembolso({
     <Dialog open={!!reembolso} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            Solicitud N° {reembolso && pad(reembolso.consecutivo)}
-          </DialogTitle>
+          <DialogTitle>Reporte de Reembolso de Caja Menor</DialogTitle>
         </DialogHeader>
+        {reembolso && fondoQ.data && (
+          <div className="grid grid-cols-3 gap-3 p-3 rounded-md bg-muted/50 border">
+            <Info label="Monto fondo" value={fmtMoney(fondoQ.data.monto_asignado)} />
+            <Info label="Total gastos" value={fmtMoney(totalGastosFondo)} />
+            <Info
+              label="Total disponible"
+              value={fmtMoney(Number(fondoQ.data.monto_asignado) - totalGastosFondo)}
+            />
+          </div>
+        )}
         {reembolso && (
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-3">
@@ -1017,7 +1070,7 @@ function DetalleReembolso({
                 onClick={() =>
                   fondoQ.data &&
                   movsQ.data &&
-                  exportReembolsoExcel(reembolso, movsQ.data, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)
+                  exportReembolsoExcel(reembolso, movsQ.data, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, totalGastosFondo)
                 }
               >
                 <Download className="h-4 w-4 mr-2" /> Reporte contable (Excel)
@@ -1039,7 +1092,7 @@ function DetalleReembolso({
                 onClick={() =>
                   fondoQ.data &&
                   movsQ.data &&
-                  exportReembolsoPDF(reembolso, movsQ.data, fondoQ.data, "imprimir")
+                  exportReembolsoPDF(reembolso, movsQ.data, fondoQ.data, "imprimir", totalGastosFondo)
                 }
               >
                 <Printer className="h-4 w-4 mr-2" /> Imprimir
@@ -1048,7 +1101,7 @@ function DetalleReembolso({
                 onClick={() =>
                   fondoQ.data &&
                   movsQ.data &&
-                  exportReembolsoPDF(reembolso, movsQ.data, fondoQ.data)
+                  exportReembolsoPDF(reembolso, movsQ.data, fondoQ.data, undefined, totalGastosFondo)
                 }
               >
                 <Download className="h-4 w-4 mr-2" /> Descargar PDF

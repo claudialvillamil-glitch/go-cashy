@@ -4,8 +4,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, TrendingDown, Receipt, Users, AlertTriangle } from "lucide-react";
-import { getFondo, getMovimientos, getProveedores } from "@/lib/db";
+import { Wallet, TrendingDown, Receipt, AlertTriangle } from "lucide-react";
+import { getFondo, getMovimientos } from "@/lib/db";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -30,15 +30,14 @@ export const Route = createFileRoute("/")({
 function Resumen() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
-  const provsQ = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
 
   const fondo = fondoQ.data;
   const movs = movsQ.data ?? [];
-  const total = movs.reduce((s, m) => s + Number(m.total), 0);
+  const total = movs.filter((m) => m.estado !== "anulado").reduce((s, m) => s + Number(m.total), 0);
   // El saldo disponible solo se ve afectado por gastos que aún no han sido
   // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
   // esos gastos ya no restan porque el fondo fue repuesto por la empresa.
-  const gastosPendientes = movs.filter((m) => m.reembolsos?.estado !== "pagado");
+  const gastosPendientes = movs.filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado");
   const totalPendiente = gastosPendientes.reduce((s, m) => s + Number(m.total), 0);
   const saldo = fondo ? Number(fondo.monto_asignado) - totalPendiente : 0;
   const pct = fondo ? Math.min(100, (totalPendiente / Number(fondo.monto_asignado)) * 100) : 0;
@@ -160,31 +159,13 @@ function Resumen() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" /> Proveedores registrados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{provsQ.data?.length ?? 0}</div>
-            <Link to="/proveedores" className="text-sm text-primary hover:underline">
-              Administrar →
-            </Link>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Límite por gasto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{fmtMoney(fondo?.monto_maximo_gasto)}</div>
-            <p className="text-sm text-muted-foreground">
-              Máximo autorizado por movimiento individual.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard
+          icon={AlertTriangle}
+          label="Límite por gasto"
+          value={fmtMoney(fondo?.monto_maximo_gasto)}
+          tone="muted"
+        />
       </div>
     </div>
   );

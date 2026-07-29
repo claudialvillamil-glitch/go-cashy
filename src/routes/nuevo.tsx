@@ -22,14 +22,17 @@ import {
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
+  getFondosAgencia,
 } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2, FileText, Plus, Trash2 } from "lucide-react";
 import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
+import { ConceptoPicker } from "@/components/ConceptoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Concepto } from "@/lib/db";
+import type { Concepto, Movimiento, MovimientoItem } from "@/lib/db";
+import { exportReciboPDF } from "@/lib/exports";
 import { CUANTIA_MINIMA_UVT_SERVICIOS, REGIMENES_TRIBUTARIOS } from "@/lib/retenciones";
 
 export const Route = createFileRoute("/nuevo")({
@@ -56,6 +59,7 @@ function Nuevo() {
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
+  const fondosAgenciaQ = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
   const nextConsQ = useQuery({
     queryKey: ["next-consecutivo"],
     queryFn: async () => {
@@ -71,6 +75,7 @@ function Nuevo() {
 
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [agencia, setAgencia] = useState<string>("");
+  const [fondoAgenciaId, setFondoAgenciaId] = useState<string>("");
   const [proveedor, setProveedor] = useState<string>("");
   const [concepto, setConcepto] = useState<string>("");
   const [detalle, setDetalle] = useState("");
@@ -78,7 +83,8 @@ function Nuevo() {
   const [subtotal, setSubtotal] = useState<string>("");
   const [iva, setIva] = useState<string>("0");
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
-  const [tipoImpuesto, setTipoImpuesto] = useState<"iva" | "impoconsumo">("iva");
+  const [aplicaIva, setAplicaIva] = useState(true);
+  const [aplicaImpoconsumo, setAplicaImpoconsumo] = useState(false);
   const [retencion, setRetencion] = useState<string>("0");
   const [reteica, setReteica] = useState<string>("0");
   const [reteiva, setReteiva] = useState<string>("0");
@@ -133,29 +139,38 @@ function Nuevo() {
     setConceptoReteicaId(p.concepto_reteica_id ?? "");
     setTarifaReteica(p.aplica_reteica ? String(p.tarifa_reteica) : "");
     setAplicaReteiva(p.aplica_reteiva);
-    setTipoImpuesto(p.tipo_impuesto === "impoconsumo" ? "impoconsumo" : "iva");
+    if (p.tipo_impuesto === "impoconsumo") {
+      setAplicaImpoconsumo(true);
+      setAplicaIva(false);
+    } else if (p.tipo_impuesto === "ambos") {
+      setAplicaIva(true);
+      setAplicaImpoconsumo(true);
+    } else {
+      setAplicaIva(true);
+      setAplicaImpoconsumo(false);
+    }
   };
 
-  // IVA: solo se calcula automático cuando el tipo de impuesto seleccionado es "IVA".
+  // IVA: se calcula automático cuando la casilla "Aplica IVA" está marcada.
   useEffect(() => {
-    if (tipoImpuesto !== "iva") {
+    if (!aplicaIva) {
       setIva("0");
       return;
     }
     const s = parseFloat(subtotal) || 0;
     setIva(String(Math.round((s * Number(conceptoSel?.porcentaje_iva ?? 0)) / 100)));
-  }, [tipoImpuesto, subtotal, conceptoSel?.porcentaje_iva]);
+  }, [aplicaIva, subtotal, conceptoSel?.porcentaje_iva]);
 
-  // Impoconsumo: 8% del subtotal, redondeado sin decimales. Solo cuando el
-  // tipo de impuesto seleccionado es "Impoconsumo" (es excluyente con el IVA).
+  // Impoconsumo: 8% del subtotal, redondeado sin decimales. Puede aplicar al
+  // mismo tiempo que el IVA (algunos proveedores cobran ambos en la misma factura).
   useEffect(() => {
-    if (tipoImpuesto !== "impoconsumo") {
+    if (!aplicaImpoconsumo) {
       setImpoconsumo("0");
       return;
     }
     const s = parseFloat(subtotal) || 0;
     setImpoconsumo(String(Math.round(s * 0.08)));
-  }, [tipoImpuesto, subtotal]);
+  }, [aplicaImpoconsumo, subtotal]);
 
   // Valores base compartidos para validar la cuantía mínima (4 UVT) tanto en
   // retención en la fuente como en ReteIVA.
@@ -286,6 +301,19 @@ function Nuevo() {
   const excedeLimite =
     fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
 
+  // Alerta (no bloquea el guardado): el pago no debe superar el 15% del
+  // fondo de caja menor elegido para esta agencia (una agencia puede tener
+  // más de un fondo, ej. "Secretaría de Gerencia" y "Agencia").
+  const fondosDeAgencia = (fondosAgenciaQ.data ?? []).filter(
+    (f) => f.activo && f.agencia_id === agencia,
+  );
+  const fondoAgenciaSel = fondosDeAgencia.find((f) => f.id === fondoAgenciaId) ?? fondosDeAgencia[0];
+  const maxPorAgencia =
+    fondoAgenciaSel && Number(fondoAgenciaSel.monto_asignado) > 0
+      ? Number(fondoAgenciaSel.monto_asignado) * 0.15
+      : null;
+  const excedeTopeAgencia = maxPorAgencia !== null && total > maxPorAgencia;
+
   const itemsValidos =
     !multiSoporte ||
     (items.length > 0 &&
@@ -376,6 +404,7 @@ function Nuevo() {
         .insert({
           fecha,
           agencia_id: agencia || null,
+          fondo_agencia_id: fondoAgenciaSel?.id || null,
           proveedor_id: proveedorId,
           concepto_id: conceptoId,
           detalle,
@@ -401,8 +430,24 @@ function Nuevo() {
         .single();
       if (error) throw error;
 
+      let rows: {
+        movimiento_id: string;
+        proveedor_id: string;
+        concepto_id: string;
+        numero_factura: string | null;
+        factura_electronica: boolean;
+        detalle: string | null;
+        subtotal: number;
+        iva: number;
+        impoconsumo: number;
+        retencion: number;
+        reteica: number;
+        reteiva: number;
+        total: number;
+        orden: number;
+      }[] = [];
       if (multiSoporte && data) {
-        const rows = items.map((it, idx) => ({
+        rows = items.map((it, idx) => ({
           movimiento_id: data.id,
           proveedor_id: it.proveedor_id,
           concepto_id: it.concepto_id,
@@ -422,10 +467,43 @@ function Nuevo() {
         if (ins.error) throw ins.error;
       }
 
-      return data;
+      // Enriquecemos el movimiento recién creado con las relaciones (proveedor,
+      // concepto, agencia) que ya tenemos en memoria, para poder imprimirlo de
+      // inmediato sin tener que volver a consultarlo.
+      const movimientoParaImprimir: Movimiento = {
+        ...(data as unknown as Movimiento),
+        proveedores: provsQ.data?.find((p) => p.id === data.proveedor_id),
+        conceptos: consQ.data?.find((c) => c.id === data.concepto_id),
+        agencias: agsQ.data?.find((a) => a.id === data.agencia_id) ?? null,
+        movimiento_items: multiSoporte
+          ? rows.map((r) => ({
+              ...(r as unknown as MovimientoItem),
+              proveedores: provsQ.data?.find((p) => p.id === r.proveedor_id),
+              conceptos: consQ.data?.find((c) => c.id === r.concepto_id),
+            }))
+          : undefined,
+      };
+
+      return movimientoParaImprimir;
     },
-    onSuccess: () => {
-      toast.success("Recibo registrado correctamente");
+    onSuccess: (mov) => {
+      toast.success("Recibo registrado correctamente", {
+        action: fondoQ.data
+          ? {
+              label: "Imprimir",
+              onClick: () =>
+                exportReciboPDF(
+                  mov,
+                  fondoQ.data!,
+                  "imprimir",
+                  tarifasQ.data,
+                  reteicaConceptosQ.data,
+                  reteicaCiudadQ.data,
+                ),
+            }
+          : undefined,
+        duration: 8000,
+      });
       qc.invalidateQueries();
       nav({ to: "/movimientos" });
     },
@@ -457,7 +535,13 @@ function Nuevo() {
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </Field>
           <Field label="Agencia">
-            <Select value={agencia} onValueChange={setAgencia}>
+            <Select
+              value={agencia}
+              onValueChange={(v) => {
+                setAgencia(v);
+                setFondoAgenciaId("");
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona una agencia" />
               </SelectTrigger>
@@ -470,6 +554,22 @@ function Nuevo() {
               </SelectContent>
             </Select>
           </Field>
+          {fondosDeAgencia.length > 1 && (
+            <Field label="Fondo / Caja menor">
+              <Select value={fondoAgenciaSel?.id ?? ""} onValueChange={setFondoAgenciaId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el fondo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fondosDeAgencia.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <Field label="Detalle *">
             <Input
               value={detalle}
@@ -535,18 +635,7 @@ function Nuevo() {
                 )}
             </Field>
             <Field label="Concepto del gasto *">
-              <Select value={concepto} onValueChange={onConceptoChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el concepto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {consQ.data?.filter((c) => c.activo).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ConceptoPicker value={concepto} onChange={onConceptoChange} />
             </Field>
             <Field label="Número de factura">
               <Input
@@ -576,42 +665,37 @@ function Nuevo() {
                 />
               </Field>
               <div className="space-y-1.5">
-                <Label className="text-xs">Tipo de impuesto</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={tipoImpuesto === "iva" ? "default" : "outline"}
-                    className="flex-1"
-                    onClick={() => setTipoImpuesto("iva")}
-                  >
-                    IVA
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={tipoImpuesto === "impoconsumo" ? "default" : "outline"}
-                    className="flex-1"
-                    onClick={() => setTipoImpuesto("impoconsumo")}
-                  >
-                    Impoconsumo (8%)
-                  </Button>
-                </div>
-              </div>
-              {tipoImpuesto === "iva" ? (
-                <Field label="IVA (sugerido, editable)">
-                  <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
-                </Field>
-              ) : (
-                <Field label="Impoconsumo (8%, editable)">
-                  <Input
-                    type="number"
-                    min="0"
-                    value={impoconsumo}
-                    onChange={(e) => setImpoconsumo(e.target.value)}
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="aplica-iva"
+                    checked={aplicaIva}
+                    onCheckedChange={(v) => setAplicaIva(v === true)}
                   />
-                </Field>
-              )}
+                  <Label htmlFor="aplica-iva" className="text-xs font-normal cursor-pointer">
+                    IVA (sugerido, editable)
+                  </Label>
+                </div>
+                <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} disabled={!aplicaIva} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="aplica-impoconsumo"
+                    checked={aplicaImpoconsumo}
+                    onCheckedChange={(v) => setAplicaImpoconsumo(v === true)}
+                  />
+                  <Label htmlFor="aplica-impoconsumo" className="text-xs font-normal cursor-pointer">
+                    Impoconsumo (8%, editable)
+                  </Label>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  value={impoconsumo}
+                  onChange={(e) => setImpoconsumo(e.target.value)}
+                  disabled={!aplicaImpoconsumo}
+                />
+              </div>
             </div>
 
             <div className="md:col-span-2 space-y-3">
@@ -819,6 +903,12 @@ function Nuevo() {
               El monto supera el límite autorizado por gasto ({fmtMoney(fondoQ.data?.monto_maximo_gasto)}).
             </div>
           )}
+          {excedeTopeAgencia && (
+            <div className="mt-3 text-sm p-3 rounded-md bg-warning/10 text-warning">
+              ⚠ El monto supera el 15% del fondo "{fondoAgenciaSel?.nombre}" (máximo:{" "}
+              {fmtMoney(maxPorAgencia ?? 0)}). Verifica antes de continuar.
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -972,21 +1062,7 @@ function ItemRow({
           />
         </Field>
         <Field label="Concepto *">
-          <Select
-            value={item.concepto_id}
-            onValueChange={onConceptoChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona el concepto" />
-            </SelectTrigger>
-            <SelectContent>
-              {conceptos.filter((x) => x.activo).map((x) => (
-                <SelectItem key={x.id} value={x.id}>
-                  {x.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ConceptoPicker value={item.concepto_id} onChange={onConceptoChange} />
         </Field>
         <Field label="N° factura">
           <Input

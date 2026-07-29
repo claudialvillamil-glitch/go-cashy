@@ -39,6 +39,7 @@ export function ProveedorPicker({
   const [prefill, setPrefill] = useState("");
 
   const selected = provsQ.data?.find((p) => p.id === value);
+  const activos = (provsQ.data ?? []).filter((p) => p.activo);
 
   const [nombre, setNombre] = useState("");
   const [nit, setNit] = useState("");
@@ -125,7 +126,7 @@ export function ProveedorPicker({
                 </div>
               </CommandEmpty>
               <CommandGroup>
-                {(provsQ.data ?? []).map((p) => (
+                {activos.map((p) => (
                   <CommandItem
                     key={p.id}
                     value={`${p.nombre} ${p.nit}`}

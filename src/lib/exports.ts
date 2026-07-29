@@ -28,15 +28,28 @@ export function exportReembolsoPDF(
   movs: Movimiento[],
   fondo: FondoConfig,
   accion: "descargar" | "imprimir" = "descargar",
+  totalGastosFondo?: number,
 ) {
   const doc = new jsPDF();
   doc.setFontSize(16);
-  doc.text("Solicitud de Reembolso · Caja Menor", 105, 18, { align: "center" });
-  doc.setFontSize(11);
-  doc.text(`N° ${pad(reembolso.consecutivo)}`, 105, 26, { align: "center" });
+  doc.text("Reporte de Reembolso de Caja Menor", 105, 18, { align: "center" });
+
+  const gastosFondo = totalGastosFondo ?? reembolso.total;
+  const saldoDisponible = Number(fondo.monto_asignado) - gastosFondo;
+  doc.setFontSize(10);
+  doc.setFillColor(240, 244, 250);
+  doc.rect(14, 32, 182, 16, "F");
+  doc.setFont("helvetica", "bold");
+  doc.text("Monto fondo", 20, 38);
+  doc.text("Total gastos", 82, 38);
+  doc.text("Total disponible", 144, 38);
+  doc.setFont("helvetica", "normal");
+  doc.text(fmtMoney(fondo.monto_asignado), 20, 44);
+  doc.text(fmtMoney(gastosFondo), 82, 44);
+  doc.text(fmtMoney(saldoDisponible), 144, 44);
 
   doc.setFontSize(10);
-  const y0 = 38;
+  const y0 = 56;
   doc.text(`Empresa: ${fondo.empresa}`, 14, y0);
   doc.text(`Responsable: ${fondo.responsable}`, 14, y0 + 6);
   doc.text(`Fecha solicitud: ${fmtDate(reembolso.fecha)}`, 14, y0 + 12);
@@ -154,7 +167,7 @@ export function exportReembolsoPDF(
   doc.text("Elaborado por", 55, yFirma + 10, { align: "center" });
   doc.text("Autorizado por", 155, yFirma + 10, { align: "center" });
 
-  finalizarPDF(doc, `reembolso-${pad(reembolso.consecutivo)}.pdf`, accion);
+  finalizarPDF(doc, `reporte-reembolso-caja-menor-${pad(reembolso.consecutivo)}.pdf`, accion);
 }
 
 export function exportReembolsoExcel(
@@ -164,12 +177,20 @@ export function exportReembolsoExcel(
   tarifas?: TarifaRetencionRenta[],
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+  totalGastosFondo?: number,
 ) {
   const wb = XLSX.utils.book_new();
 
-  // Hoja 1: Resumen de la solicitud
+  const gastosFondo = totalGastosFondo ?? reembolso.total;
+  const saldoDisponible = Number(fondo.monto_asignado) - gastosFondo;
+
+  // Hoja 1: Resumen del reporte
   const resumen = [
-    ["Solicitud de reembolso N°", pad(reembolso.consecutivo)],
+    ["REPORTE DE REEMBOLSO DE CAJA MENOR", ""],
+    ["Monto fondo", fondo.monto_asignado],
+    ["Total gastos", gastosFondo],
+    ["Total disponible", saldoDisponible],
+    ["", ""],
     ["Empresa", fondo.empresa],
     ["Responsable", fondo.responsable],
     ["Fecha de solicitud", fmtDate(reembolso.fecha)],
@@ -269,15 +290,12 @@ export function exportReembolsoExcel(
     XLSX.utils.book_append_sheet(wb, wsQ, "Arqueo de caja");
   }
 
-  XLSX.writeFile(wb, `contabilidad-reembolso-${pad(reembolso.consecutivo)}.xlsx`);
+  XLSX.writeFile(wb, `reporte-reembolso-caja-menor-${pad(reembolso.consecutivo)}.xlsx`);
 }
 
 export function exportExcel(
   movs: Movimiento[],
   fondo: FondoConfig,
-  tarifas?: TarifaRetencionRenta[],
-  conceptosReteica?: ConceptoReteicaDB[],
-  tarifasReteicaCiudad?: TarifaReteicaCiudad[],
 ) {
   const rows = movs.map((m) => ({
     "Recibo N°": pad(m.consecutivo),
@@ -316,23 +334,41 @@ export function exportExcel(
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
   XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
 
-  // Asientos
+  XLSX.writeFile(wb, `caja-menor-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// Reporte de asientos contables (débito/crédito) de un conjunto de
+// movimientos, filtrable por fecha y por rango de recibo desde Contabilidad.
+export function exportAsientosContablesExcel(
+  movs: Movimiento[],
+  fondo: FondoConfig,
+  tarifas?: TarifaRetencionRenta[],
+  conceptosReteica?: ConceptoReteicaDB[],
+  tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+) {
   const asientos: (string | number)[][] = [
     ["Recibo", "Fecha", "Cuenta", "Descripción", "Débito", "Crédito"],
   ];
-  movs.forEach((m) => {
-    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
-    debitos.forEach((d) =>
-      asientos.push([pad(m.consecutivo), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
-    );
-    creditos.forEach((c) =>
-      asientos.push([pad(m.consecutivo), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
-    );
-  });
-  const wsA = XLSX.utils.aoa_to_sheet(asientos);
-  XLSX.utils.book_append_sheet(wb, wsA, "Asientos contables");
+  [...movs]
+    .sort((a, b) => a.consecutivo - b.consecutivo)
+    .forEach((m) => {
+      const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
+      debitos.forEach((d) =>
+        asientos.push([pad(m.consecutivo), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
+      );
+      creditos.forEach((c) =>
+        asientos.push([pad(m.consecutivo), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
+      );
+    });
 
-  XLSX.writeFile(wb, `caja-menor-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const totalDebito = asientos.slice(1).reduce((s, r) => s + Number(r[4] || 0), 0);
+  const totalCredito = asientos.slice(1).reduce((s, r) => s + Number(r[5] || 0), 0);
+  asientos.push(["", "", "", "TOTALES", totalDebito, totalCredito]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(asientos);
+  XLSX.utils.book_append_sheet(wb, ws, "Asientos contables");
+  XLSX.writeFile(wb, `asientos-contables-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 export function exportPDF(
@@ -347,20 +383,56 @@ export function exportPDF(
   const total = movs.reduce((s, m) => s + Number(m.total), 0);
   const saldo = Number(fondo.monto_asignado) - total;
 
-  doc.setFontSize(16);
-  doc.text("Reporte de Caja Menor", 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Empresa: ${fondo.empresa}`, 14, 22);
-  doc.text(`Responsable: ${fondo.responsable}`, 14, 27);
-  doc.text(`Fecha del reporte: ${fmtDate(new Date())}`, 14, 32);
+  const ordenados = [...movs].sort((a, b) => a.consecutivo - b.consecutivo);
+  const rcmDel =
+    ordenados.length > 0
+      ? `${pad(ordenados[0].consecutivo)} - ${pad(ordenados[ordenados.length - 1].consecutivo)}`
+      : "—";
+  const fechas = movs.map((m) => m.fecha).sort();
+  const fechaDesde = fechas.length > 0 ? fmtDate(fechas[0]) : "—";
+  const fechaHasta = fechas.length > 0 ? fmtDate(fechas[fechas.length - 1]) : "—";
+  const agenciasUnicas = new Set(movs.map((m) => m.agencias?.nombre ?? "—"));
+  const agenciaTexto = agenciasUnicas.size === 1 ? [...agenciasUnicas][0] : "Varias";
 
-  doc.setFontSize(11);
-  doc.text(`Monto asignado: ${fmtMoney(fondo.monto_asignado)}`, 150, 22);
-  doc.text(`Total gastos: ${fmtMoney(total)}`, 150, 27);
-  doc.text(`Saldo disponible: ${fmtMoney(saldo)}`, 150, 32);
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("FORMATO LIBRO DE CAJA MENOR", 148, 14, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Fecha del reporte: ${fmtDate(new Date())}`, 230, 20, { align: "right" });
 
   autoTable(doc, {
-    startY: 40,
+    startY: 24,
+    head: [
+      [
+        "NOMBRE",
+        "RCM DEL",
+        "FECHA DESDE",
+        "HASTA",
+        "FONDO CAJA MENOR",
+        "TOTAL EN RECIBOS DE CAJA",
+        "VR SALDO DISPONIBLE",
+        "AGENCIA",
+      ],
+    ],
+    body: [
+      [
+        fondo.responsable,
+        rcmDel,
+        fechaDesde,
+        fechaHasta,
+        fmtMoney(fondo.monto_asignado),
+        fmtMoney(total),
+        fmtMoney(saldo),
+        agenciaTexto,
+      ],
+    ],
+    styles: { fontSize: 8, halign: "center" },
+    headStyles: { fillColor: [0, 105, 92], halign: "center" },
+  });
+
+  autoTable(doc, {
+    startY: (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6,
     head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Rte.Fte", "RteICA", "RteIVA", "Total"]],
     body: movs.map((m) => [
       pad(m.consecutivo),
@@ -413,16 +485,18 @@ function buildReciboDoc(
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
 ): jsPDF {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: [215.9, 139.7] });
   const fecha = new Date(mov.fecha + "T00:00:00");
   const dia = String(fecha.getDate()).padStart(2, "0");
   const mes = String(fecha.getMonth() + 1).padStart(2, "0");
   const anio = String(fecha.getFullYear()).slice(-2);
   const cancelado = mov.reembolsos?.estado === "pagado";
 
-  // Marco general del recibo (imita el formato físico)
-  const x0 = 14, y0 = 14, w = 182, h = 130;
-  doc.setDrawColor(60, 60, 60);
+  // Marco general del recibo (imita el formato físico) — ajustado a media carta.
+  const x0 = 8, y0 = 8, w = 199.9, h = 123.7;
+  const TEAL: [number, number, number] = [0, 105, 92];
+  doc.setDrawColor(...TEAL);
+  doc.setLineWidth(0.4);
   doc.roundedRect(x0, y0, w, h, 3, 3);
 
   // Casillas Día / Mes / Año
@@ -441,6 +515,7 @@ function buildReciboDoc(
   // Título y número de recibo
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(...TEAL);
   doc.text("RECIBO DE CAJA MENOR", x0 + w / 2 + 10, y0 + 12, { align: "center" });
   doc.setTextColor(200, 0, 0);
   doc.setFontSize(14);
@@ -451,18 +526,32 @@ function buildReciboDoc(
   doc.line(x0 + 2, y0 + 24, x0 + w - 2, y0 + 24);
 
   // Monto principal
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...TEAL);
+  doc.text("Valor pagado", x0 + 8, y0 + 30);
+  doc.setTextColor(0, 0, 0);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(fmtMoney(mov.total), x0 + 8, y0 + 36);
+  doc.text(fmtMoney(mov.total), x0 + 8, y0 + 38);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text(`Empresa: ${fondo.empresa}`, x0 + w - 6, y0 + 32, { align: "right" });
+  doc.text(
+    `Empresa: ${fondo.empresa}${fondo.nit_empresa ? " · NIT " + fondo.nit_empresa : ""}`,
+    x0 + w - 6,
+    y0 + 32,
+    { align: "right" },
+  );
   doc.text(`Agencia: ${mov.agencias?.nombre ?? "—"}`, x0 + w - 6, y0 + 37, { align: "right" });
+  doc.setFontSize(8);
+  doc.text("Forma de pago: Efectivo (Caja menor)", x0 + w - 6, y0 + 41, { align: "right" });
 
   // Pagado a / Por concepto de / Valor en letras
   let y = y0 + 46;
   doc.setFontSize(10);
+  doc.setTextColor(...TEAL);
   doc.text("Pagado a:", x0 + 6, y);
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
   doc.text(
     `${mov.proveedores?.nombre ?? ""}  ·  NIT ${mov.proveedores?.nit ?? ""}`,
@@ -473,14 +562,18 @@ function buildReciboDoc(
   doc.line(x0 + 2, y + 2, x0 + w - 2, y + 2);
 
   y += 12;
+  doc.setTextColor(...TEAL);
   doc.text("Por concepto de:", x0 + 6, y);
+  doc.setTextColor(0, 0, 0);
   const conceptoTexto = `${mov.conceptos?.nombre ?? ""}${mov.detalle ? " — " + mov.detalle : ""}`;
   const lineasConcepto = doc.splitTextToSize(conceptoTexto, w - 42);
   doc.text(lineasConcepto, x0 + 40, y);
   doc.line(x0 + 2, y + 8, x0 + w - 2, y + 8);
 
   y += 18;
+  doc.setTextColor(...TEAL);
   doc.text("Valor (en letras):", x0 + 6, y);
+  doc.setTextColor(0, 0, 0);
   const enLetras = doc.splitTextToSize(numeroALetras(mov.total), w - 46);
   doc.text(enLetras, x0 + 42, y);
   doc.line(x0 + 2, y + 10, x0 + w - 2, y + 10);
@@ -495,9 +588,11 @@ function buildReciboDoc(
   doc.text(fondo.nombre_aprobador || "", x0 + colW / 2, yF + 8, { align: "center" });
   doc.text(fondo.responsable || "", x0 + colW + colW / 2, yF + 8, { align: "center" });
   doc.setFontSize(8);
+  doc.setTextColor(...TEAL);
   doc.text("APROBADO", x0 + colW / 2, yF + 15, { align: "center" });
   doc.text("ELABORADO", x0 + colW + colW / 2, yF + 15, { align: "center" });
   doc.text("Firma de recibido", x0 + colW * 2 + colW / 2, yF + 15, { align: "center" });
+  doc.setTextColor(0, 0, 0);
   doc.text(
     `C.C. o NIT: ${mov.proveedores?.nit ?? ""}`,
     x0 + colW * 2 + colW / 2,
@@ -535,101 +630,17 @@ function buildReciboDoc(
     doc.setTextColor(0, 0, 0);
   }
 
-  // Detalle contable (uso interno, no forma parte del formato físico)
-  const yDet = y0 + h + 10;
-  doc.setFontSize(12);
-  doc.text("Detalle contable", 14, yDet);
-
-  if (mov.multi_soporte && mov.movimiento_items && mov.movimiento_items.length > 0) {
-    const its = [...mov.movimiento_items].sort((a, b) => a.orden - b.orden);
-    autoTable(doc, {
-      startY: yDet + 4,
-      head: [["#", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Impoc.", "Rt.Fte", "RtICA", "RtIVA", "Total"]],
-      body: its.map((it, i) => [
-        String(i + 1),
-        it.proveedores?.nombre ?? "",
-        it.conceptos?.nombre ?? "",
-        it.numero_factura ?? "",
-        it.factura_electronica ? "Sí" : "No",
-        fmtMoney(it.subtotal),
-        fmtMoney(it.iva),
-        fmtMoney(it.impoconsumo),
-        fmtMoney(it.retencion),
-        fmtMoney(it.reteica),
-        fmtMoney(it.reteiva),
-        fmtMoney(it.total),
-      ]),
-      foot: [["", "", "", "", "", "", "", "", "", "", "TOTAL", fmtMoney(mov.total)]],
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [30, 50, 90] },
-      footStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
+  // Sello de "ANULADO" si el movimiento fue anulado. El recibo se conserva
+  // imprimible (con su mismo N° consecutivo) para no romper la numeración.
+  if (mov.estado === "anulado") {
+    doc.setFontSize(26);
+    doc.setTextColor(200, 0, 0);
+    doc.text("ANULADO", x0 + w / 2, y0 + h / 2 + (cancelado ? 14 : 0), {
+      align: "center",
+      angle: 18,
     });
-  } else {
-    autoTable(doc, {
-      startY: yDet + 4,
-      head: [["Concepto", "Valor"]],
-      body: [
-        ["Subtotal", fmtMoney(mov.subtotal)],
-        ["IVA", fmtMoney(mov.iva)],
-        ["Impoconsumo", fmtMoney(mov.impoconsumo)],
-        ["Retención en la fuente", `- ${fmtMoney(mov.retencion)}`],
-        ["ReteICA", `- ${fmtMoney(mov.reteica)}`],
-        ["ReteIVA", `- ${fmtMoney(mov.reteiva)}`],
-        ["Total pagado", fmtMoney(mov.total)],
-      ],
-      headStyles: { fillColor: [30, 50, 90] },
-    });
-
-    const filasRetenciones: string[][] = [];
-    if (mov.retencion > 0) {
-      const t = tarifas?.find((x) => x.id === mov.tarifa_retencion_id);
-      filasRetenciones.push([
-        "RF",
-        "Retención en la fuente",
-        t ? `${Number(t.porcentaje)}%` : "—",
-        fmtMoney(mov.retencion),
-      ]);
-    }
-    if (mov.reteica > 0) {
-      const t = tarifasReteicaCiudad?.find((x) => x.id === mov.tarifa_reteica_ciudad_id);
-      filasRetenciones.push([
-        "ICA",
-        "ReteICA",
-        t ? `${Number(t.tarifa)}‰` : "—",
-        fmtMoney(mov.reteica),
-      ]);
-    }
-    if (mov.reteiva > 0) {
-      filasRetenciones.push(["IVA", "ReteIVA", "15%", fmtMoney(mov.reteiva)]);
-    }
-
-    if (filasRetenciones.length > 0) {
-      const yRet = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-      doc.setFontSize(12);
-      doc.text("Retenciones practicadas", 14, yRet);
-      autoTable(doc, {
-        startY: yRet + 4,
-        head: [["Tipo", "Descripción", "Tarifa", "Valor"]],
-        body: filasRetenciones,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [30, 50, 90] },
-      });
-    }
+    doc.setTextColor(0, 0, 0);
   }
-
-  const { debitos, creditos } = computeAsiento(mov, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
-  const y2 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-  doc.setFontSize(12);
-  doc.text("Asiento contable", 14, y2);
-  autoTable(doc, {
-    startY: y2 + 4,
-    head: [["Cuenta", "Descripción", "Débito", "Crédito"]],
-    body: [
-      ...debitos.map((d) => [d.cuenta, d.descripcion, fmtMoney(d.valor), ""]),
-      ...creditos.map((c) => [c.cuenta, c.descripcion, "", fmtMoney(c.valor)]),
-    ],
-    headStyles: { fillColor: [30, 50, 90] },
-  });
 
   return doc;
 }

@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type Proveedor = {
   id: string;
+  activo: boolean;
   nombre: string;
   nit: string;
   tipo_proveedor: string;
@@ -45,7 +46,7 @@ export type Concepto = {
   activo: boolean;
 };
 
-export type Agencia = { id: string; nombre: string; codigo: number | null };
+export type Agencia = { id: string; nombre: string; codigo: number | null; monto_asignado: number };
 
 export type TarifaRetencionRenta = {
   id: string;
@@ -102,6 +103,7 @@ export type Movimiento = {
   consecutivo: number;
   fecha: string;
   agencia_id: string | null;
+  fondo_agencia_id: string | null;
   proveedor_id: string;
   concepto_id: string;
   detalle: string | null;
@@ -186,7 +188,9 @@ export type Reembolso = {
 export type FondoConfig = {
   id: string;
   empresa: string;
+  nit_empresa: string;
   responsable: string;
+  identificacion_responsable: string;
   monto_asignado: number;
   monto_maximo_gasto: number;
   cuenta_banco: string;
@@ -238,6 +242,24 @@ export async function getAgencias() {
   return data as Agencia[];
 }
 
+export type FondoAgencia = {
+  id: string;
+  agencia_id: string;
+  cuenta_contable: string | null;
+  nombre: string;
+  monto_asignado: number;
+  activo: boolean;
+};
+
+export async function getFondosAgencia() {
+  const { data, error } = await supabase
+    .from("fondos_agencia")
+    .select("*")
+    .order("nombre");
+  if (error) throw error;
+  return data as FondoAgencia[];
+}
+
 export type Profile = {
   id: string;
   nombre: string;
@@ -284,6 +306,7 @@ export async function getMovimientosPendientes() {
     .from("movimientos")
     .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
     .is("reembolso_id", null)
+    .neq("estado", "anulado")
     .order("fecha", { ascending: true });
   if (error) throw error;
   return data as unknown as Movimiento[];
@@ -470,8 +493,15 @@ export function computeAsientoReposicion(movs: Movimiento[], fondo: FondoConfig)
   });
 
   const total = movs.reduce((s, m) => s + Number(m.total), 0);
+  const idResponsable = fondo.identificacion_responsable
+    ? ` · ${fondo.responsable} C.C./NIT ${fondo.identificacion_responsable}`
+    : ` · ${fondo.responsable}`;
   const creditos = [
-    { cuenta: fondo.cuenta_banco, descripcion: "Reposición fondo caja menor", valor: total },
+    {
+      cuenta: fondo.cuenta_banco,
+      descripcion: `Reposición fondo caja menor${idResponsable}`,
+      valor: total,
+    },
   ];
 
   return { debitos, creditos };

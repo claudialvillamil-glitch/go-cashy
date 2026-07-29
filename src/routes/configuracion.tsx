@@ -11,6 +11,7 @@ import {
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
+  getFondosAgencia,
 } from "@/lib/db";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,7 +44,9 @@ function Conf() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const [empresa, setEmpresa] = useState("");
+  const [nitEmpresa, setNitEmpresa] = useState("");
   const [responsable, setResponsable] = useState("");
+  const [identificacionResponsable, setIdentificacionResponsable] = useState("");
   const [monto, setMonto] = useState("");
   const [maximo, setMaximo] = useState("");
   const [cuentaBanco, setCuentaBanco] = useState("");
@@ -63,7 +66,9 @@ function Conf() {
   useEffect(() => {
     if (q.data) {
       setEmpresa(q.data.empresa);
+      setNitEmpresa(q.data.nit_empresa);
       setResponsable(q.data.responsable);
+      setIdentificacionResponsable(q.data.identificacion_responsable);
       setMonto(String(q.data.monto_asignado));
       setMaximo(String(q.data.monto_maximo_gasto));
       setCuentaBanco(q.data.cuenta_banco);
@@ -89,7 +94,9 @@ function Conf() {
         .from("fondo_config")
         .update({
           empresa,
+          nit_empresa: nitEmpresa,
           responsable,
+          identificacion_responsable: identificacionResponsable,
           monto_asignado: Number(monto),
           monto_maximo_gasto: Number(maximo),
           cuenta_banco: cuentaBanco,
@@ -135,8 +142,23 @@ function Conf() {
             <Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
           </div>
           <div className="space-y-1.5">
+            <Label className="text-xs">NIT de la empresa</Label>
+            <Input value={nitEmpresa} onChange={(e) => setNitEmpresa(e.target.value)} placeholder="900.123.456-1" />
+          </div>
+          <div className="space-y-1.5">
             <Label className="text-xs">Responsable del fondo</Label>
             <Input value={responsable} onChange={(e) => setResponsable(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">C.C./NIT del responsable</Label>
+            <Input
+              value={identificacionResponsable}
+              onChange={(e) => setIdentificacionResponsable(e.target.value)}
+              placeholder="Ej. 1094900000"
+            />
+            <p className="text-xs text-muted-foreground">
+              Se usa para contabilizar la cuenta de reposición (24109503) a nombre de esta persona.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Monto asignado al fondo (COP)</Label>
@@ -289,6 +311,7 @@ function Conf() {
       <TarifasRetencionCard />
       <ConceptosReteicaCard />
       <TarifasReteicaCiudadCard />
+      <FondosAgenciaCard />
     </div>
   );
 }
@@ -298,12 +321,14 @@ function AgenciasCard() {
   const q = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
+  const [montoAsignado, setMontoAsignado] = useState("");
 
   const crear = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("agencias").insert({
         nombre: nombre.trim(),
         codigo: codigo ? Number(codigo) : null,
+        monto_asignado: Number(montoAsignado) || 0,
       });
       if (error) throw error;
     },
@@ -311,6 +336,19 @@ function AgenciasCard() {
       toast.success("Agencia creada");
       setNombre("");
       setCodigo("");
+      setMontoAsignado("");
+      qc.invalidateQueries({ queryKey: ["agencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarMonto = useMutation({
+    mutationFn: async ({ id, monto }: { id: string; monto: number }) => {
+      const { error } = await supabase.from("agencias").update({ monto_asignado: monto }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Monto asignado actualizado");
       qc.invalidateQueries({ queryKey: ["agencias"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -359,6 +397,14 @@ function AgenciasCard() {
               if (e.key === "Enter" && nombre.trim()) crear.mutate();
             }}
           />
+          <Input
+            placeholder="Monto asignado"
+            type="number"
+            min="0"
+            className="w-40"
+            value={montoAsignado}
+            onChange={(e) => setMontoAsignado(e.target.value)}
+          />
           <Button onClick={() => crear.mutate()} disabled={!nombre.trim() || crear.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Agregar
           </Button>
@@ -366,22 +412,36 @@ function AgenciasCard() {
 
         <div className="rounded-md border divide-y">
           {q.data?.map((a) => (
-            <div key={a.id} className="flex items-center justify-between px-4 py-2.5">
-              <span className="text-sm font-medium">
+            <div key={a.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <span className="text-sm font-medium truncate">
                 {a.codigo != null && (
                   <span className="text-muted-foreground font-mono mr-2">{a.codigo}</span>
                 )}
                 {a.nombre}
               </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm(`¿Eliminar la agencia "${a.nombre}"?`)) eliminar.mutate(a.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  defaultValue={a.monto_asignado}
+                  className="w-36 h-8 text-sm"
+                  onBlur={(e) => {
+                    const monto = Number(e.target.value) || 0;
+                    if (monto !== Number(a.monto_asignado)) {
+                      actualizarMonto.mutate({ id: a.id, monto });
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm(`¿Eliminar la agencia "${a.nombre}"?`)) eliminar.mutate(a.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
           ))}
           {(q.data?.length ?? 0) === 0 && (
@@ -782,4 +842,168 @@ function fmtMoneyLocal(n: number) {
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(Number(n ?? 0));
+}
+
+function FondosAgenciaCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
+  const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const [agenciaId, setAgenciaId] = useState("");
+  const [nombre, setNombre] = useState("Caja menor");
+  const [cuenta, setCuenta] = useState("");
+  const [monto, setMonto] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      if (!agenciaId) throw new Error("Selecciona la agencia");
+      const { error } = await supabase.from("fondos_agencia").insert({
+        agencia_id: agenciaId,
+        nombre: nombre.trim() || "Caja menor",
+        cuenta_contable: cuenta.trim() || null,
+        monto_asignado: Number(monto) || 0,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Fondo creado");
+      setNombre("Caja menor");
+      setCuenta("");
+      setMonto("");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarMonto = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
+      const { error } = await supabase.from("fondos_agencia").update({ monto_asignado: valor }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Monto actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase.from("fondos_agencia").update({ activo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fondos-agencia"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("fondos_agencia").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Fondo eliminado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) =>
+      toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
+  });
+
+  const agenciaNombre = (id: string) => {
+    const a = agsQ.data?.find((x) => x.id === id);
+    return a ? (a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre) : "—";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Fondos de caja menor por agencia</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Una agencia puede tener más de un fondo (ej. "Secretaría de Gerencia" y "Agencia" en el
+          mismo lugar). El máximo permitido por pago es el 15% del monto de cada fondo.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <Select value={agenciaId} onValueChange={setAgenciaId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Agencia" />
+            </SelectTrigger>
+            <SelectContent>
+              {agsQ.data?.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input placeholder="Nombre del fondo" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          <Input placeholder="Cuenta contable" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
+          <Input
+            type="number"
+            min="0"
+            placeholder="Monto asignado"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+          />
+          <Button onClick={() => crear.mutate()} disabled={!agenciaId || crear.isPending}>
+            <Plus className="h-4 w-4 mr-2" /> Agregar fondo
+          </Button>
+        </div>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((f) => (
+            <div key={f.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Checkbox
+                  checked={f.activo}
+                  onCheckedChange={(v) => toggleActivo.mutate({ id: f.id, activo: v === true })}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {f.nombre} · {agenciaNombre(f.agencia_id)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Cuenta {f.cuenta_contable || "—"} · Máx. 15%:{" "}
+                    {new Intl.NumberFormat("es-CO", {
+                      style: "currency",
+                      currency: "COP",
+                      maximumFractionDigits: 0,
+                    }).format(Number(f.monto_asignado) * 0.15)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  defaultValue={f.monto_asignado}
+                  className="w-32 h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = Number(e.target.value) || 0;
+                    if (valor !== Number(f.monto_asignado)) {
+                      actualizarMonto.mutate({ id: f.id, valor });
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm(`¿Eliminar el fondo "${f.nombre}"?`)) eliminar.mutate(f.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay fondos registrados.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
 }

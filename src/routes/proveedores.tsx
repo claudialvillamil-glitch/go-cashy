@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +46,7 @@ export const Route = createFileRoute("/proveedores")({
 
 const empty = {
   nombre: "",
+  activo: true,
   nit: "",
   tipo_proveedor: "juridica",
   tipo_identificacion: "CC",
@@ -203,6 +205,7 @@ function Provs() {
       const esRegimenSimple = form.regimen_tributario === "simple";
       const payload = {
         nombre: form.nombre,
+        activo: form.activo ?? true,
         nit: form.nit,
         tipo_proveedor: form.tipo_proveedor || "juridica",
         tipo_identificacion: form.tipo_proveedor === "natural" ? form.tipo_identificacion || "CC" : "CC",
@@ -249,6 +252,18 @@ function Provs() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      const [{ count: countMovs }, { count: countItems }] = await Promise.all([
+        supabase.from("movimientos").select("id", { count: "exact", head: true }).eq("proveedor_id", id),
+        supabase
+          .from("movimiento_items")
+          .select("id", { count: "exact", head: true })
+          .eq("proveedor_id", id),
+      ]);
+      if ((countMovs ?? 0) > 0 || (countItems ?? 0) > 0) {
+        throw new Error(
+          "No se puede eliminar: este proveedor ya tiene movimientos/recibos registrados. Si ya no lo usas, márcalo como inactivo en vez de eliminarlo.",
+        );
+      }
       const { error } = await supabase.from("proveedores").delete().eq("id", id);
       if (error) throw error;
     },
@@ -335,6 +350,16 @@ function Provs() {
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 />
               </F>
+              <div className="flex items-center gap-2 -mt-2">
+                <Checkbox
+                  id="prov-activo"
+                  checked={form.activo ?? true}
+                  onCheckedChange={(v) => setForm({ ...form, activo: v === true })}
+                />
+                <Label htmlFor="prov-activo" className="text-sm font-normal cursor-pointer">
+                  Proveedor activo (desmarca en vez de eliminar si ya tiene movimientos)
+                </Label>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {form.tipo_proveedor === "natural" ? (
                   <F label="Tipo de identificación">
@@ -508,6 +533,7 @@ function Provs() {
                     <SelectContent>
                       <SelectItem value="iva">IVA</SelectItem>
                       <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
+                      <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -655,8 +681,15 @@ function Provs() {
             </thead>
             <tbody>
               {q.data?.map((p) => (
-                <tr key={p.id} className="border-t hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium">{p.nombre}</td>
+                <tr key={p.id} className={`border-t hover:bg-muted/30 ${!p.activo ? "opacity-50" : ""}`}>
+                  <td className="px-4 py-3 font-medium">
+                    {p.nombre}
+                    {!p.activo && (
+                      <Badge variant="secondary" className="ml-2">
+                        Inactivo
+                      </Badge>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {p.tipo_proveedor === "natural" &&
                       `${TIPOS_IDENTIFICACION.find((t) => t.value === p.tipo_identificacion)?.value ?? "CC"} `}
@@ -671,7 +704,12 @@ function Provs() {
                         "—"}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Factura: {p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA"}
+                      Factura:{" "}
+                      {p.tipo_impuesto === "ambos"
+                        ? "IVA + Impoconsumo"
+                        : p.tipo_impuesto === "impoconsumo"
+                          ? "Impoconsumo"
+                          : "IVA"}
                       {!p.responsable_iva && p.tipo_impuesto !== "impoconsumo" && " · No resp. IVA"}
                     </div>
                     {p.codigo_ciiu && (

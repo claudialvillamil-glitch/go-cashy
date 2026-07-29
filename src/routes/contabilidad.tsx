@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,11 +21,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useEffect, useMemo, useState } from "react";
-import { getAgencias, getConceptos, getMovimientos, getProveedores, type Movimiento } from "@/lib/db";
+import {
+  getAgencias,
+  getConceptos,
+  getMovimientos,
+  getProveedores,
+  getFondo,
+  getTarifasRetencionRenta,
+  getConceptosReteica,
+  getTarifasReteicaCiudad,
+  type Movimiento,
+} from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, ExternalLink as ExternalLinkIcon, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { exportAsientosContablesExcel, exportLibroCajaMenorConSoportesPDF, exportExcel } from "@/lib/exports";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
@@ -47,6 +59,10 @@ export const Route = createFileRoute("/contabilidad")({
 function Contabilidad() {
   const qc = useQueryClient();
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
+  const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const provsQ = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
   const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
@@ -54,6 +70,8 @@ function Contabilidad() {
   const [busqueda, setBusqueda] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
+  const [reciboDesde, setReciboDesde] = useState("");
+  const [reciboHasta, setReciboHasta] = useState("");
   const [agencia, setAgencia] = useState<string>("todas");
   const [proveedor, setProveedor] = useState<string>("todos");
   const [concepto, setConcepto] = useState<string>("todos");
@@ -83,6 +101,8 @@ function Contabilidad() {
     return movs.filter((m) => {
       if (desde && m.fecha < desde) return false;
       if (hasta && m.fecha > hasta) return false;
+      if (reciboDesde && m.consecutivo < Number(reciboDesde)) return false;
+      if (reciboHasta && m.consecutivo > Number(reciboHasta)) return false;
       if (agencia !== "todas" && m.agencia_id !== agencia) return false;
       if (proveedor !== "todos" && m.proveedor_id !== proveedor) return false;
       if (concepto !== "todos" && m.concepto_id !== concepto) return false;
@@ -109,7 +129,21 @@ function Contabilidad() {
       }
       return true;
     });
-  }, [movs, busqueda, desde, hasta, agencia, proveedor, concepto, estado, docSoporte, soporte]);
+  }, [movs, busqueda, desde, hasta, reciboDesde, reciboHasta, agencia, proveedor, concepto, estado, docSoporte, soporte]);
+
+  const generarConSoportes = useMutation({
+    mutationFn: async () => {
+      if (!fondoQ.data) throw new Error("Falta cargar el fondo");
+      await exportLibroCajaMenorConSoportesPDF(
+        filtrados,
+        fondoQ.data,
+        tarifasQ.data,
+        reteicaConceptosQ.data,
+        reteicaCiudadQ.data,
+      );
+    },
+    onError: (e: Error) => toast.error("No se pudo generar el reporte: " + e.message),
+  });
 
   const pendientesDocSoporte = filtrados.filter(
     (m) => !m.factura_electronica && !m.doc_soporte_generado,
@@ -130,12 +164,51 @@ function Contabilidad() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Contabilidad</h1>
-        <p className="text-sm text-muted-foreground">
-          Detalle de cada gasto para subir al programa contable, con seguimiento de soportes y
-          documentos DIAN.
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Contabilidad</h1>
+          <p className="text-sm text-muted-foreground">
+            Detalle de cada gasto para subir al programa contable, con seguimiento de soportes y
+            documentos DIAN.
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            disabled={generarConSoportes.isPending || filtrados.length === 0}
+            onClick={() => generarConSoportes.mutate()}
+          >
+            {generarConSoportes.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            Recibos + soportes (PDF)
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!fondoQ.data || filtrados.length === 0}
+            onClick={() =>
+              fondoQ.data &&
+              exportAsientosContablesExcel(
+                filtrados,
+                fondoQ.data,
+                tarifasQ.data,
+                reteicaConceptosQ.data,
+                reteicaCiudadQ.data,
+              )
+            }
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar asientos contables (Excel)
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!fondoQ.data || filtrados.length === 0}
+            onClick={() => fondoQ.data && exportExcel(filtrados, fondoQ.data)}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" /> Reporte de gastos y saldo (Excel)
+          </Button>
+        </div>
       </header>
 
       {pendientesDocSoporte > 0 && (
@@ -172,6 +245,26 @@ function Contabilidad() {
             <div className="space-y-1.5">
               <Label className="text-xs">Hasta</Label>
               <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Recibo desde</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="Ej. 100"
+                value={reciboDesde}
+                onChange={(e) => setReciboDesde(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Recibo hasta</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="Ej. 200"
+                value={reciboHasta}
+                onChange={(e) => setReciboHasta(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Agencia</Label>
@@ -285,7 +378,7 @@ function Contabilidad() {
                 <th className="px-3 py-2 font-medium text-right">Total</th>
                 <th className="px-3 py-2 font-medium">Emite factura</th>
                 <th className="px-3 py-2 font-medium">Doc. soporte DIAN</th>
-                <th className="px-3 py-2 font-medium">Ver detalle</th>
+                <th className="px-3 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -371,13 +464,9 @@ function FilaMovimiento({
         )}
       </td>
       <td className="px-3 py-2">
-        <button
-          type="button"
-          onClick={onVerDetalle}
-          className="inline-flex items-center gap-1 text-primary hover:underline"
-        >
-          <Eye className="h-3.5 w-3.5" /> Ver detalle
-        </button>
+        <Button size="icon" variant="ghost" onClick={onVerDetalle} title="Ver detalle">
+          <Eye className="h-4 w-4" />
+        </Button>
       </td>
     </tr>
   );
@@ -447,7 +536,19 @@ function DetalleGastoDialog({
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Soporte escaneado</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground">Soporte escaneado</p>
+              {urlSoporte && (
+                <a
+                  href={urlSoporte}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Abrir en pestaña nueva <ExternalLinkIcon className="h-3 w-3" />
+                </a>
+              )}
+            </div>
             {!m.factura_path && (
               <div className="border rounded-md p-6 text-center text-sm text-destructive">
                 No hay ningún archivo de soporte adjunto para este gasto.
@@ -463,7 +564,14 @@ function DetalleGastoDialog({
                 {esImagen && (
                   <img src={urlSoporte} alt="Soporte del gasto" className="w-full max-h-[500px] object-contain" />
                 )}
-                {esPdf && <iframe src={urlSoporte} title="Soporte del gasto" className="w-full h-[500px]" />}
+                {esPdf && (
+                  <>
+                    <iframe src={urlSoporte} title="Soporte del gasto" className="w-full h-[500px]" />
+                    <p className="text-xs text-muted-foreground text-center py-2 border-t">
+                      ¿No ves el PDF arriba? Usa el enlace "Abrir en pestaña nueva".
+                    </p>
+                  </>
+                )}
                 {!esImagen && !esPdf && (
                   <div className="p-6 text-center text-sm">
                     <a href={urlSoporte} target="_blank" rel="noreferrer" className="text-primary hover:underline">

@@ -19,10 +19,11 @@ import {
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
+  getMyProfile,
   type Movimiento,
 } from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileSpreadsheet, FileText, Search, Trash2, Eye, Layers, Printer, Loader2 } from "lucide-react";
+import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -30,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { exportExcel, exportPDF, exportReciboPDF, exportLibroCajaMenorConSoportesPDF } from "@/lib/exports";
+import { exportPDF, exportReciboPDF } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -52,6 +53,8 @@ function Movs() {
   const qc = useQueryClient();
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
+  const esAdmin = profileQ.data?.rol === "admin";
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
@@ -80,13 +83,12 @@ function Movs() {
     );
   }, [movsQ.data, q, tipo]);
 
-  const generarConSoportes = useMutation({
-    mutationFn: async () => {
-      if (!fondoQ.data) throw new Error("Falta cargar el fondo");
-      await exportLibroCajaMenorConSoportesPDF(filtered, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
-    },
-    onError: (e: Error) => toast.error("No se pudo generar el reporte: " + e.message),
-  });
+  // Solo los gastos que aún no han sido reembolsados (o cuyo reembolso no
+  // se ha pagado todavía), excluyendo los anulados.
+  const noReembolsados = useMemo(
+    () => filtered.filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado"),
+    [filtered],
+  );
 
   const del = useMutation({
     mutationFn: async (m: Movimiento) => {
@@ -98,6 +100,40 @@ function Movs() {
       toast.success("Movimiento eliminado");
       qc.invalidateQueries();
     },
+  });
+
+  const anular = useMutation({
+    mutationFn: async (m: Movimiento) => {
+      const motivo = prompt("Motivo de anulación (opcional):") ?? "";
+      const { error } = await supabase
+        .from("movimientos")
+        .update({
+          estado: "anulado",
+          observaciones: motivo ? `${m.observaciones ? m.observaciones + " · " : ""}Anulado: ${motivo}` : m.observaciones,
+        })
+        .eq("id", m.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Movimiento anulado");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reversar = useMutation({
+    mutationFn: async (m: Movimiento) => {
+      const { error } = await supabase
+        .from("movimientos")
+        .update({ estado: "registrado" })
+        .eq("id", m.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Anulación reversada");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const abrirFactura = async (m: Movimiento) => {
@@ -120,39 +156,19 @@ function Movs() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => fondoQ.data && exportExcel(filtered, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-            disabled={!filtered.length}
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => fondoQ.data && exportPDF(filtered, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-            disabled={!filtered.length}
+            onClick={() => fondoQ.data && exportPDF(noReembolsados, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+            disabled={!noReembolsados.length}
           >
             <FileText className="h-4 w-4 mr-2" />
-            PDF
+            Reporte gastos y saldos
           </Button>
           <Button
             variant="outline"
-            onClick={() => fondoQ.data && exportPDF(filtered, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-            disabled={!filtered.length}
+            onClick={() => fondoQ.data && exportPDF(noReembolsados, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+            disabled={!noReembolsados.length}
           >
             <Printer className="h-4 w-4 mr-2" />
-            Imprimir
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => generarConSoportes.mutate()}
-            disabled={generarConSoportes.isPending || !filtered.length}
-          >
-            {generarConSoportes.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4 mr-2" />
-            )}
-            Recibos + soportes (PDF)
+            Imprimir reporte
           </Button>
         </div>
       </header>
@@ -198,7 +214,10 @@ function Movs() {
             </thead>
             <tbody>
               {filtered.map((m) => (
-                <tr key={m.id} className="border-t hover:bg-muted/30">
+                <tr
+                  key={m.id}
+                  className={`border-t hover:bg-muted/30 ${m.estado === "anulado" ? "opacity-50" : ""}`}
+                >
                   <td className="px-4 py-3 font-mono text-xs">{pad(m.consecutivo)}</td>
                   <td className="px-4 py-3">{fmtDate(m.fecha)}</td>
                   <td className="px-4 py-3">
@@ -216,7 +235,9 @@ function Movs() {
                   <td className="px-4 py-3 text-muted-foreground">{m.numero_factura ?? "—"}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmtMoney(m.total)}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="secondary" className="capitalize">{m.estado}</Badge>
+                    <Badge variant={m.estado === "anulado" ? "destructive" : "secondary"} className="capitalize">
+                      {m.estado}
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
@@ -239,15 +260,45 @@ function Movs() {
                       >
                         <Printer className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm("¿Eliminar este movimiento?")) del.mutate(m);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {m.estado !== "anulado" ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Anular"
+                          onClick={() => {
+                            if (confirm("¿Anular este movimiento? Quedará marcado como anulado, sin borrarlo.")) {
+                              anular.mutate(m);
+                            }
+                          }}
+                        >
+                          <Ban className="h-4 w-4 text-warning" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Reversar anulación"
+                          onClick={() => {
+                            if (confirm("¿Reversar la anulación de este movimiento? Volverá a contar como gasto activo.")) {
+                              reversar.mutate(m);
+                            }
+                          }}
+                        >
+                          <RotateCcw className="h-4 w-4 text-success" />
+                        </Button>
+                      )}
+                      {esAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Eliminar"
+                          onClick={() => {
+                            if (confirm("¿Eliminar este movimiento? Esta acción no se puede deshacer.")) del.mutate(m);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
