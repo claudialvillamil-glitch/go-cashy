@@ -628,9 +628,8 @@ function Nuevo() {
                   value={beneficiarioId}
                   onChange={(id) => {
                     setBeneficiarioId(id);
-                    const p = provsQ.data?.find((x) => x.id === id);
-                    if (p) {
-                      setItems((prev) => prev.map((it) => ({ ...it, detalle: p.nombre })));
+                    if (detalle.trim()) {
+                      setItems((prev) => prev.map((it) => ({ ...it, detalle })));
                     }
                   }}
                 />
@@ -686,7 +685,12 @@ function Nuevo() {
           <Field label="Detalle *">
             <Input
               value={detalle}
-              onChange={(e) => setDetalle(e.target.value)}
+              onChange={(e) => {
+                setDetalle(e.target.value);
+                if (multiSoporte) {
+                  setItems((prev) => prev.map((it) => ({ ...it, detalle: e.target.value })));
+                }
+              }}
               placeholder="Ej. Legalización de viáticos, viaje a..."
             />
           </Field>
@@ -967,7 +971,7 @@ function Nuevo() {
                   ...p,
                   {
                     ...blankItem(),
-                    detalle: provsQ.data?.find((x) => x.id === beneficiarioId)?.nombre ?? "",
+                    detalle,
                   },
                 ])
               }

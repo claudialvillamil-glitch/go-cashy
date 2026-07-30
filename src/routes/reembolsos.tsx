@@ -70,6 +70,7 @@ function Page() {
   const qc = useQueryClient();
   const listQ = useQuery({ queryKey: ["reembolsos"], queryFn: getReembolsos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
   const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
   const todosQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
@@ -108,6 +109,8 @@ function Page() {
     },
     onSuccess: (estado) => {
       qc.invalidateQueries({ queryKey: ["reembolsos"] });
+      qc.invalidateQueries({ queryKey: ["movimientos"] });
+      qc.invalidateQueries({ queryKey: ["movimientos-pendientes"] });
       if (estado === "pagado") {
         toast.success(
           "Reembolso marcado como pagado. Recuerda realizar el cheque y el cobro del mismo para terminar el proceso de reembolso.",
@@ -140,7 +143,7 @@ function Page() {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Monto del fondo</div>
-              <div className="text-lg font-semibold">{fmtMoney(fondoQ.data?.monto_asignado)}</div>
+              <div className="text-lg font-semibold">{fmtMoney(montoTotalFondo)}</div>
             </div>
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Valor gastos pendientes</div>
@@ -149,7 +152,7 @@ function Page() {
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Saldo actual caja</div>
               <div className="text-lg font-semibold">
-                {fmtMoney(Number(fondoQ.data?.monto_asignado ?? 0) - totalNoPagado)}
+                {fmtMoney(montoTotalFondo - totalNoPagado)}
               </div>
             </div>
             <div className="p-3 rounded-md bg-primary text-primary-foreground">
@@ -257,6 +260,7 @@ function Page() {
 
 function ArqueoCaja() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
   const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const [cantidades, setCantidades] = useState<Record<number, string>>({});
   const [provisionales, setProvisionales] = useState<ReciboProvisional[]>([]);
@@ -267,7 +271,7 @@ function ArqueoCaja() {
   const totalPendiente = (pendQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
     .reduce((s, m) => s + Number(m.total), 0);
-  const saldoTeorico = fondoQ.data ? Number(fondoQ.data.monto_asignado) - totalPendiente : 0;
+  const saldoTeorico = montoTotalFondo - totalPendiente;
 
   const totalEfectivo = DENOMINACIONES.reduce((sum, d) => {
     const cant = parseInt(cantidades[d.valor] ?? "0", 10) || 0;
@@ -455,6 +459,7 @@ function NuevaSolicitud({
 }) {
   const qc = useQueryClient();
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
   const pendQ = useQuery({
     queryKey: ["movimientos-pendientes"],
     queryFn: getMovimientosPendientes,
@@ -499,15 +504,13 @@ function NuevaSolicitud({
   const totalPendienteFondo = (todosNoPagadosQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
     .reduce((s, m) => s + Number(m.total), 0);
-  const saldoTeorico = fondoQ.data ? Number(fondoQ.data.monto_asignado) - totalPendienteFondo : 0;
+  const saldoTeorico = montoTotalFondo - totalPendienteFondo;
 
   // La solicitud de reembolso debe hacerse cuando el fondo alcanza el % límite
   // configurado (recomendado 90%) o siempre en cierre de mes. Si no se cumple
   // ninguna de las dos, avisamos (no bloqueamos, por si hay una razón válida).
   const limitePct = fondoQ.data ? Number(fondoQ.data.limite_alerta_reembolso_pct) : 90;
-  const pctFondoActual = fondoQ.data
-    ? (totalPendienteFondo / Number(fondoQ.data.monto_asignado)) * 100
-    : 0;
+  const pctFondoActual = montoTotalFondo > 0 ? (totalPendienteFondo / montoTotalFondo) * 100 : 0;
   const cumpleLimite = pctFondoActual >= limitePct;
   const noCumpleRequisito = !esCierreMes && !cumpleLimite;
   const totalEfectivoArqueo = DENOMINACIONES.reduce((sum, d) => {
@@ -857,6 +860,7 @@ function DetalleReembolso({
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
+  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
   const totalGastosFondo = (pendQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
     .reduce((s, m) => s + Number(m.total), 0);
@@ -889,11 +893,11 @@ function DetalleReembolso({
         </DialogHeader>
         {reembolso && fondoQ.data && (
           <div className="grid grid-cols-3 gap-3 p-3 rounded-md bg-muted/50 border">
-            <Info label="Monto fondo" value={fmtMoney(fondoQ.data.monto_asignado)} />
+            <Info label="Monto fondo" value={fmtMoney(montoTotalFondo)} />
             <Info label="Total gastos" value={fmtMoney(totalGastosFondo)} />
             <Info
               label="Total disponible"
-              value={fmtMoney(Number(fondoQ.data.monto_asignado) - totalGastosFondo)}
+              value={fmtMoney(montoTotalFondo - totalGastosFondo)}
             />
           </div>
         )}

@@ -33,14 +33,15 @@ function Resumen() {
 
   const fondo = fondoQ.data;
   const movs = movsQ.data ?? [];
+  const montoTotalFondo = Number(fondo?.monto_asignado ?? 0);
 
   // El saldo disponible solo se ve afectado por gastos que aún no han sido
   // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
   // esos gastos ya no restan porque el fondo fue repuesto por la empresa.
   const gastosPendientes = movs.filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado");
   const totalPendiente = gastosPendientes.reduce((s, m) => s + Number(m.total), 0);
-  const saldo = fondo ? Number(fondo.monto_asignado) - totalPendiente : 0;
-  const pct = fondo ? Math.min(100, (totalPendiente / Number(fondo.monto_asignado)) * 100) : 0;
+  const saldo = montoTotalFondo - totalPendiente;
+  const pct = montoTotalFondo > 0 ? Math.min(100, (totalPendiente / montoTotalFondo) * 100) : 0;
 
   // Gastos del mes en curso (todos los del mes, excluyendo anulados —
   // independiente de si ya se reembolsaron, porque esto es informativo del
@@ -64,7 +65,7 @@ function Resumen() {
 
   // Aviso de reembolso: cuando los gastos pendientes llegan al % configurado del
   // fondo, o cuando estamos en los últimos 2 días del mes (cierre de mes).
-  const pctReal = fondo ? (totalPendiente / Number(fondo.monto_asignado)) * 100 : 0;
+  const pctReal = montoTotalFondo > 0 ? (totalPendiente / montoTotalFondo) * 100 : 0;
   const limite = fondo ? Number(fondo.limite_alerta_reembolso_pct) : 80;
   const alcanzoLimite = fondo ? pctReal >= limite : false;
   const hoy = new Date();
@@ -111,7 +112,7 @@ function Resumen() {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(fondo?.monto_asignado)} tone="primary" />
+        <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(montoTotalFondo)} tone="primary" />
         <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(totalPendiente)} tone="warning" />
         <StatCard icon={Wallet} label="Saldo disponible" value={fmtMoney(saldo)} tone="success" />
         <StatCard icon={Receipt} label="Movimientos" value={String(movs.length)} tone="muted" />
@@ -129,7 +130,7 @@ function Resumen() {
         <CardContent>
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-muted-foreground">
-              {fmtMoney(totalPendiente)} de {fmtMoney(fondo?.monto_asignado)}
+              {fmtMoney(totalPendiente)} de {fmtMoney(montoTotalFondo)}
             </span>
             <span className="font-medium">{pct.toFixed(1)}%</span>
           </div>
