@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile, type Profile } from "@/lib/db";
 
+// Caché en memoria a nivel de módulo (no de componente): sobrevive a que
+// AppLayout se vuelva a montar en cada cambio de pantalla, sin afectar la
+// hidratación inicial del servidor (por eso solo se usa DESPUÉS del primer
+// montaje en el navegador — "clienteListo").
+let perfilEnMemoria: Profile | null = null;
+let clienteListo = false;
+
 const nav = [
   { to: "/", label: "Resumen", icon: LayoutDashboard, roles: undefined },
   { to: "/nuevo", label: "Nuevo recibo", icon: PlusCircle, roles: ["admin", "responsable"] },
@@ -58,12 +65,22 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   // Una vez que el perfil se cargó bien una vez, lo dejamos guardado y lo
   // seguimos mostrando aunque una recarga de fondo tarde o falle
-  // momentáneamente — así el menú no "parpadea" ni desaparece solo.
+  // momentáneamente — así el menú no "parpadea" ni desaparece solo. Usamos
+  // el caché de memoria solo si el cliente ya terminó de hidratar, para no
+  // chocar con lo que renderizó el servidor.
   const [perfilEstable, setPerfilEstable] = useState<Profile | null>(
-    () => (profileQ.data as Profile) ?? null,
+    () => (clienteListo ? perfilEnMemoria : null),
   );
+
   useEffect(() => {
-    if (profileQ.data) setPerfilEstable(profileQ.data as Profile);
+    clienteListo = true;
+  }, []);
+
+  useEffect(() => {
+    if (profileQ.data) {
+      perfilEnMemoria = profileQ.data as Profile;
+      setPerfilEstable(profileQ.data as Profile);
+    }
   }, [profileQ.data]);
 
   useEffect(() => {
@@ -76,6 +93,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         qc.invalidateQueries({ queryKey: ["my-profile"] });
       }
       if (event === "SIGNED_OUT") {
+        perfilEnMemoria = null;
         setPerfilEstable(null);
         navigate({ to: "/login" });
       }
