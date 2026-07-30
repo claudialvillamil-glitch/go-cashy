@@ -66,20 +66,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Gestor de Caja Menor" },
+      { title: "Resumen · Caja Menor" },
       {
         name: "description",
         content:
-          "Aplicación web para el registro, control y contabilización del fondo de caja menor.",
+          "Panel principal del fondo de caja menor: saldo disponible y últimos movimientos.",
       },
-      { property: "og:title", content: "Gestor de Caja Menor" },
+      { property: "og:title", content: "Resumen · Caja Menor" },
       {
         property: "og:description",
         content:
-          "Registra gastos, adjunta facturas, controla el saldo y genera asientos contables automáticos.",
+          "Panel principal del fondo de caja menor: saldo disponible y últimos movimientos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Resumen · Caja Menor" },
+      { name: "twitter:description", content: "Panel principal del fondo de caja menor: saldo disponible y últimos movimientos." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/968cf578-8788-444b-8c68-ba4064f9c688/id-preview-1d5563b4--6688836a-9e82-4abc-9823-6b6fc69e9f30.lovable.app-1785416538602.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/968cf578-8788-444b-8c68-ba4064f9c688/id-preview-1d5563b4--6688836a-9e82-4abc-9823-6b6fc69e9f30.lovable.app-1785416538602.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
