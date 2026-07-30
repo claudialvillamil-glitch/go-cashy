@@ -136,12 +136,16 @@ function Resumen() {
           </div>
           <Progress value={pct} className="h-3" />
           {hayPendientes ? (
-            <p className="text-xs text-muted-foreground mt-2">
-              Tienes <b>{gastosPendientes.length}</b> gasto{gastosPendientes.length === 1 ? "" : "s"}{" "}
-              por un total de <b>{fmtMoney(totalPendiente)}</b> que todavía{" "}
-              <b>no se ha{gastosPendientes.length === 1 ? "" : "n"} reembolsado</b>. Esta suma se
-              descuenta del saldo disponible hasta que hagas la solicitud de reembolso.
-            </p>
+            <div className="text-xs text-muted-foreground mt-2 space-y-1">
+              <p>
+                Presentas un monto total de gastos por reembolsar de{" "}
+                <b className="text-foreground">{fmtMoney(totalPendiente)}</b>.
+              </p>
+              <p>
+                Recuerda realizar el reembolso cuando se agote el <b>{limite}%</b> del fondo, y
+                hacer siempre el proceso <b>antes del cierre de mes</b>.
+              </p>
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground mt-2">
               No hay gastos pendientes por reembolsar en este momento.

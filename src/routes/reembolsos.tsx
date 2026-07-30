@@ -146,8 +146,8 @@ function Page() {
               <div className="text-lg font-semibold">{fmtMoney(montoTotalFondo)}</div>
             </div>
             <div className="p-3 rounded-md bg-muted">
-              <div className="text-xs text-muted-foreground">Valor gastos pendientes</div>
-              <div className="text-lg font-semibold">{fmtMoney(valorGastos)}</div>
+              <div className="text-xs text-muted-foreground">Gastos pendientes</div>
+              <div className="text-lg font-semibold">{fmtMoney(totalNoPagado)}</div>
             </div>
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Saldo actual caja</div>
@@ -157,7 +157,7 @@ function Page() {
             </div>
             <div className="p-3 rounded-md bg-primary text-primary-foreground">
               <div className="text-xs opacity-80">Valor a reembolsar</div>
-              <div className="text-lg font-semibold">{fmtMoney(valorGastos)}</div>
+              <div className="text-lg font-semibold">{fmtMoney(totalNoPagado)}</div>
             </div>
           </div>
           <div className="flex items-center justify-between mt-4 pt-4 border-t">

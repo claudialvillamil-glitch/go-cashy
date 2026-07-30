@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
@@ -50,23 +50,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
     queryKey: ["my-profile"],
     queryFn: getMyProfile,
     retry: false,
+    staleTime: 5 * 60 * 1000,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+
+  // Una vez que el perfil se cargó bien una vez, lo dejamos guardado y lo
+  // seguimos mostrando aunque una recarga de fondo tarde o falle
+  // momentáneamente — así el menú no "parpadea" ni desaparece solo.
+  const [perfilEstable, setPerfilEstable] = useState<Profile | null>(null);
+  useEffect(() => {
+    if (profileQ.data) setPerfilEstable(profileQ.data as Profile);
+  }, [profileQ.data]);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      qc.invalidateQueries({ queryKey: ["my-profile"] });
-      if (event === "SIGNED_OUT") navigate({ to: "/login" });
+      // TOKEN_REFRESHED pasa solo, en segundo plano, cada cierto tiempo —
+      // no debe disparar una recarga del perfil (eso causaba que el menú
+      // "parpadeara" con varias pestañas abiertas). Solo refrescamos en
+      // eventos que sí implican un cambio real de sesión/usuario.
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        qc.invalidateQueries({ queryKey: ["my-profile"] });
+      }
+      if (event === "SIGNED_OUT") {
+        setPerfilEstable(null);
+        navigate({ to: "/login" });
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [qc, navigate]);
 
   useEffect(() => {
-    if (!profileQ.isLoading && profileQ.data === null) {
+    if (!profileQ.isLoading && profileQ.data === null && !perfilEstable) {
       navigate({ to: "/login" });
     }
-  }, [profileQ.isLoading, profileQ.data, navigate]);
+  }, [profileQ.isLoading, profileQ.data, perfilEstable, navigate]);
 
-  if (profileQ.isLoading) {
+  if (profileQ.isLoading && !perfilEstable) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -74,11 +95,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!profileQ.data) {
+  if (!perfilEstable) {
     return null; // se está redirigiendo a /login
   }
 
-  const profile = profileQ.data as Profile;
+  const profile = perfilEstable;
 
   if (!profile.activo) {
     return (
