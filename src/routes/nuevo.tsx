@@ -23,6 +23,7 @@ import {
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getFondosAgencia,
+  getMyProfile,
 } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -60,6 +61,7 @@ function Nuevo() {
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const fondosAgenciaQ = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
+  const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const nextConsQ = useQuery({
     queryKey: ["next-consecutivo"],
     queryFn: async () => {
@@ -309,7 +311,14 @@ function Nuevo() {
   const fondosDeAgencia = (fondosAgenciaQ.data ?? []).filter(
     (f) => f.activo && f.agencia_id === agencia,
   );
-  const fondoAgenciaSel = fondosDeAgencia.find((f) => f.id === fondoAgenciaId) ?? fondosDeAgencia[0];
+  // Si el usuario tiene un fondo fijo asignado en Usuarios (y pertenece a la
+  // agencia elegida), se usa automático y no hay que seleccionarlo.
+  const fondoFijoUsuario = profileQ.data?.fondo_agencia_id ?? null;
+  const fondoFijoValido =
+    !!fondoFijoUsuario && fondosDeAgencia.some((f) => f.id === fondoFijoUsuario);
+  const fondoAgenciaSel = fondoFijoValido
+    ? fondosDeAgencia.find((f) => f.id === fondoFijoUsuario)
+    : fondosDeAgencia.find((f) => f.id === fondoAgenciaId) ?? fondosDeAgencia[0];
   const maxPorAgencia =
     fondoAgenciaSel && Number(fondoAgenciaSel.monto_asignado) > 0
       ? Number(fondoAgenciaSel.monto_asignado) * 0.15
@@ -667,7 +676,7 @@ function Nuevo() {
               </SelectContent>
             </Select>
           </Field>
-          {fondosDeAgencia.length > 1 && (
+          {fondosDeAgencia.length > 1 && !fondoFijoValido && (
             <Field label="Fondo / Caja menor">
               <Select value={fondoAgenciaSel?.id ?? ""} onValueChange={setFondoAgenciaId}>
                 <SelectTrigger>
@@ -682,6 +691,13 @@ function Nuevo() {
                 </SelectContent>
               </Select>
             </Field>
+          )}
+          {fondoFijoValido && (
+            <div className="md:col-span-2 -mt-2">
+              <p className="text-xs text-muted-foreground">
+                Este recibo se registrará en tu fondo asignado: <b>{fondoAgenciaSel?.nombre}</b>.
+              </p>
+            </div>
           )}
           <Field label="Detalle *">
             <Input
@@ -1062,7 +1078,7 @@ function Nuevo() {
             ) : (
               <>
                 <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-sm font-medium">Adjuntar factura</div>
+                <div className="text-sm font-medium">Adjuntar factura/soporte del gasto</div>
                 <div className="text-xs text-muted-foreground">PDF o imagen · máximo 5 MB</div>
               </>
             )}

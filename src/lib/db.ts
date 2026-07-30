@@ -284,6 +284,7 @@ export type Profile = {
   email: string;
   rol: "pendiente" | "admin" | "responsable" | "contador" | "auditoria" | "analista_contable";
   agencia_id: string | null;
+  fondo_agencia_id: string | null;
   activo: boolean;
   agencias?: Agencia | null;
 };

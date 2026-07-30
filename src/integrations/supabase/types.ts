@@ -565,6 +565,7 @@ export type Database = {
           agencia_id: string | null
           created_at: string
           email: string
+          fondo_agencia_id: string | null
           id: string
           nombre: string
           rol: string
@@ -574,6 +575,7 @@ export type Database = {
           agencia_id?: string | null
           created_at?: string
           email: string
+          fondo_agencia_id?: string | null
           id: string
           nombre?: string
           rol?: string
@@ -583,6 +585,7 @@ export type Database = {
           agencia_id?: string | null
           created_at?: string
           email?: string
+          fondo_agencia_id?: string | null
           id?: string
           nombre?: string
           rol?: string

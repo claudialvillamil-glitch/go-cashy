@@ -18,12 +18,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getProveedores } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ProveedorFormFields } from "@/components/ProveedorFormFields";
+
+const formVacio = {
+  nombre: "",
+  activo: true,
+  nit: "",
+  tipo_proveedor: "juridica",
+  tipo_identificacion: "CC",
+  digito_verificacion: "",
+  telefono: "",
+  email: "",
+  direccion: "",
+  codigo_ciiu: "",
+  pais: "Colombia",
+  departamento: "",
+  ciudad: "",
+  aplica_retencion: false,
+  tarifa_retencion_id: "",
+  aplica_reteica: false,
+  concepto_reteica_id: "",
+  tarifa_reteica: 0,
+  aplica_reteiva: false,
+  responsable_iva: true,
+  regimen_tributario: "comun",
+  tipo_impuesto: "iva",
+};
 
 export function ProveedorPicker({
   value,
@@ -47,18 +71,13 @@ export function ProveedorPicker({
       )
     : activos;
 
-  const [nombre, setNombre] = useState("");
-  const [nit, setNit] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [email, setEmail] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [form, setForm] = useState<Record<string, any>>(formVacio);
 
   const openCreate = (q?: string) => {
     const query = (q ?? "").trim();
     const looksLikeNit = /^[\d.-]+$/.test(query);
-    setNombre(looksLikeNit ? "" : query);
-    setNit(looksLikeNit ? query : "");
-    setTelefono("");
-    setEmail("");
+    setForm({ ...formVacio, nombre: looksLikeNit ? "" : query, nit: looksLikeNit ? query : "" });
     setPrefill(query);
     setDialog(true);
     setOpen(false);
@@ -66,7 +85,7 @@ export function ProveedorPicker({
 
   const crear = useMutation({
     mutationFn: async () => {
-      if (!nombre.trim() || !nit.trim()) throw new Error("Nombre y NIT son obligatorios");
+      if (!form.nombre.trim() || !form.nit.trim()) throw new Error("Nombre y NIT son obligatorios");
       const { data: auth } = await supabase.auth.getUser();
       const { data: perfil } = auth?.user
         ? await supabase.from("profiles").select("rol").eq("id", auth.user.id).maybeSingle()
@@ -74,10 +93,17 @@ export function ProveedorPicker({
       const { data, error } = await supabase
         .from("proveedores")
         .insert({
-          nombre: nombre.trim(),
-          nit: nit.trim(),
-          telefono: telefono || null,
-          email: email || null,
+          ...form,
+          nombre: form.nombre.trim(),
+          nit: form.nit.trim(),
+          telefono: form.telefono || null,
+          email: form.email || null,
+          direccion: form.direccion || null,
+          departamento: form.departamento || null,
+          ciudad: form.ciudad || null,
+          codigo_ciiu: form.codigo_ciiu || null,
+          tarifa_retencion_id: form.tarifa_retencion_id || null,
+          concepto_reteica_id: form.concepto_reteica_id || null,
           estado_validacion: perfil?.rol === "responsable" ? "pendiente" : "validado",
         })
         .select("*")
@@ -196,39 +222,16 @@ export function ProveedorPicker({
       </Popover>
 
       <Dialog open={dialog} onOpenChange={setDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuevo proveedor</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3">
-            <div>
-              <Label>Nombre *</Label>
-              <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
-            </div>
-            <div>
-              <Label>Número de identificación (NIT / Cédula) *</Label>
-              <Input value={nit} onChange={(e) => setNit(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Teléfono</Label>
-                <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-            {prefill && (
-              <p className="text-xs text-muted-foreground">
-                Prellenado desde la búsqueda: "{prefill}"
-              </p>
-            )}
-          </div>
+          {prefill && (
+            <p className="text-xs text-muted-foreground -mt-2">
+              Prellenado desde la búsqueda: "{prefill}"
+            </p>
+          )}
+          <ProveedorFormFields form={form} setForm={setForm} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(false)}>
               Cancelar

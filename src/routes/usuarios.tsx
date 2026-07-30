@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAgencias, getProfiles, type Profile } from "@/lib/db";
+import { getAgencias, getFondosAgencia, getProfiles, type Profile } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -39,6 +39,7 @@ function Usuarios() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["profiles"], queryFn: getProfiles });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const fondosQ = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
 
   const actualizar = useMutation({
     mutationFn: async ({
@@ -46,7 +47,7 @@ function Usuarios() {
       patch,
     }: {
       id: string;
-      patch: Partial<Pick<Profile, "rol" | "agencia_id" | "activo">>;
+      patch: Partial<Pick<Profile, "rol" | "agencia_id" | "activo" | "fondo_agencia_id">>;
     }) => {
       const { error } = await supabase.from("profiles").update(patch).eq("id", id);
       if (error) throw error;
@@ -76,6 +77,7 @@ function Usuarios() {
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Rol</th>
                 <th className="px-4 py-3 font-medium">Agencia</th>
+                <th className="px-4 py-3 font-medium">Fondo/Caja menor</th>
                 <th className="px-4 py-3 font-medium">Activo</th>
               </tr>
             </thead>
@@ -133,6 +135,32 @@ function Usuarios() {
                     </Select>
                   </td>
                   <td className="px-4 py-3">
+                    <Select
+                      value={p.fondo_agencia_id ?? "auto"}
+                      onValueChange={(v) =>
+                        actualizar.mutate({
+                          id: p.id,
+                          patch: { fondo_agencia_id: v === "auto" ? null : v },
+                        })
+                      }
+                      disabled={p.rol !== "responsable" || !p.agencia_id}
+                    >
+                      <SelectTrigger className="w-52">
+                        <SelectValue placeholder="Automático" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Automático (elige al crear)</SelectItem>
+                        {fondosQ.data
+                          ?.filter((f) => f.activo && f.agencia_id === p.agencia_id)
+                          .map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.nombre}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-4 py-3">
                     <Checkbox
                       checked={p.activo}
                       onCheckedChange={(v) =>
@@ -144,7 +172,7 @@ function Usuarios() {
               ))}
               {(q.data?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-muted-foreground">
+                  <td colSpan={6} className="text-center py-10 text-muted-foreground">
                     Aún no hay usuarios registrados.
                   </td>
                 </tr>
