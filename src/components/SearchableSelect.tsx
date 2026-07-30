@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,26 +11,28 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { getConceptos } from "@/lib/db";
 
-export function ConceptoPicker({
+export function SearchableSelect({
   value,
   onChange,
+  options,
+  placeholder = "Selecciona...",
+  disabled = false,
+  emptyLabel = "No se encontró ningún resultado.",
 }: {
   value: string;
-  onChange: (id: string) => void;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+  disabled?: boolean;
+  emptyLabel?: string;
 }) {
-  const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const [open, setOpen] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  const activos = (consQ.data ?? [])
-    .filter((c) => c.activo)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  const selected = activos.find((c) => c.id === value);
   const coincidencias = busqueda.trim()
-    ? activos.filter((c) => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    : activos;
+    ? options.filter((o) => o.toLowerCase().includes(busqueda.toLowerCase()))
+    : options;
 
   return (
     <Popover
@@ -47,10 +48,11 @@ export function ConceptoPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          disabled={disabled}
           className="w-full justify-between font-normal"
         >
-          <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected ? selected.nombre : "Busca el concepto (o digita la primera letra)..."}
+          <span className={cn("truncate", !value && "text-muted-foreground")}>
+            {value || placeholder}
           </span>
           <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
         </Button>
@@ -58,35 +60,33 @@ export function ConceptoPicker({
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command filter={(val, search) => (val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}>
           <CommandInput
-            placeholder="Busca el concepto..."
+            placeholder="Escribe para buscar..."
             value={busqueda}
             onValueChange={setBusqueda}
             onKeyDown={(e) => {
               if (e.key === "Enter" && coincidencias.length > 0) {
                 e.preventDefault();
-                onChange(coincidencias[0].id);
+                onChange(coincidencias[0]);
                 setOpen(false);
               }
             }}
           />
           <CommandList>
             <CommandEmpty>
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No se encontró ningún concepto.
-              </p>
+              <p className="py-4 text-center text-sm text-muted-foreground">{emptyLabel}</p>
             </CommandEmpty>
             <CommandGroup>
-              {activos.map((c) => (
+              {options.map((o) => (
                 <CommandItem
-                  key={c.id}
-                  value={c.nombre}
+                  key={o}
+                  value={o}
                   onSelect={() => {
-                    onChange(c.id);
+                    onChange(o);
                     setOpen(false);
                   }}
                 >
-                  <Check className={cn("h-4 w-4 mr-2", value === c.id ? "opacity-100" : "opacity-0")} />
-                  {c.nombre}
+                  <Check className={cn("h-4 w-4 mr-2", value === o ? "opacity-100" : "opacity-0")} />
+                  {o}
                 </CommandItem>
               ))}
             </CommandGroup>

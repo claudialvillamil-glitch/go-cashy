@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/dialog";
 import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, type Proveedor } from "@/lib/db";
+import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getMyProfile, type Proveedor } from "@/lib/db";
+import { calcularDV } from "@/lib/format";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { REGIMENES_TRIBUTARIOS, TIPOS_IDENTIFICACION } from "@/lib/retenciones";
 import { DEPARTAMENTOS_COLOMBIA, CIUDADES_POR_DEPARTAMENTO } from "@/lib/colombia";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,11 +76,21 @@ const empty = {
 function Provs() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
+  const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
+  const [filtroValidacion, setFiltroValidacion] = useState<"todos" | "pendiente" | "validado">("todos");
+  const proveedoresFiltrados = (q.data ?? []).filter(
+    (p) => filtroValidacion === "todos" || p.estado_validacion === filtroValidacion,
+  );
+  const pendientesCount = (q.data ?? []).filter((p) => p.estado_validacion === "pendiente").length;
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Proveedor>>(empty);
   const [ciudadManual, setCiudadManual] = useState(false);
+  const [primerNombre, setPrimerNombre] = useState("");
+  const [segundoNombre, setSegundoNombre] = useState("");
+  const [primerApellido, setPrimerApellido] = useState("");
+  const [segundoApellido, setSegundoApellido] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const descargarPlantilla = () => {
@@ -232,10 +244,12 @@ function Provs() {
         const { error } = await supabase.from("proveedores").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
+        const esResponsable = profileQ.data?.rol === "responsable";
         const { error } = await supabase.from("proveedores").insert({
           ...payload,
           nombre: form.nombre!,
           nit: form.nit!,
+          estado_validacion: esResponsable ? "pendiente" : "validado",
         });
         if (error) throw error;
       }
@@ -246,6 +260,25 @@ function Provs() {
       setOpen(false);
       setForm(empty);
       setCiudadManual(false);
+      setPrimerNombre("");
+      setSegundoNombre("");
+      setPrimerApellido("");
+      setSegundoApellido("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const validar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("proveedores")
+        .update({ estado_validacion: "validado" })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Proveedor validado");
+      qc.invalidateQueries({ queryKey: ["proveedores"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -281,9 +314,24 @@ function Provs() {
           <h1 className="text-2xl font-semibold tracking-tight">Proveedores</h1>
           <p className="text-sm text-muted-foreground">
             {q.data?.length ?? 0} proveedores registrados
+            {pendientesCount > 0 && (
+              <span className="ml-2 text-warning">
+                · {pendientesCount} pendiente{pendientesCount === 1 ? "" : "s"} de validación
+              </span>
+            )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={filtroValidacion} onValueChange={(v) => setFiltroValidacion(v as typeof filtroValidacion)}>
+            <SelectTrigger className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los estados</SelectItem>
+              <SelectItem value="pendiente">Pendientes de validación</SelectItem>
+              <SelectItem value="validado">Validados</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={descargarPlantilla}>
             <Download className="h-4 w-4 mr-2" /> Plantilla Excel
           </Button>
@@ -314,6 +362,10 @@ function Provs() {
                 onClick={() => {
                   setForm(empty);
                   setCiudadManual(false);
+                  setPrimerNombre("");
+                  setSegundoNombre("");
+                  setPrimerApellido("");
+                  setSegundoApellido("");
                 }}
               >
                 <Plus className="h-4 w-4 mr-2" /> Nuevo
@@ -338,18 +390,83 @@ function Provs() {
                   </SelectContent>
                 </Select>
               </F>
-              <F
-                label={
-                  form.tipo_proveedor === "natural"
-                    ? "Nombres y apellidos *"
-                    : "Razón social *"
-                }
-              >
-                <Input
-                  value={form.nombre ?? ""}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                />
-              </F>
+              {form.tipo_proveedor === "natural" && !form.id ? (
+                <div className="md:col-span-2 grid grid-cols-2 gap-3">
+                  <F label="Primer nombre *">
+                    <Input
+                      value={primerNombre}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPrimerNombre(v);
+                        setForm({
+                          ...form,
+                          nombre: [v, segundoNombre, primerApellido, segundoApellido]
+                            .filter(Boolean)
+                            .join(" "),
+                        });
+                      }}
+                    />
+                  </F>
+                  <F label="Segundo nombre">
+                    <Input
+                      value={segundoNombre}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSegundoNombre(v);
+                        setForm({
+                          ...form,
+                          nombre: [primerNombre, v, primerApellido, segundoApellido]
+                            .filter(Boolean)
+                            .join(" "),
+                        });
+                      }}
+                    />
+                  </F>
+                  <F label="Primer apellido *">
+                    <Input
+                      value={primerApellido}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPrimerApellido(v);
+                        setForm({
+                          ...form,
+                          nombre: [primerNombre, segundoNombre, v, segundoApellido]
+                            .filter(Boolean)
+                            .join(" "),
+                        });
+                      }}
+                    />
+                  </F>
+                  <F label="Segundo apellido">
+                    <Input
+                      value={segundoApellido}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSegundoApellido(v);
+                        setForm({
+                          ...form,
+                          nombre: [primerNombre, segundoNombre, primerApellido, v]
+                            .filter(Boolean)
+                            .join(" "),
+                        });
+                      }}
+                    />
+                  </F>
+                </div>
+              ) : (
+                <F
+                  label={
+                    form.tipo_proveedor === "natural"
+                      ? "Nombres y apellidos *"
+                      : "Razón social *"
+                  }
+                >
+                  <Input
+                    value={form.nombre ?? ""}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  />
+                </F>
+              )}
               <div className="flex items-center gap-2 -mt-2">
                 <Checkbox
                   id="prov-activo"
@@ -383,7 +500,10 @@ function Provs() {
                   <F label="NIT *">
                     <Input
                       value={form.nit ?? ""}
-                      onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                      onChange={(e) => {
+                        const nit = e.target.value;
+                        setForm({ ...form, nit, digito_verificacion: calcularDV(nit) });
+                      }}
                     />
                   </F>
                 )}
@@ -395,7 +515,7 @@ function Provs() {
                     />
                   </F>
                 ) : (
-                  <F label="Dígito de verificación">
+                  <F label="Dígito de verificación (automático)">
                     <Input
                       maxLength={1}
                       value={form.digito_verificacion ?? ""}
@@ -418,27 +538,18 @@ function Provs() {
                   <Input value={form.pais ?? "Colombia"} disabled />
                 </F>
                 <F label="Departamento">
-                  <Select
+                  <SearchableSelect
                     value={form.departamento ?? ""}
-                    onValueChange={(v) => setForm({ ...form, departamento: v, ciudad: "" })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEPARTAMENTOS_COLOMBIA.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(v) => setForm({ ...form, departamento: v, ciudad: "" })}
+                    options={DEPARTAMENTOS_COLOMBIA}
+                    placeholder="Busca el departamento..."
+                  />
                 </F>
                 <F label="Ciudad">
-                  <Select
-                    value={ciudadManual ? "Otra" : form.ciudad ?? ""}
-                    onValueChange={(v) => {
-                      if (v === "Otra") {
+                  <SearchableSelect
+                    value={ciudadManual ? "Otra (escribir)" : form.ciudad ?? ""}
+                    onChange={(v) => {
+                      if (v === "Otra (escribir)") {
                         setCiudadManual(true);
                         setForm({ ...form, ciudad: "" });
                       } else {
@@ -446,20 +557,10 @@ function Provs() {
                         setForm({ ...form, ciudad: v });
                       }
                     }}
+                    options={[...(CIUDADES_POR_DEPARTAMENTO[form.departamento ?? ""] ?? []), "Otra (escribir)"]}
+                    placeholder={form.departamento ? "Busca la ciudad..." : "Elige primero el departamento"}
                     disabled={!form.departamento}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={form.departamento ? "Selecciona..." : "Elige depto."} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(CIUDADES_POR_DEPARTAMENTO[form.departamento ?? ""] ?? []).map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="Otra">Otra (escribir)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  />
                 </F>
               </div>
               {ciudadManual && (
@@ -680,13 +781,18 @@ function Provs() {
               </tr>
             </thead>
             <tbody>
-              {q.data?.map((p) => (
+              {proveedoresFiltrados.map((p) => (
                 <tr key={p.id} className={`border-t hover:bg-muted/30 ${!p.activo ? "opacity-50" : ""}`}>
                   <td className="px-4 py-3 font-medium">
                     {p.nombre}
                     {!p.activo && (
                       <Badge variant="secondary" className="ml-2">
                         Inactivo
+                      </Badge>
+                    )}
+                    {p.estado_validacion === "pendiente" && (
+                      <Badge variant="destructive" className="ml-2">
+                        Pendiente validación
                       </Badge>
                     )}
                   </td>
@@ -740,6 +846,17 @@ function Provs() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-1">
+                      {p.estado_validacion === "pendiente" &&
+                        ["admin", "contador", "analista_contable"].includes(profileQ.data?.rol ?? "") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => validar.mutate(p.id)}
+                            disabled={validar.isPending}
+                          >
+                            Validar
+                          </Button>
+                        )}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -747,6 +864,10 @@ function Provs() {
                           setForm(p);
                           const listaCiudades = CIUDADES_POR_DEPARTAMENTO[p.departamento ?? ""] ?? [];
                           setCiudadManual(!!p.ciudad && !listaCiudades.includes(p.ciudad));
+                          setPrimerNombre("");
+                          setSegundoNombre("");
+                          setPrimerApellido("");
+                          setSegundoApellido("");
                           setOpen(true);
                         }}
                       >

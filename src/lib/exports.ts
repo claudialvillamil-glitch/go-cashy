@@ -16,8 +16,30 @@ import { fmtDate, fmtMoney, numeroALetras, pad } from "./format";
 
 function finalizarPDF(doc: jsPDF, filename: string, accion: "descargar" | "imprimir" = "descargar") {
   if (accion === "imprimir") {
-    doc.autoPrint();
-    window.open(doc.output("bloburl"), "_blank");
+    const blobUrl = doc.output("bloburl") as unknown as string;
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        // Si el navegador bloquea la impresión embebida, abrimos el PDF en
+        // una pestaña nueva como respaldo (el usuario puede imprimir desde ahí).
+        window.open(blobUrl, "_blank");
+      }
+    };
+    // Limpiamos el iframe un rato después, cuando ya se disparó el diálogo de impresión.
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 60_000);
   } else {
     doc.save(filename);
   }
@@ -370,6 +392,58 @@ export function exportAsientosContablesExcel(
   XLSX.utils.book_append_sheet(wb, ws, "Asientos contables");
   XLSX.writeFile(wb, `asientos-contables-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
+
+// Reporte de saldo del fondo + relación detallada de los gastos que aún no
+// se han reembolsado, con las columnas puntuales que se necesitan para dar
+// seguimiento rápido: fecha, recibo, identificación y nombre del proveedor,
+// concepto, factura y valor pagado.
+export function exportSaldoPendientesPDF(
+  movsPendientes: Movimiento[],
+  fondo: FondoConfig,
+  accion: "descargar" | "imprimir" = "descargar",
+) {
+  const doc = new jsPDF({ orientation: "landscape" });
+  const totalGastos = movsPendientes.reduce((s, m) => s + Number(m.total), 0);
+  const saldoActual = Number(fondo.monto_asignado) - totalGastos;
+
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("Reporte de Saldo y Gastos Pendientes por Reembolsar", 148, 14, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Fecha del reporte: ${fmtDate(new Date())}`, 230, 20, { align: "right" });
+
+  autoTable(doc, {
+    startY: 24,
+    head: [["Monto del fondo", "Monto de gastos pendientes", "Saldo actual"]],
+    body: [[fmtMoney(fondo.monto_asignado), fmtMoney(totalGastos), fmtMoney(saldoActual)]],
+    styles: { fontSize: 10, halign: "center" },
+    headStyles: { fillColor: [0, 105, 92], halign: "center" },
+  });
+
+  autoTable(doc, {
+    startY: (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8,
+    head: [["Fecha", "N° Recibo", "NIT/Identif. proveedor", "Nombre proveedor", "Concepto", "N° Factura", "Valor pagado"]],
+    body: [...movsPendientes]
+      .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.consecutivo - b.consecutivo)
+      .map((m) => [
+        fmtDate(m.fecha),
+        pad(m.consecutivo),
+        m.proveedores?.nit ?? "",
+        m.proveedores?.nombre ?? "",
+        m.conceptos?.nombre ?? "",
+        m.numero_factura ?? "",
+        fmtMoney(m.total),
+      ]),
+    foot: [["", "", "", "", "", "TOTAL PENDIENTE", fmtMoney(totalGastos)]],
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [30, 50, 90] },
+    footStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: "bold" },
+  });
+
+  finalizarPDF(doc, `saldo-y-pendientes-${new Date().toISOString().slice(0, 10)}.pdf`, accion);
+}
+
 
 export function exportPDF(
   movs: Movimiento[],

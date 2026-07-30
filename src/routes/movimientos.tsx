@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   computeAsiento,
   getFondo,
@@ -20,10 +20,16 @@ import {
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getMyProfile,
+  getAgencias,
+  getSoportesAdicionales,
   type Movimiento,
 } from "@/lib/db";
+import { ProveedorPicker } from "@/components/ProveedorPicker";
+import { ConceptoPicker } from "@/components/ConceptoPicker";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw } from "lucide-react";
+import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw, Pencil } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -31,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { exportPDF, exportReciboPDF } from "@/lib/exports";
+import { exportReciboPDF, exportSaldoPendientesPDF } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -55,12 +61,19 @@ function Movs() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const esAdmin = profileQ.data?.rol === "admin";
+  const puedeEditar = esAdmin || profileQ.data?.rol === "analista_contable";
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState<"todos" | "multi" | "simple">("todos");
   const [detail, setDetail] = useState<Movimiento | null>(null);
+  const soportesExtraQ = useQuery({
+    queryKey: ["soportes-extra", detail?.id],
+    queryFn: () => getSoportesAdicionales(detail!.id),
+    enabled: !!detail,
+  });
+  const [editItem, setEditItem] = useState<Movimiento | null>(null);
 
   const filtered = useMemo(() => {
     let list = movsQ.data ?? [];
@@ -83,8 +96,6 @@ function Movs() {
     );
   }, [movsQ.data, q, tipo]);
 
-  // Solo los gastos que aún no han sido reembolsados (o cuyo reembolso no
-  // se ha pagado todavía), excluyendo los anulados.
   const noReembolsados = useMemo(
     () => filtered.filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado"),
     [filtered],
@@ -138,9 +149,11 @@ function Movs() {
 
   const abrirFactura = async (m: Movimiento) => {
     if (!m.factura_path) return;
-    const { data } = await supabase.storage
-      .from("facturas")
-      .createSignedUrl(m.factura_path, 60 * 5);
+    await abrirArchivo(m.factura_path);
+  };
+
+  const abrirArchivo = async (path: string) => {
+    const { data } = await supabase.storage.from("facturas").createSignedUrl(path, 60 * 5);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
 
@@ -153,24 +166,13 @@ function Movs() {
             {filtered.length} de {movsQ.data?.length ?? 0} registros
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => fondoQ.data && exportPDF(noReembolsados, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-            disabled={!noReembolsados.length}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Reporte gastos y saldos
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => fondoQ.data && exportPDF(noReembolsados, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-            disabled={!noReembolsados.length}
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            Imprimir reporte
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          disabled={!fondoQ.data || noReembolsados.length === 0}
+          onClick={() => fondoQ.data && exportSaldoPendientesPDF(noReembolsados, fondoQ.data)}
+        >
+          <FileText className="h-4 w-4 mr-2" /> Reporte actual CM
+        </Button>
       </header>
 
       <Card>
@@ -260,6 +262,16 @@ function Movs() {
                       >
                         <Printer className="h-4 w-4" />
                       </Button>
+                      {puedeEditar && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Editar"
+                          onClick={() => setEditItem(m)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       {m.estado !== "anulado" ? (
                         <Button
                           size="icon"
@@ -325,15 +337,55 @@ function Movs() {
               <div className="grid grid-cols-2 gap-3">
                 <Info label="Fecha" value={fmtDate(detail.fecha)} />
                 <Info label="Agencia" value={detail.agencias?.nombre ?? "—"} />
-                <Info label="Proveedor" value={detail.proveedores?.nombre ?? ""} />
-                <Info label="NIT" value={detail.proveedores?.nit ?? ""} />
+                <Info label="Proveedor / Beneficiario" value={detail.proveedores?.nombre ?? ""} />
+                <Info label="NIT / Identificación" value={detail.proveedores?.nit ?? ""} />
                 <Info label="Concepto" value={detail.conceptos?.nombre ?? ""} />
-                <Info label="Factura" value={detail.numero_factura ?? "—"} />
+                <Info label="N° Factura" value={detail.numero_factura ?? "—"} />
+                <Info label="Factura electrónica" value={detail.factura_electronica ? "Sí" : "No"} />
+                <Info label="Varios soportes" value={detail.multi_soporte ? "Sí" : "No"} />
               </div>
               <div className="p-3 rounded-md bg-muted">
                 <div className="text-xs text-muted-foreground mb-1">Detalle</div>
-                <div>{detail.detalle}</div>
+                <div>{detail.detalle || "—"}</div>
               </div>
+              {detail.observaciones && (
+                <div className="p-3 rounded-md bg-muted">
+                  <div className="text-xs text-muted-foreground mb-1">Observaciones</div>
+                  <div>{detail.observaciones}</div>
+                </div>
+              )}
+
+              {detail.multi_soporte && detail.movimiento_items && detail.movimiento_items.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase mb-2">
+                    Soportes incluidos ({detail.movimiento_items.length})
+                  </div>
+                  <table className="w-full text-xs border">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left">Proveedor</th>
+                        <th className="px-2 py-1.5 text-left">Concepto</th>
+                        <th className="px-2 py-1.5 text-left">Factura</th>
+                        <th className="px-2 py-1.5 text-left">Detalle</th>
+                        <th className="px-2 py-1.5 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...detail.movimiento_items]
+                        .sort((a, b) => a.orden - b.orden)
+                        .map((it, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-2 py-1.5">{it.proveedores?.nombre ?? ""}</td>
+                            <td className="px-2 py-1.5">{it.conceptos?.nombre ?? ""}</td>
+                            <td className="px-2 py-1.5">{it.numero_factura ?? "—"}</td>
+                            <td className="px-2 py-1.5">{it.detalle ?? "—"}</td>
+                            <td className="px-2 py-1.5 text-right">{fmtMoney(it.total)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Info label="Subtotal" value={fmtMoney(detail.subtotal)} />
                 <Info label="IVA" value={fmtMoney(detail.iva)} />
@@ -384,12 +436,17 @@ function Movs() {
                 </table>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {detail.factura_path && (
                   <Button variant="outline" onClick={() => abrirFactura(detail)}>
                     <FileText className="h-4 w-4 mr-2" /> Ver factura
                   </Button>
                 )}
+                {soportesExtraQ.data?.map((s, i) => (
+                  <Button key={s.id} variant="outline" onClick={() => abrirArchivo(s.factura_path)}>
+                    <FileText className="h-4 w-4 mr-2" /> Soporte adicional {i + 1}
+                  </Button>
+                ))}
                 <Button
                   variant="outline"
                   onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
@@ -404,6 +461,8 @@ function Movs() {
           )}
         </DialogContent>
       </Dialog>
+
+      <EditarMovimientoDialog movimiento={editItem} onClose={() => setEditItem(null)} />
     </div>
   );
 }
@@ -414,5 +473,193 @@ function Info({ label, value }: { label: string; value: string }) {
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="font-medium">{value}</div>
     </div>
+  );
+}
+
+function EditarMovimientoDialog({
+  movimiento,
+  onClose,
+}: {
+  movimiento: Movimiento | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const [fecha, setFecha] = useState("");
+  const [agencia, setAgencia] = useState("");
+  const [proveedor, setProveedor] = useState("");
+  const [concepto, setConcepto] = useState("");
+  const [detalle, setDetalle] = useState("");
+  const [numeroFactura, setNumeroFactura] = useState("");
+  const [facturaElectronica, setFacturaElectronica] = useState(false);
+  const [subtotal, setSubtotal] = useState("0");
+  const [iva, setIva] = useState("0");
+  const [impoconsumo, setImpoconsumo] = useState("0");
+  const [retencion, setRetencion] = useState("0");
+  const [reteica, setReteica] = useState("0");
+  const [reteiva, setReteiva] = useState("0");
+
+  useEffect(() => {
+    if (movimiento) {
+      setFecha(movimiento.fecha);
+      setAgencia(movimiento.agencia_id ?? "");
+      setProveedor(movimiento.proveedor_id);
+      setConcepto(movimiento.concepto_id);
+      setDetalle(movimiento.detalle ?? "");
+      setNumeroFactura(movimiento.numero_factura ?? "");
+      setFacturaElectronica(movimiento.factura_electronica);
+      setSubtotal(String(movimiento.subtotal));
+      setIva(String(movimiento.iva));
+      setImpoconsumo(String(movimiento.impoconsumo));
+      setRetencion(String(movimiento.retencion));
+      setReteica(String(movimiento.reteica));
+      setReteiva(String(movimiento.reteiva));
+    }
+  }, [movimiento]);
+
+  const total =
+    (parseFloat(subtotal) || 0) +
+    (parseFloat(iva) || 0) +
+    (parseFloat(impoconsumo) || 0) -
+    (parseFloat(retencion) || 0) -
+    (parseFloat(reteica) || 0) -
+    (parseFloat(reteiva) || 0);
+
+  const guardar = useMutation({
+    mutationFn: async () => {
+      if (!movimiento) return;
+      const { error } = await supabase
+        .from("movimientos")
+        .update({
+          fecha,
+          agencia_id: agencia || null,
+          proveedor_id: proveedor,
+          concepto_id: concepto,
+          detalle: detalle || null,
+          numero_factura: numeroFactura || null,
+          factura_electronica: facturaElectronica,
+          subtotal: parseFloat(subtotal) || 0,
+          iva: parseFloat(iva) || 0,
+          impoconsumo: parseFloat(impoconsumo) || 0,
+          retencion: parseFloat(retencion) || 0,
+          reteica: parseFloat(reteica) || 0,
+          reteiva: parseFloat(reteiva) || 0,
+          total,
+        })
+        .eq("id", movimiento.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Movimiento actualizado");
+      qc.invalidateQueries();
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!movimiento) return null;
+
+  return (
+    <Dialog open={!!movimiento} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar recibo N° {pad(movimiento.consecutivo)}</DialogTitle>
+        </DialogHeader>
+
+        {movimiento.multi_soporte ? (
+          <p className="text-sm text-muted-foreground">
+            Este recibo tiene varios soportes. Por ahora, la edición completa de cada soporte no
+            está disponible aquí — solo puedes anular/reversar o editarlo desde soporte técnico.
+          </p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Fecha</Label>
+              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Agencia</Label>
+              <Select value={agencia} onValueChange={setAgencia}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una agencia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {agsQ.data?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-xs">Proveedor</Label>
+              <ProveedorPicker value={proveedor} onChange={setProveedor} />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-xs">Concepto</Label>
+              <ConceptoPicker value={concepto} onChange={setConcepto} />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-xs">Detalle</Label>
+              <Input value={detalle} onChange={(e) => setDetalle(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">N° Factura</Label>
+              <Input value={numeroFactura} onChange={(e) => setNumeroFactura(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <Checkbox
+                id="edit-fe"
+                checked={facturaElectronica}
+                onCheckedChange={(v) => setFacturaElectronica(v === true)}
+              />
+              <Label htmlFor="edit-fe" className="text-sm font-normal cursor-pointer">
+                Factura electrónica
+              </Label>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Subtotal</Label>
+              <Input type="number" value={subtotal} onChange={(e) => setSubtotal(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">IVA</Label>
+              <Input type="number" value={iva} onChange={(e) => setIva(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Impoconsumo</Label>
+              <Input type="number" value={impoconsumo} onChange={(e) => setImpoconsumo(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Retención en la fuente</Label>
+              <Input type="number" value={retencion} onChange={(e) => setRetencion(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">ReteICA</Label>
+              <Input type="number" value={reteica} onChange={(e) => setReteica(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">ReteIVA</Label>
+              <Input type="number" value={reteiva} onChange={(e) => setReteiva(e.target.value)} />
+            </div>
+
+            <div className="md:col-span-2 p-3 rounded-md bg-muted flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total recalculado</span>
+              <span className="text-lg font-semibold">{fmtMoney(total)}</span>
+            </div>
+
+            <div className="md:col-span-2 flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button onClick={() => guardar.mutate()} disabled={guardar.isPending}>
+                Guardar cambios
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

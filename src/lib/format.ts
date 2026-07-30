@@ -16,6 +16,23 @@ export const fmtDate = (d: string | Date | null | undefined) => {
 
 export const pad = (n: number, len = 5) => String(n).padStart(len, "0");
 
+// Calcula el dígito de verificación de un NIT según la fórmula oficial de
+// la DIAN (Colombia). Recibe el NIT sin el dígito ni guiones/puntos.
+export function calcularDV(nitCrudo: string): string {
+  const nit = nitCrudo.replace(/\D/g, "");
+  if (!nit) return "";
+  const pesos = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+  const digitos = nit.split("").map(Number).reverse();
+  let suma = 0;
+  digitos.forEach((d, i) => {
+    const peso = pesos[pesos.length - 1 - i];
+    if (peso !== undefined) suma += d * peso;
+  });
+  const residuo = suma % 11;
+  const dv = residuo <= 1 ? residuo : 11 - residuo;
+  return String(dv);
+}
+
 const UNIDADES = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
 const DECENAS = [
   "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete",

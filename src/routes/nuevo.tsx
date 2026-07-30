@@ -97,7 +97,9 @@ function Nuevo() {
   const [observaciones, setObservaciones] = useState("");
   const [facturaElectronica, setFacturaElectronica] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [archivosAdicionales, setArchivosAdicionales] = useState<File[]>([]);
   const [multiSoporte, setMultiSoporte] = useState(false);
+  const [beneficiarioId, setBeneficiarioId] = useState("");
   const [items, setItems] = useState<ItemDraft[]>([blankItem()]);
 
   // La agencia queda predeterminada a la primera disponible en cuanto carga la lista.
@@ -316,7 +318,8 @@ function Nuevo() {
 
   const itemsValidos =
     !multiSoporte ||
-    (items.length > 0 &&
+    (!!beneficiarioId &&
+      items.length > 0 &&
       items.every(
         (it) =>
           it.proveedor_id &&
@@ -368,16 +371,59 @@ function Nuevo() {
     setItem(idx, patch);
   };
 
+  // Comprime fotos (no PDFs) antes de subir: las fotos de celular pesan
+  // varios MB y eso es lo que hace lenta/fallida la subida en conexiones
+  // débiles. Reducimos tamaño y calidad manteniendo buena legibilidad.
+  const comprimirImagen = (archivo: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!archivo.type.startsWith("image/")) return resolve(archivo);
+      const img = new Image();
+      const url = URL.createObjectURL(archivo);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxW = 1600;
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(archivo);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= archivo.size) return resolve(archivo);
+            resolve(new File([blob], archivo.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.75,
+        );
+      };
+      img.onerror = () => resolve(archivo);
+      img.src = url;
+    });
+  };
+
   const guardar = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Adjunta la factura");
-      const ext = file.name.split(".").pop();
+      const archivoFinal = await comprimirImagen(file);
+      if (archivoFinal.size > 5 * 1024 * 1024) {
+        throw new Error("El archivo (incluso comprimido) supera 5 MB. Intenta con otra foto o un PDF más liviano.");
+      }
+      const ext = archivoFinal.name.split(".").pop();
       const path = `${new Date().getFullYear()}/${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}.${ext}`;
-      const up = await supabase.storage.from("facturas").upload(path, file, {
-        contentType: file.type,
+      let up = await supabase.storage.from("facturas").upload(path, archivoFinal, {
+        contentType: archivoFinal.type,
       });
+      if (up.error) {
+        // Reintenta una vez más ante fallos transitorios de red (común en
+        // conexiones débiles de agencia).
+        up = await supabase.storage.from("facturas").upload(path, archivoFinal, {
+          contentType: archivoFinal.type,
+        });
+      }
       if (up.error) throw up.error;
       const { data: urlData } = supabase.storage.from("facturas").createSignedUrl
         ? await supabase.storage.from("facturas").createSignedUrl(path, 60 * 60 * 24 * 365)
@@ -385,7 +431,7 @@ function Nuevo() {
 
       // Cabecera: en modo multi tomamos la 1a línea como proveedor/concepto principal
       const first = multiSoporte ? items[0] : null;
-      const proveedorId = multiSoporte ? first!.proveedor_id : proveedor;
+      const proveedorId = multiSoporte ? beneficiarioId : proveedor;
       const conceptoId = multiSoporte ? first!.concepto_id : concepto;
       const nFact = multiSoporte
         ? (items.map((i) => i.numero_factura).filter(Boolean).join(", ") || null)
@@ -429,6 +475,24 @@ function Nuevo() {
         .select()
         .single();
       if (error) throw error;
+
+      // Subimos los soportes adicionales (si el pago viene respaldado por
+      // más de una factura/documento) y los ligamos a este movimiento.
+      for (let i = 0; i < archivosAdicionales.length; i++) {
+        const original = archivosAdicionales[i];
+        const comprimido = await comprimirImagen(original);
+        const extraExt = comprimido.name.split(".").pop();
+        const extraPath = `${new Date().getFullYear()}/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}-extra${i}.${extraExt}`;
+        const upExtra = await supabase.storage.from("facturas").upload(extraPath, comprimido, {
+          contentType: comprimido.type,
+        });
+        if (upExtra.error) continue; // no interrumpe el guardado principal
+        await supabase
+          .from("movimiento_soportes")
+          .insert({ movimiento_id: data.id, factura_path: extraPath, orden: i });
+      }
 
       let rows: {
         movimiento_id: string;
@@ -487,23 +551,40 @@ function Nuevo() {
       return movimientoParaImprimir;
     },
     onSuccess: (mov) => {
-      toast.success("Recibo registrado correctamente", {
-        action: fondoQ.data
-          ? {
-              label: "Imprimir",
-              onClick: () =>
-                exportReciboPDF(
-                  mov,
-                  fondoQ.data!,
-                  "imprimir",
-                  tarifasQ.data,
-                  reteicaConceptosQ.data,
-                  reteicaCiudadQ.data,
-                ),
-            }
-          : undefined,
-        duration: 8000,
-      });
+      if (fondoQ.data) {
+        const fondo = fondoQ.data;
+        toast.custom(
+          (t) => (
+            <div className="bg-background border rounded-lg shadow-lg p-4 w-full max-w-sm">
+              <p className="text-sm font-medium mb-3">Recibo registrado correctamente</p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    exportReciboPDF(mov, fondo, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
+                    toast.dismiss(t);
+                  }}
+                >
+                  Imprimir
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    exportReciboPDF(mov, fondo, "descargar", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
+                    toast.dismiss(t);
+                  }}
+                >
+                  Descargar PDF
+                </Button>
+              </div>
+            </div>
+          ),
+          { duration: 10000 },
+        );
+      } else {
+        toast.success("Recibo registrado correctamente");
+      }
       qc.invalidateQueries();
       nav({ to: "/movimientos" });
     },
@@ -520,10 +601,42 @@ function Nuevo() {
       </header>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
           <CardTitle className="text-base">Información del recibo</CardTitle>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="multi-soporte"
+              checked={multiSoporte}
+              onCheckedChange={(v) => setMultiSoporte(v === true)}
+              className="mt-0.5"
+            />
+            <Label htmlFor="multi-soporte" className="text-sm font-normal cursor-pointer text-right">
+              ¿El recibo contiene varios soportes?
+            </Label>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
+          {multiSoporte && (
+            <div className="md:col-span-2 space-y-3">
+              <div className="p-3 rounded-md border bg-muted/40 text-xs text-muted-foreground">
+                Esta opción se usa principalmente para la <b>legalización de gastos de viaje</b>{" "}
+                entregados a un empleado, quien aparece como beneficiario en el recibo de caja
+                menor. La contabilización se generará con base en los soportes agregados abajo.
+              </div>
+              <Field label="Beneficiario (empleado a quien se le entregó el dinero) *">
+                <ProveedorPicker
+                  value={beneficiarioId}
+                  onChange={(id) => {
+                    setBeneficiarioId(id);
+                    const p = provsQ.data?.find((x) => x.id === id);
+                    if (p) {
+                      setItems((prev) => prev.map((it) => ({ ...it, detalle: p.nombre })));
+                    }
+                  }}
+                />
+              </Field>
+            </div>
+          )}
           <Field label="N° Recibo">
             <Input
               value={nextConsQ.data ? pad(nextConsQ.data, 3) : "..."}
@@ -577,21 +690,6 @@ function Nuevo() {
               placeholder="Ej. Legalización de viáticos, viaje a..."
             />
           </Field>
-
-          <div className="md:col-span-2 flex items-start gap-2 p-3 rounded-md border bg-muted/40">
-            <Checkbox
-              id="multi-soporte"
-              checked={multiSoporte}
-              onCheckedChange={(v) => setMultiSoporte(v === true)}
-              className="mt-0.5"
-            />
-            <Label htmlFor="multi-soporte" className="text-sm font-normal cursor-pointer">
-              ¿El recibo contiene varios soportes?
-              <span className="block text-xs text-muted-foreground mt-0.5">
-                Actívalo si es una legalización de viáticos o compras a varios proveedores. Podrás agregar múltiples conceptos y facturas.
-              </span>
-            </Label>
-          </div>
         </CardContent>
       </Card>
 
@@ -864,7 +962,15 @@ function Nuevo() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setItems((p) => [...p, blankItem()])}
+              onClick={() =>
+                setItems((p) => [
+                  ...p,
+                  {
+                    ...blankItem(),
+                    detalle: provsQ.data?.find((x) => x.id === beneficiarioId)?.nombre ?? "",
+                  },
+                ])
+              }
             >
               <Plus className="h-4 w-4 mr-1" /> Agregar soporte
             </Button>
@@ -916,6 +1022,10 @@ function Nuevo() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Soporte documental *</CardTitle>
+          <p className="text-xs text-warning">
+            ⚠ Importante: adjunta la factura o el soporte correspondiente. Es un requisito
+            obligatorio para que el proceso de caja menor se ejecute correctamente.
+          </p>
         </CardHeader>
         <CardContent>
           <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
@@ -925,8 +1035,12 @@ function Nuevo() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f && f.size > 10 * 1024 * 1024) {
-                  toast.error("El archivo supera 10 MB");
+                if (f && !f.type.startsWith("image/") && f.size > 5 * 1024 * 1024) {
+                  toast.error("El archivo supera 5 MB");
+                  return;
+                }
+                if (f && f.type.startsWith("image/") && f.size > 25 * 1024 * 1024) {
+                  toast.error("La foto es demasiado pesada (supera 25 MB), intenta con otra.");
                   return;
                 }
                 setFile(f ?? null);
@@ -944,10 +1058,65 @@ function Nuevo() {
               <>
                 <Upload className="h-8 w-8 text-muted-foreground" />
                 <div className="text-sm font-medium">Adjuntar factura</div>
-                <div className="text-xs text-muted-foreground">PDF o imagen · máximo 10 MB</div>
+                <div className="text-xs text-muted-foreground">PDF o imagen · máximo 5 MB</div>
               </>
             )}
           </label>
+
+          {file && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  ¿Este pago viene respaldado por más de una factura/documento? Agrega los que
+                  falten.
+                </p>
+                <label className="text-xs text-primary hover:underline cursor-pointer">
+                  + Agregar soportes (uno o varios)
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const nuevos = Array.from(e.target.files ?? []);
+                      const validos: File[] = [];
+                      for (const f of nuevos) {
+                        if (!f.type.startsWith("image/") && f.size > 5 * 1024 * 1024) {
+                          toast.error(`"${f.name}" supera 5 MB, no se agregó.`);
+                          continue;
+                        }
+                        if (f.type.startsWith("image/") && f.size > 25 * 1024 * 1024) {
+                          toast.error(`"${f.name}" es demasiado pesada (supera 25 MB), no se agregó.`);
+                          continue;
+                        }
+                        validos.push(f);
+                      }
+                      setArchivosAdicionales((prev) => [...prev, ...validos]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {archivosAdicionales.length > 0 && (
+                <div className="rounded-md border divide-y">
+                  {archivosAdicionales.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="truncate">
+                        {f.name} <span className="text-xs text-muted-foreground">({(f.size / 1024).toFixed(0)} KB)</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="text-xs text-destructive hover:underline"
+                        onClick={() => setArchivosAdicionales((prev) => prev.filter((_, idx) => idx !== i))}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <Textarea
             className="mt-4"
             placeholder="Observaciones (opcional)"
@@ -967,7 +1136,7 @@ function Nuevo() {
           size="lg"
         >
           {guardar.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Guardar recibo
+          {guardar.isPending ? "Subiendo y guardando..." : "Guardar recibo"}
         </Button>
       </div>
     </div>

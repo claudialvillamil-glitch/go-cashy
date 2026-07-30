@@ -32,6 +32,7 @@ import {
   getMyProfile,
   getMovimientosDeReembolso,
   getMovimientosPendientes,
+  getMovimientos,
   getReembolsos,
   type Reembolso,
   type ReciboProvisional,
@@ -69,14 +70,18 @@ function Page() {
   const qc = useQueryClient();
   const listQ = useQuery({ queryKey: ["reembolsos"], queryFn: getReembolsos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
-  const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
+  const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const puedeSolicitar = profileQ.data?.rol === "admin" || profileQ.data?.rol === "responsable";
   const esAdmin = profileQ.data?.rol === "admin";
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Reembolso | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
-  const valorGastos = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  // Consistente con el Resumen: cuenta como pendiente todo lo que aún no se
+  // haya marcado "pagado" (así ya esté incluido en una solicitud en trámite).
+  const valorGastos = (pendQ.data ?? [])
+    .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .reduce((s, m) => s + Number(m.total), 0);
 
   const del = useMutation({
     mutationFn: async (r: Reembolso) => {
@@ -127,7 +132,7 @@ function Page() {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Monto del fondo</div>
               <div className="text-lg font-semibold">{fmtMoney(fondoQ.data?.monto_asignado)}</div>
@@ -135,6 +140,12 @@ function Page() {
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Valor gastos pendientes</div>
               <div className="text-lg font-semibold">{fmtMoney(valorGastos)}</div>
+            </div>
+            <div className="p-3 rounded-md bg-muted">
+              <div className="text-xs text-muted-foreground">Saldo actual caja</div>
+              <div className="text-lg font-semibold">
+                {fmtMoney(Number(fondoQ.data?.monto_asignado ?? 0) - valorGastos)}
+              </div>
             </div>
             <div className="p-3 rounded-md bg-primary text-primary-foreground">
               <div className="text-xs opacity-80">Valor a reembolsar</div>
@@ -241,15 +252,16 @@ function Page() {
 
 function ArqueoCaja() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
-  const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
+  const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const [cantidades, setCantidades] = useState<Record<number, string>>({});
   const [provisionales, setProvisionales] = useState<ReciboProvisional[]>([]);
-  const [esCierreMes, setEsCierreMes] = useState(false);
   const [nuevoTercero, setNuevoTercero] = useState("");
   const [nuevoConcepto, setNuevoConcepto] = useState("");
   const [nuevoMonto, setNuevoMonto] = useState("");
 
-  const totalPendiente = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  const totalPendiente = (pendQ.data ?? [])
+    .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .reduce((s, m) => s + Number(m.total), 0);
   const saldoTeorico = fondoQ.data ? Number(fondoQ.data.monto_asignado) - totalPendiente : 0;
 
   const totalEfectivo = DENOMINACIONES.reduce((sum, d) => {
@@ -270,7 +282,8 @@ function ArqueoCaja() {
         </CardTitle>
         <p className="text-sm text-muted-foreground">
           Cuenta el efectivo físico en la caja antes de solicitar el reembolso y compáralo
-          contra el saldo que debería haber.
+          contra el saldo que debería haber. Esta es una herramienta que te permite verificar
+          el saldo en caja.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -379,23 +392,6 @@ function ArqueoCaja() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 border-t pt-3">
-          <Checkbox
-            id="cierre-mes-general"
-            checked={esCierreMes}
-            onCheckedChange={(v) => setEsCierreMes(v === true)}
-          />
-          <Label htmlFor="cierre-mes-general" className="text-sm font-normal cursor-pointer">
-            Este es el arqueo de cierre de mes
-          </Label>
-        </div>
-        {esCierreMes && provisionales.length > 0 && (
-          <p className="text-xs text-destructive">
-            No puedes cerrar el mes con recibos provisionales sin legalizar. Elimínalos o
-            conviértelos primero en gastos reales.
-          </p>
-        )}
-
         {hayAlgoIngresado ? (
           <div className="grid gap-3 md:grid-cols-3">
             <div className="p-3 rounded-md bg-muted">
@@ -459,6 +455,15 @@ function NuevaSolicitud({
     queryFn: getMovimientosPendientes,
     enabled: open,
   });
+  // Para el saldo teórico/porcentaje del fondo usamos TODOS los movimientos
+  // no pagados (consistente con el Resumen), no solo los que aún no están en
+  // ninguna solicitud — porque un gasto ya solicitado (pero no pagado) sigue
+  // descontando del fondo real hasta que se pague.
+  const todosNoPagadosQ = useQuery({
+    queryKey: ["movimientos"],
+    queryFn: getMovimientos,
+    enabled: open,
+  });
   const today = new Date().toISOString().slice(0, 10);
   const [inicio, setInicio] = useState("");
   const [fin, setFin] = useState(today);
@@ -486,7 +491,9 @@ function NuevaSolicitud({
   );
   const total = seleccionados.reduce((s, m) => s + Number(m.total), 0);
 
-  const totalPendienteFondo = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  const totalPendienteFondo = (todosNoPagadosQ.data ?? [])
+    .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .reduce((s, m) => s + Number(m.total), 0);
   const saldoTeorico = fondoQ.data ? Number(fondoQ.data.monto_asignado) - totalPendienteFondo : 0;
 
   // La solicitud de reembolso debe hacerse cuando el fondo alcanza el % límite
@@ -844,8 +851,10 @@ function DetalleReembolso({
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
-  const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
-  const totalGastosFondo = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
+  const totalGastosFondo = (pendQ.data ?? [])
+    .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .reduce((s, m) => s + Number(m.total), 0);
   const movsQ = useQuery({
     queryKey: ["reembolso-movs", reembolso?.id],
     queryFn: () => getMovimientosDeReembolso(reembolso!.id),

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type Proveedor = {
   id: string;
   activo: boolean;
+  estado_validacion: string;
   nombre: string;
   nit: string;
   tipo_proveedor: string;
@@ -258,6 +259,23 @@ export async function getFondosAgencia() {
     .order("nombre");
   if (error) throw error;
   return data as FondoAgencia[];
+}
+
+export type MovimientoSoporte = {
+  id: string;
+  movimiento_id: string;
+  factura_path: string;
+  orden: number;
+};
+
+export async function getSoportesAdicionales(movimientoId: string) {
+  const { data, error } = await supabase
+    .from("movimiento_soportes")
+    .select("*")
+    .eq("movimiento_id", movimientoId)
+    .order("orden");
+  if (error) throw error;
+  return data as MovimientoSoporte[];
 }
 
 export type Profile = {

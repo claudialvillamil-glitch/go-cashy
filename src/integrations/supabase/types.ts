@@ -161,6 +161,30 @@ export type Database = {
         }
         Relationships: []
       }
+      movimiento_soportes: {
+        Row: {
+          created_at: string
+          factura_path: string
+          id: string
+          movimiento_id: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          factura_path: string
+          id?: string
+          movimiento_id: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          factura_path?: string
+          id?: string
+          movimiento_id?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       agencias: {
         Row: {
           codigo: number | null
@@ -544,6 +568,7 @@ export type Database = {
           departamento: string | null
           direccion: string | null
           email: string | null
+          estado_validacion: string
           id: string
           nit: string
           nombre: string
@@ -573,6 +598,7 @@ export type Database = {
           departamento?: string | null
           direccion?: string | null
           email?: string | null
+          estado_validacion?: string
           id?: string
           nit: string
           nombre: string
@@ -602,6 +628,7 @@ export type Database = {
           departamento?: string | null
           direccion?: string | null
           email?: string | null
+          estado_validacion?: string
           id?: string
           nit?: string
           nombre?: string

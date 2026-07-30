@@ -9,6 +9,15 @@ import { getFondo, getMovimientos } from "@/lib/db";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,6 +43,22 @@ function Resumen() {
   const fondo = fondoQ.data;
   const movs = movsQ.data ?? [];
   const total = movs.filter((m) => m.estado !== "anulado").reduce((s, m) => s + Number(m.total), 0);
+
+  const MESES_CORTOS = [
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+  ];
+  const gastosPorMesMap = new Map<string, { mes: string; total: number; orden: string }>();
+  movs
+    .filter((m) => m.estado !== "anulado")
+    .forEach((m) => {
+      const d = new Date(m.fecha + "T00:00:00");
+      const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const etiqueta = `${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
+      const actual = gastosPorMesMap.get(clave) ?? { mes: etiqueta, total: 0, orden: clave };
+      actual.total += Number(m.total);
+      gastosPorMesMap.set(clave, actual);
+    });
+  const gastosPorMes = [...gastosPorMesMap.values()].sort((a, b) => a.orden.localeCompare(b.orden));
   // El saldo disponible solo se ve afectado por gastos que aún no han sido
   // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
   // esos gastos ya no restan porque el fondo fue repuesto por la empresa.
@@ -92,14 +117,19 @@ function Resumen() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(fondo?.monto_asignado)} tone="primary" />
-        <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(total)} tone="warning" />
+        <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(totalPendiente)} tone="warning" />
         <StatCard icon={Wallet} label="Saldo disponible" value={fmtMoney(saldo)} tone="success" />
         <StatCard icon={Receipt} label="Movimientos" value={String(movs.length)} tone="muted" />
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Utilización del fondo</CardTitle>
+          {hayPendientes && (
+            <Link to="/reembolsos" className="text-sm text-primary hover:underline">
+              Ir a reembolsos →
+            </Link>
+          )}
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between text-sm mb-2">
@@ -109,6 +139,44 @@ function Resumen() {
             <span className="font-medium">{pct.toFixed(1)}%</span>
           </div>
           <Progress value={pct} className="h-3" />
+          {hayPendientes ? (
+            <p className="text-xs text-muted-foreground mt-2">
+              Tienes <b>{gastosPendientes.length}</b> gasto{gastosPendientes.length === 1 ? "" : "s"}{" "}
+              por un total de <b>{fmtMoney(totalPendiente)}</b> que todavía{" "}
+              <b>no se ha{gastosPendientes.length === 1 ? "" : "n"} reembolsado</b>. Esta suma se
+              descuenta del saldo disponible hasta que hagas la solicitud de reembolso.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-2">
+              No hay gastos pendientes por reembolsar en este momento.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Gastos por mes</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Total histórico de gastos (incluye ya reembolsados): <span className="font-medium text-foreground">{fmtMoney(total)}</span>
+          </p>
+        </CardHeader>
+        <CardContent>
+          {gastosPorMes.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              Aún no hay datos suficientes para graficar.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={gastosPorMes}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => fmtMoney(v)} width={90} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: number) => fmtMoney(v)} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
@@ -158,15 +226,6 @@ function Resumen() {
           )}
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          icon={AlertTriangle}
-          label="Límite por gasto"
-          value={fmtMoney(fondo?.monto_maximo_gasto)}
-          tone="muted"
-        />
-      </div>
     </div>
   );
 }

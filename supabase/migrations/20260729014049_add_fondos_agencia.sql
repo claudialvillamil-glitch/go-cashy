@@ -14,12 +14,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.fondos_agencia TO anon, authentic
 GRANT ALL ON public.fondos_agencia TO service_role;
 ALTER TABLE public.fondos_agencia ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "fondos_agencia select activos" ON public.fondos_agencia;
 CREATE POLICY "fondos_agencia select activos" ON public.fondos_agencia FOR SELECT
   USING (public.is_active_user());
+DROP POLICY IF EXISTS "fondos_agencia config insert" ON public.fondos_agencia;
 CREATE POLICY "fondos_agencia config insert" ON public.fondos_agencia FOR INSERT
   WITH CHECK (public.get_my_role() IN ('admin', 'contador', 'analista_contable'));
+DROP POLICY IF EXISTS "fondos_agencia config update" ON public.fondos_agencia;
 CREATE POLICY "fondos_agencia config update" ON public.fondos_agencia FOR UPDATE
   USING (public.get_my_role() IN ('admin', 'contador', 'analista_contable'));
+DROP POLICY IF EXISTS "fondos_agencia config delete" ON public.fondos_agencia;
 CREATE POLICY "fondos_agencia config delete" ON public.fondos_agencia FOR DELETE
   USING (public.get_my_role() IN ('admin', 'contador', 'analista_contable'));
 
@@ -50,4 +54,7 @@ FROM (VALUES
   (20, '11051021', 'Caja menor Popayán', 1000000)
 ) AS v(codigo, cuenta, nombre, monto)
 JOIN public.agencias a ON a.codigo = v.codigo
-ON CONFLICT DO NOTHING;
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.fondos_agencia fa
+  WHERE fa.agencia_id = a.id AND fa.cuenta_contable = v.cuenta
+);

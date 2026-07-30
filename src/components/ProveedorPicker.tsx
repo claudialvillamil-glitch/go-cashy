@@ -37,9 +37,15 @@ export function ProveedorPicker({
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [prefill, setPrefill] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   const selected = provsQ.data?.find((p) => p.id === value);
   const activos = (provsQ.data ?? []).filter((p) => p.activo);
+  const coincidencias = busqueda.trim()
+    ? activos.filter((p) =>
+        `${p.nombre} ${p.nit}`.toLowerCase().includes(busqueda.toLowerCase()),
+      )
+    : activos;
 
   const [nombre, setNombre] = useState("");
   const [nit, setNit] = useState("");
@@ -61,6 +67,10 @@ export function ProveedorPicker({
   const crear = useMutation({
     mutationFn: async () => {
       if (!nombre.trim() || !nit.trim()) throw new Error("Nombre y NIT son obligatorios");
+      const { data: auth } = await supabase.auth.getUser();
+      const { data: perfil } = auth?.user
+        ? await supabase.from("profiles").select("rol").eq("id", auth.user.id).maybeSingle()
+        : { data: null };
       const { data, error } = await supabase
         .from("proveedores")
         .insert({
@@ -68,6 +78,7 @@ export function ProveedorPicker({
           nit: nit.trim(),
           telefono: telefono || null,
           email: email || null,
+          estado_validacion: perfil?.rol === "responsable" ? "pendiente" : "validado",
         })
         .select("*")
         .single();
@@ -75,7 +86,11 @@ export function ProveedorPicker({
       return data;
     },
     onSuccess: (p) => {
-      toast.success("Proveedor creado");
+      toast.success(
+        p.estado_validacion === "pendiente"
+          ? "Proveedor creado. Queda pendiente de validación por contabilidad."
+          : "Proveedor creado",
+      );
       qc.invalidateQueries({ queryKey: ["proveedores"] });
       onChange(p.id);
       setDialog(false);
@@ -85,7 +100,13 @@ export function ProveedorPicker({
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) setBusqueda("");
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -106,7 +127,18 @@ export function ProveedorPicker({
               return val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
             }}
           >
-            <CommandInput placeholder="Buscar por nombre o NIT..." />
+            <CommandInput
+              placeholder="Buscar por nombre o NIT..."
+              value={busqueda}
+              onValueChange={setBusqueda}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && coincidencias.length > 0) {
+                  e.preventDefault();
+                  onChange(coincidencias[0].id);
+                  setOpen(false);
+                }
+              }}
+            />
             <CommandList>
               <CommandEmpty>
                 <div className="py-4 text-center space-y-2">
@@ -174,7 +206,7 @@ export function ProveedorPicker({
               <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
             </div>
             <div>
-              <Label>NIT *</Label>
+              <Label>Número de identificación (NIT / Cédula) *</Label>
               <Input value={nit} onChange={(e) => setNit(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
