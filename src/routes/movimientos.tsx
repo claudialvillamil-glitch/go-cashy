@@ -29,7 +29,7 @@ import { ConceptoPicker } from "@/components/ConceptoPicker";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw, Pencil, Loader2 } from "lucide-react";
+import { Download, FileText, FileSpreadsheet, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw, Pencil, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { exportReciboPDF, exportSaldoPendientesPDF } from "@/lib/exports";
+import { exportReciboPDF, exportSaldoPendientesPDF, exportSaldoPendientesExcel } from "@/lib/exports";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -174,13 +174,22 @@ function Movs() {
             {filtered.length} de {movsQ.data?.length ?? 0} registros
           </p>
         </div>
-        <Button
-          variant="outline"
-          disabled={!fondoQ.data || noReembolsados.length === 0}
-          onClick={() => fondoQ.data && exportSaldoPendientesPDF(noReembolsados, fondoQ.data)}
-        >
-          <FileText className="h-4 w-4 mr-2" /> Reporte actual CM
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={!fondoQ.data || noReembolsados.length === 0}
+            onClick={() => fondoQ.data && exportSaldoPendientesPDF(noReembolsados, fondoQ.data)}
+          >
+            <FileText className="h-4 w-4 mr-2" /> Reporte actual CM (PDF)
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!fondoQ.data || noReembolsados.length === 0}
+            onClick={() => fondoQ.data && exportSaldoPendientesExcel(noReembolsados, fondoQ.data)}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" /> Reporte actual CM (Excel)
+          </Button>
+        </div>
       </header>
 
       <Card>

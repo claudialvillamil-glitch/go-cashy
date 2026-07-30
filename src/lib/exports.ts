@@ -446,6 +446,42 @@ export function exportSaldoPendientesPDF(
   finalizarPDF(doc, `saldo-y-pendientes-${new Date().toISOString().slice(0, 10)}.pdf`, accion);
 }
 
+// Misma información que exportSaldoPendientesPDF ("Reporte actual CM"), pero
+// en Excel.
+export function exportSaldoPendientesExcel(movsPendientes: Movimiento[], fondo: FondoConfig) {
+  const totalGastos = movsPendientes.reduce((s, m) => s + Number(m.total), 0);
+  const saldoActual = Number(fondo.monto_asignado) - totalGastos;
+
+  const wb = XLSX.utils.book_new();
+
+  const resumen = [
+    ["REPORTE DE SALDO Y GASTOS PENDIENTES POR REEMBOLSAR", ""],
+    ["Fecha del reporte", fmtDate(new Date())],
+    ["", ""],
+    ["Monto del fondo", Number(fondo.monto_asignado)],
+    ["Monto de gastos pendientes", totalGastos],
+    ["Saldo actual", saldoActual],
+  ];
+  const wsR = XLSX.utils.aoa_to_sheet(resumen);
+  XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
+
+  const filas = [...movsPendientes]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.consecutivo - b.consecutivo)
+    .map((m) => ({
+      Fecha: fmtDate(m.fecha),
+      "N° Recibo": pad(m.consecutivo),
+      "NIT/Identif. proveedor": m.proveedores?.nit ?? "",
+      "Nombre proveedor": m.proveedores?.nombre ?? "",
+      Concepto: m.conceptos?.nombre ?? "",
+      "N° Factura": m.numero_factura ?? "",
+      "Valor pagado": Number(m.total),
+    }));
+  const wsD = XLSX.utils.json_to_sheet(filas);
+  XLSX.utils.book_append_sheet(wb, wsD, "Gastos pendientes");
+
+  XLSX.writeFile(wb, `saldo-y-pendientes-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
 
 export function exportPDF(
   movs: Movimiento[],
