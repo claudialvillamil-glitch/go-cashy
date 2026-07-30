@@ -170,12 +170,24 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const navFiltrado = nav.filter((n) => !n.roles || (n.roles as readonly string[]).includes(profile.rol));
 
-  const necesitaElegirAgencia = profile.rol !== "responsable" && !agenciaSesion;
+  const ROLES_SELECTOR_OPCIONAL = ["admin", "contador", "analista_contable"];
+  const tieneSelectorOpcional = ROLES_SELECTOR_OPCIONAL.includes(profile.rol);
+  const necesitaElegirAgencia = profile.rol === "auditoria" && !agenciaSesion;
 
   const confirmarAgenciaSesion = () => {
     if (!agenciaTemp) return;
     sessionStorage.setItem(CLAVE_AGENCIA_SESION, agenciaTemp);
     setAgenciaSesion(agenciaTemp);
+  };
+
+  const elegirAgenciaOpcional = (id: string) => {
+    if (id === "todas") {
+      sessionStorage.removeItem(CLAVE_AGENCIA_SESION);
+      setAgenciaSesion("");
+    } else {
+      sessionStorage.setItem(CLAVE_AGENCIA_SESION, id);
+      setAgenciaSesion(id);
+    }
   };
 
   const nombreAgenciaMostrado =
@@ -267,9 +279,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <main className="flex-1 md:ml-0 pt-24 md:pt-0">
         <div className="max-w-7xl mx-auto p-6">
-          <div className="mb-4 flex items-center gap-2 text-base font-medium text-foreground">
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-            {nombreAgenciaMostrado ?? "—"}
+          <div className="mb-4 flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
+            {tieneSelectorOpcional ? (
+              <Select value={agenciaSesion || "todas"} onValueChange={elegirAgenciaOpcional}>
+                <SelectTrigger className="w-64 h-8 text-base font-medium border-none shadow-none px-2 -ml-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas las agencias</SelectItem>
+                  {agsQ.data?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-base font-medium text-foreground">
+                {nombreAgenciaMostrado ?? "—"}
+              </span>
+            )}
           </div>
           {children}
         </div>
