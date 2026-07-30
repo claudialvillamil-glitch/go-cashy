@@ -14,177 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      tarifas_retencion_renta: {
-        Row: {
-          activo: boolean
-          created_at: string
-          cuenta: string | null
-          id: string
-          minimo_uvt: number
-          nombre: string
-          porcentaje: number
-        }
-        Insert: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          minimo_uvt?: number
-          nombre: string
-          porcentaje?: number
-        }
-        Update: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          minimo_uvt?: number
-          nombre?: string
-          porcentaje?: number
-        }
-        Relationships: []
-      }
-      conceptos_reteica: {
-        Row: {
-          activo: boolean
-          created_at: string
-          cuenta: string | null
-          id: string
-          nombre: string
-        }
-        Insert: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          nombre: string
-        }
-        Update: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          nombre?: string
-        }
-        Relationships: []
-      }
-      tarifas_reteica_ciudad: {
-        Row: {
-          activo: boolean
-          agencia_id: string
-          codigo_ciiu: string | null
-          created_at: string
-          cuenta: string | null
-          id: string
-          tarifa: number
-          tope: number
-        }
-        Insert: {
-          activo?: boolean
-          agencia_id: string
-          codigo_ciiu?: string | null
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          tarifa?: number
-          tope?: number
-        }
-        Update: {
-          activo?: boolean
-          agencia_id?: string
-          codigo_ciiu?: string | null
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          tarifa?: number
-          tope?: number
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          activo: boolean
-          agencia_id: string | null
-          created_at: string
-          email: string
-          id: string
-          nombre: string
-          rol: string
-        }
-        Insert: {
-          activo?: boolean
-          agencia_id?: string | null
-          created_at?: string
-          email: string
-          id: string
-          nombre?: string
-          rol?: string
-        }
-        Update: {
-          activo?: boolean
-          agencia_id?: string | null
-          created_at?: string
-          email?: string
-          id?: string
-          nombre?: string
-          rol?: string
-        }
-        Relationships: []
-      }
-      fondos_agencia: {
-        Row: {
-          activo: boolean
-          agencia_id: string
-          created_at: string
-          cuenta_contable: string | null
-          id: string
-          monto_asignado: number
-          nombre: string
-        }
-        Insert: {
-          activo?: boolean
-          agencia_id: string
-          created_at?: string
-          cuenta_contable?: string | null
-          id?: string
-          monto_asignado?: number
-          nombre?: string
-        }
-        Update: {
-          activo?: boolean
-          agencia_id?: string
-          created_at?: string
-          cuenta_contable?: string | null
-          id?: string
-          monto_asignado?: number
-          nombre?: string
-        }
-        Relationships: []
-      }
-      movimiento_soportes: {
-        Row: {
-          created_at: string
-          factura_path: string
-          id: string
-          movimiento_id: string
-          orden: number
-        }
-        Insert: {
-          created_at?: string
-          factura_path: string
-          id?: string
-          movimiento_id: string
-          orden?: number
-        }
-        Update: {
-          created_at?: string
-          factura_path?: string
-          id?: string
-          movimiento_id?: string
-          orden?: number
-        }
-        Relationships: []
-      }
       agencias: {
         Row: {
           codigo: number | null
@@ -217,16 +46,16 @@ export type Database = {
           cuenta_gasto: string
           cuenta_impoconsumo: string | null
           cuenta_iva: string | null
-          cuenta_retencion: string | null
           cuenta_reteica: string | null
           cuenta_reteiva: string | null
+          cuenta_retencion: string | null
           id: string
           nombre: string
           porcentaje_impoconsumo: number
           porcentaje_iva: number
-          porcentaje_retencion: number | null
           porcentaje_reteica: number
           porcentaje_reteiva: number
+          porcentaje_retencion: number | null
         }
         Insert: {
           activo?: boolean
@@ -235,16 +64,16 @@ export type Database = {
           cuenta_gasto: string
           cuenta_impoconsumo?: string | null
           cuenta_iva?: string | null
-          cuenta_retencion?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          cuenta_retencion?: string | null
           id?: string
           nombre: string
           porcentaje_impoconsumo?: number
           porcentaje_iva?: number
-          porcentaje_retencion?: number | null
           porcentaje_reteica?: number
           porcentaje_reteiva?: number
+          porcentaje_retencion?: number | null
         }
         Update: {
           activo?: boolean
@@ -253,16 +82,40 @@ export type Database = {
           cuenta_gasto?: string
           cuenta_impoconsumo?: string | null
           cuenta_iva?: string | null
-          cuenta_retencion?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          cuenta_retencion?: string | null
           id?: string
           nombre?: string
           porcentaje_impoconsumo?: number
           porcentaje_iva?: number
-          porcentaje_retencion?: number | null
           porcentaje_reteica?: number
           porcentaje_reteiva?: number
+          porcentaje_retencion?: number | null
+        }
+        Relationships: []
+      }
+      conceptos_reteica: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre?: string
         }
         Relationships: []
       }
@@ -341,6 +194,44 @@ export type Database = {
         }
         Relationships: []
       }
+      fondos_agencia: {
+        Row: {
+          activo: boolean
+          agencia_id: string
+          created_at: string
+          cuenta_contable: string | null
+          id: string
+          monto_asignado: number
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          agencia_id: string
+          created_at?: string
+          cuenta_contable?: string | null
+          id?: string
+          monto_asignado?: number
+          nombre?: string
+        }
+        Update: {
+          activo?: boolean
+          agencia_id?: string
+          created_at?: string
+          cuenta_contable?: string | null
+          id?: string
+          monto_asignado?: number
+          nombre?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fondos_agencia_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimiento_items: {
         Row: {
           concepto_id: string
@@ -354,9 +245,18 @@ export type Database = {
           numero_factura: string | null
           orden: number
           proveedor_id: string
-          retencion: number
+          retefuente_aplica: boolean
+          retefuente_concepto: string | null
+          retefuente_tarifa: number
           reteica: number
+          reteica_actividad: string | null
+          reteica_aplica: boolean
+          reteica_tarifa: number
+          reteica_valor: number
           reteiva: number
+          reteiva_aplica: boolean
+          reteiva_valor: number
+          retencion: number
           subtotal: number
           total: number
         }
@@ -372,9 +272,18 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id: string
-          retencion?: number
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
           reteica?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
           reteiva?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
+          retencion?: number
           subtotal?: number
           total?: number
         }
@@ -390,9 +299,18 @@ export type Database = {
           numero_factura?: string | null
           orden?: number
           proveedor_id?: string
-          retencion?: number
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
           reteica?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
           reteiva?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
+          retencion?: number
           subtotal?: number
           total?: number
         }
@@ -424,6 +342,8 @@ export type Database = {
         Row: {
           agencia_id: string | null
           concepto_id: string
+          concepto_reteica_id: string | null
+          concepto_reteica_usado: string | null
           consecutivo: number
           created_at: string
           detalle: string | null
@@ -443,11 +363,18 @@ export type Database = {
           prioridad: string
           proveedor_id: string
           reembolso_id: string | null
-          concepto_reteica_id: string | null
-          concepto_reteica_usado: string | null
-          retencion: number
+          retefuente_aplica: boolean
+          retefuente_concepto: string | null
+          retefuente_tarifa: number
           reteica: number
+          reteica_actividad: string | null
+          reteica_aplica: boolean
+          reteica_tarifa: number
+          reteica_valor: number
           reteiva: number
+          reteiva_aplica: boolean
+          reteiva_valor: number
+          retencion: number
           subtotal: number
           tarifa_reteica_ciudad_id: string | null
           tarifa_retencion_id: string | null
@@ -458,6 +385,8 @@ export type Database = {
         Insert: {
           agencia_id?: string | null
           concepto_id: string
+          concepto_reteica_id?: string | null
+          concepto_reteica_usado?: string | null
           consecutivo?: number
           created_at?: string
           detalle?: string | null
@@ -477,11 +406,18 @@ export type Database = {
           prioridad?: string
           proveedor_id: string
           reembolso_id?: string | null
-          concepto_reteica_id?: string | null
-          concepto_reteica_usado?: string | null
-          retencion?: number
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
           reteica?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
           reteiva?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
+          retencion?: number
           subtotal?: number
           tarifa_reteica_ciudad_id?: string | null
           tarifa_retencion_id?: string | null
@@ -492,6 +428,8 @@ export type Database = {
         Update: {
           agencia_id?: string | null
           concepto_id?: string
+          concepto_reteica_id?: string | null
+          concepto_reteica_usado?: string | null
           consecutivo?: number
           created_at?: string
           detalle?: string | null
@@ -511,11 +449,18 @@ export type Database = {
           prioridad?: string
           proveedor_id?: string
           reembolso_id?: string | null
-          concepto_reteica_id?: string | null
-          concepto_reteica_usado?: string | null
-          retencion?: number
+          retefuente_aplica?: boolean
+          retefuente_concepto?: string | null
+          retefuente_tarifa?: number
           reteica?: number
+          reteica_actividad?: string | null
+          reteica_aplica?: boolean
+          reteica_tarifa?: number
+          reteica_valor?: number
           reteiva?: number
+          reteiva_aplica?: boolean
+          reteiva_valor?: number
+          retencion?: number
           subtotal?: number
           tarifa_reteica_ciudad_id?: string | null
           tarifa_retencion_id?: string | null
@@ -539,6 +484,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "movimientos_concepto_reteica_id_fkey"
+            columns: ["concepto_reteica_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_reteica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_fondo_agencia_id_fkey"
+            columns: ["fondo_agencia_id"]
+            isOneToOne: false
+            referencedRelation: "fondos_agencia"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "movimientos_proveedor_id_fkey"
             columns: ["proveedor_id"]
             isOneToOne: false
@@ -550,6 +509,58 @@ export type Database = {
             columns: ["reembolso_id"]
             isOneToOne: false
             referencedRelation: "reembolsos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_tarifa_reteica_ciudad_id_fkey"
+            columns: ["tarifa_reteica_ciudad_id"]
+            isOneToOne: false
+            referencedRelation: "tarifas_reteica_ciudad"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_tarifa_retencion_id_fkey"
+            columns: ["tarifa_retencion_id"]
+            isOneToOne: false
+            referencedRelation: "tarifas_retencion_renta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          activo: boolean
+          agencia_id: string | null
+          created_at: string
+          email: string
+          id: string
+          nombre: string
+          rol: string
+        }
+        Insert: {
+          activo?: boolean
+          agencia_id?: string | null
+          created_at?: string
+          email: string
+          id: string
+          nombre?: string
+          rol?: string
+        }
+        Update: {
+          activo?: boolean
+          agencia_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string
+          rol?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
             referencedColumns: ["id"]
           },
         ]
@@ -566,6 +577,7 @@ export type Database = {
           concepto_reteica_id: string | null
           created_at: string
           departamento: string | null
+          digito_verificacion: string | null
           direccion: string | null
           email: string | null
           estado_validacion: string
@@ -574,7 +586,6 @@ export type Database = {
           nombre: string
           pais: string
           regimen_tributario: string
-          digito_verificacion: string | null
           responsable_iva: boolean
           tarifa_reteica: number
           tarifa_retencion_id: string | null
@@ -596,6 +607,7 @@ export type Database = {
           concepto_reteica_id?: string | null
           created_at?: string
           departamento?: string | null
+          digito_verificacion?: string | null
           direccion?: string | null
           email?: string | null
           estado_validacion?: string
@@ -604,7 +616,6 @@ export type Database = {
           nombre: string
           pais?: string
           regimen_tributario?: string
-          digito_verificacion?: string | null
           responsable_iva?: boolean
           tarifa_reteica?: number
           tarifa_retencion_id?: string | null
@@ -626,6 +637,7 @@ export type Database = {
           concepto_reteica_id?: string | null
           created_at?: string
           departamento?: string | null
+          digito_verificacion?: string | null
           direccion?: string | null
           email?: string | null
           estado_validacion?: string
@@ -634,7 +646,6 @@ export type Database = {
           nombre?: string
           pais?: string
           regimen_tributario?: string
-          digito_verificacion?: string | null
           responsable_iva?: boolean
           tarifa_reteica?: number
           tarifa_retencion_id?: string | null
@@ -645,7 +656,22 @@ export type Database = {
           tipo_retencion_renta?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "proveedores_concepto_reteica_id_fkey"
+            columns: ["concepto_reteica_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_reteica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proveedores_tarifa_retencion_id_fkey"
+            columns: ["tarifa_retencion_id"]
+            isOneToOne: false
+            referencedRelation: "tarifas_retencion_renta"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reembolsos: {
         Row: {
@@ -689,12 +715,85 @@ export type Database = {
         }
         Relationships: []
       }
+      tarifas_reteica_ciudad: {
+        Row: {
+          activo: boolean
+          agencia_id: string
+          codigo_ciiu: string | null
+          created_at: string
+          cuenta: string | null
+          id: string
+          tarifa: number
+          tope: number
+        }
+        Insert: {
+          activo?: boolean
+          agencia_id: string
+          codigo_ciiu?: string | null
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          tarifa?: number
+          tope?: number
+        }
+        Update: {
+          activo?: boolean
+          agencia_id?: string
+          codigo_ciiu?: string | null
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          tarifa?: number
+          tope?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarifas_reteica_ciudad_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarifas_retencion_renta: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          minimo_uvt: number
+          nombre: string
+          porcentaje: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre: string
+          porcentaje?: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre?: string
+          porcentaje?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_my_agencia: { Args: never; Returns: string }
+      get_my_role: { Args: never; Returns: string }
+      is_active_user: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
