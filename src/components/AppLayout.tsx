@@ -17,8 +17,21 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyProfile, type Profile } from "@/lib/db";
+import { getMyProfile, getAgencias, type Profile } from "@/lib/db";
 
 // Caché en memoria a nivel de módulo (no de componente): sobrevive a que
 // AppLayout se vuelva a montar en cada cambio de pantalla, sin afectar la
@@ -26,6 +39,8 @@ import { getMyProfile, type Profile } from "@/lib/db";
 // montaje en el navegador — "clienteListo").
 let perfilEnMemoria: Profile | null = null;
 let clienteListo = false;
+
+const CLAVE_AGENCIA_SESION = "caja-menor-agencia-sesion";
 
 const nav = [
   { to: "/", label: "Resumen", icon: LayoutDashboard, roles: undefined },
@@ -63,6 +78,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
     refetchOnReconnect: false,
   });
 
+  const agsQ = useQuery({
+    queryKey: ["agencias"],
+    queryFn: getAgencias,
+    enabled: perfilEnMemoria?.rol !== "responsable",
+  });
+  const [agenciaSesion, setAgenciaSesion] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem(CLAVE_AGENCIA_SESION) ?? "";
+  });
+  const [agenciaTemp, setAgenciaTemp] = useState("");
+
   // Una vez que el perfil se cargó bien una vez, lo dejamos guardado y lo
   // seguimos mostrando aunque una recarga de fondo tarde o falle
   // momentáneamente — así el menú no "parpadea" ni desaparece solo. Usamos
@@ -95,6 +121,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         perfilEnMemoria = null;
         setPerfilEstable(null);
+        sessionStorage.removeItem(CLAVE_AGENCIA_SESION);
         navigate({ to: "/login" });
       }
     });
@@ -142,6 +169,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const navFiltrado = nav.filter((n) => !n.roles || (n.roles as readonly string[]).includes(profile.rol));
+
+  const necesitaElegirAgencia = profile.rol !== "responsable" && !agenciaSesion;
+
+  const confirmarAgenciaSesion = () => {
+    if (!agenciaTemp) return;
+    sessionStorage.setItem(CLAVE_AGENCIA_SESION, agenciaTemp);
+    setAgenciaSesion(agenciaTemp);
+  };
+
+  const nombreAgenciaMostrado =
+    profile.rol === "responsable"
+      ? profile.agencias?.nombre ?? "Sin agencia asignada"
+      : agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -229,11 +269,42 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto p-6">
           <div className="mb-4 flex items-center gap-2 text-base font-medium text-foreground">
             <Wallet className="h-4 w-4 text-muted-foreground" />
-            {profile.agencias?.nombre ?? "Todas las agencias"}
+            {nombreAgenciaMostrado ?? "—"}
           </div>
           {children}
         </div>
       </main>
+
+      <Dialog open={necesitaElegirAgencia} onOpenChange={() => {}}>
+        <DialogContent
+          className="max-w-sm"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>¿En qué agencia vas a trabajar hoy?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-2">
+            Es solo informativo: se mostrará en el encabezado de cada pantalla durante esta
+            sesión. No limita lo que puedes ver o hacer.
+          </p>
+          <Select value={agenciaTemp} onValueChange={setAgenciaTemp}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona una agencia" />
+            </SelectTrigger>
+            <SelectContent>
+              {agsQ.data?.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button className="w-full" disabled={!agenciaTemp} onClick={confirmarAgenciaSesion}>
+            Continuar
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
