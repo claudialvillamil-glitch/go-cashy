@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout, useAgenciaFiltro } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, TrendingDown, Receipt, AlertTriangle } from "lucide-react";
-import { getFondo, getMovimientos } from "@/lib/db";
+import { getFondo, getMovimientos, getFondosAgencia } from "@/lib/db";
 import { ultimoDiaHabilDelMes } from "@/lib/colombia-holidays";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
@@ -31,10 +31,24 @@ export const Route = createFileRoute("/")({
 function Resumen() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
+  const agenciaFiltro = useAgenciaFiltro();
+  const fondosAgenciaQ = useQuery({
+    queryKey: ["fondos-agencia"],
+    queryFn: getFondosAgencia,
+    enabled: !!agenciaFiltro,
+  });
 
   const fondo = fondoQ.data;
-  const movs = movsQ.data ?? [];
-  const montoTotalFondo = Number(fondo?.monto_asignado ?? 0);
+  const todosLosMovs = movsQ.data ?? [];
+  // Si hay una agencia elegida (fija por rol, o elegida opcionalmente arriba),
+  // se filtra todo a esa agencia — incluyendo el monto del fondo, que pasa a
+  // ser la suma de los fondos configurados para esa agencia específica.
+  const movs = agenciaFiltro ? todosLosMovs.filter((m) => m.agencia_id === agenciaFiltro) : todosLosMovs;
+  const montoTotalFondo = agenciaFiltro
+    ? (fondosAgenciaQ.data ?? [])
+        .filter((f) => f.activo && f.agencia_id === agenciaFiltro)
+        .reduce((s, f) => s + Number(f.monto_asignado), 0)
+    : Number(fondo?.monto_asignado ?? 0);
 
   // El saldo disponible solo se ve afectado por gastos que aún no han sido
   // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
@@ -88,6 +102,11 @@ function Resumen() {
           <p className="text-sm text-muted-foreground">
             {fondo?.empresa} · Responsable: {fondo?.responsable}
           </p>
+          {agenciaFiltro && (
+            <p className="text-xs text-primary mt-0.5">
+              Mostrando solo la información de la agencia seleccionada arriba.
+            </p>
+          )}
         </div>
         <Link to="/nuevo">
           <Button size="lg" className="gap-2">

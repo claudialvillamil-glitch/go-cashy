@@ -852,6 +852,8 @@ function FondosAgenciaCard() {
   const [nombre, setNombre] = useState("Caja menor");
   const [cuenta, setCuenta] = useState("");
   const [monto, setMonto] = useState("");
+  const [responsable, setResponsable] = useState("");
+  const [identificacionResponsable, setIdentificacionResponsable] = useState("");
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -861,6 +863,8 @@ function FondosAgenciaCard() {
         nombre: nombre.trim() || "Caja menor",
         cuenta_contable: cuenta.trim() || null,
         monto_asignado: Number(monto) || 0,
+        responsable: responsable.trim() || null,
+        identificacion_responsable: identificacionResponsable.trim() || null,
       });
       if (error) throw error;
     },
@@ -869,6 +873,8 @@ function FondosAgenciaCard() {
       setNombre("Caja menor");
       setCuenta("");
       setMonto("");
+      setResponsable("");
+      setIdentificacionResponsable("");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -881,6 +887,29 @@ function FondosAgenciaCard() {
     },
     onSuccess: () => {
       toast.success("Monto actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarResponsable = useMutation({
+    mutationFn: async ({
+      id,
+      responsable: resp,
+      identificacion,
+    }: {
+      id: string;
+      responsable: string;
+      identificacion: string;
+    }) => {
+      const { error } = await supabase
+        .from("fondos_agencia")
+        .update({ responsable: resp || null, identificacion_responsable: identificacion || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Responsable actualizado");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -948,52 +977,96 @@ function FondosAgenciaCard() {
           <Button onClick={() => crear.mutate()} disabled={!agenciaId || crear.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Agregar fondo
           </Button>
+          <Input
+            placeholder="Responsable del fondo"
+            value={responsable}
+            onChange={(e) => setResponsable(e.target.value)}
+          />
+          <Input
+            placeholder="C.C./NIT del responsable"
+            value={identificacionResponsable}
+            onChange={(e) => setIdentificacionResponsable(e.target.value)}
+          />
         </div>
 
         <div className="rounded-md border divide-y">
           {q.data?.map((f) => (
-            <div key={f.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Checkbox
-                  checked={f.activo}
-                  onCheckedChange={(v) => toggleActivo.mutate({ id: f.id, activo: v === true })}
-                />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {f.nombre} · {agenciaNombre(f.agencia_id)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Cuenta {f.cuenta_contable || "—"} · Máx. 15%:{" "}
-                    {new Intl.NumberFormat("es-CO", {
-                      style: "currency",
-                      currency: "COP",
-                      maximumFractionDigits: 0,
-                    }).format(Number(f.monto_asignado) * 0.15)}
+            <div key={f.id} className="flex flex-col gap-2 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Checkbox
+                    checked={f.activo}
+                    onCheckedChange={(v) => toggleActivo.mutate({ id: f.id, activo: v === true })}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {f.nombre} · {agenciaNombre(f.agencia_id)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Cuenta {f.cuenta_contable || "—"} · Máx. 15%:{" "}
+                      {new Intl.NumberFormat("es-CO", {
+                        style: "currency",
+                        currency: "COP",
+                        maximumFractionDigits: 0,
+                      }).format(Number(f.monto_asignado) * 0.15)}
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    defaultValue={f.monto_asignado}
+                    className="w-32 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = Number(e.target.value) || 0;
+                      if (valor !== Number(f.monto_asignado)) {
+                        actualizarMonto.mutate({ id: f.id, valor });
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      if (confirm(`¿Eliminar el fondo "${f.nombre}"?`)) eliminar.mutate(f.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-2 pl-6">
                 <Input
-                  type="number"
-                  min="0"
-                  defaultValue={f.monto_asignado}
-                  className="w-32 h-8 text-sm"
+                  placeholder="Responsable del fondo"
+                  defaultValue={f.responsable ?? ""}
+                  className="h-8 text-sm"
                   onBlur={(e) => {
-                    const valor = Number(e.target.value) || 0;
-                    if (valor !== Number(f.monto_asignado)) {
-                      actualizarMonto.mutate({ id: f.id, valor });
+                    const valor = e.target.value;
+                    if (valor !== (f.responsable ?? "")) {
+                      actualizarResponsable.mutate({
+                        id: f.id,
+                        responsable: valor,
+                        identificacion: f.identificacion_responsable ?? "",
+                      });
                     }
                   }}
                 />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    if (confirm(`¿Eliminar el fondo "${f.nombre}"?`)) eliminar.mutate(f.id);
+                <Input
+                  placeholder="C.C./NIT del responsable"
+                  defaultValue={f.identificacion_responsable ?? ""}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor !== (f.identificacion_responsable ?? "")) {
+                      actualizarResponsable.mutate({
+                        id: f.id,
+                        responsable: f.responsable ?? "",
+                        identificacion: valor,
+                      });
+                    }
                   }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                />
               </div>
             </div>
           ))}

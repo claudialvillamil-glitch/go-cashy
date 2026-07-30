@@ -134,6 +134,7 @@ export type Movimiento = {
   proveedores?: Proveedor;
   conceptos?: Concepto;
   agencias?: Agencia | null;
+  fondos_agencia?: FondoAgencia | null;
   movimiento_items?: MovimientoItem[];
   reembolsos?: { id: string; estado: string } | null;
 };
@@ -255,6 +256,8 @@ export type FondoAgencia = {
   nombre: string;
   monto_asignado: number;
   activo: boolean;
+  responsable: string | null;
+  identificacion_responsable: string | null;
 };
 
 export async function getFondosAgencia() {
@@ -347,7 +350,7 @@ export async function getMovimientosPendientes() {
 export async function getMovimientosDeReembolso(reembolsoId: string) {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*)), fondos_agencia(*)")
     .eq("reembolso_id", reembolsoId)
     .order("fecha", { ascending: true });
   if (error) throw error;

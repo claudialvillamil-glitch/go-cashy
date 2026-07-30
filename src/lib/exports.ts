@@ -257,26 +257,44 @@ export function exportContabilizacionExcel(
     });
   });
 
-  // Fila consolidada de reposición del fondo, con la identificación del
-  // responsable (configurada en Configuración → Datos generales).
-  filas.push([
-    fondo.identificacion_responsable || "",
-    movs[0]?.agencias?.codigo ?? "",
-    fondo.identificacion_responsable || "",
-    "Reposición fondo caja menor",
-    fmtDate(reembolso.fecha),
-    fmtDate(reembolso.fecha),
-    1,
-    "Reposición fondo caja menor",
-    "013",
-    "24109503",
-    "",
-    0,
-    reembolso.total,
-    "",
-    "02",
-    "NO ",
-  ]);
+  // Fila(s) consolidada(s) de reposición del fondo: una por cada fondo
+  // específico involucrado (una agencia puede tener más de uno), usando la
+  // identificación del responsable de ESE fondo. Si el movimiento no tiene
+  // un fondo específico asignado, se usa el responsable general de
+  // Configuración como respaldo.
+  const gruposPorFondo = new Map<string, { total: number; agenciaCodigo: string | number; identificacion: string }>();
+  movs.forEach((m) => {
+    const clave = m.fondo_agencia_id ?? "__general__";
+    const identificacion =
+      m.fondos_agencia?.identificacion_responsable || fondo.identificacion_responsable || "";
+    const actual = gruposPorFondo.get(clave) ?? {
+      total: 0,
+      agenciaCodigo: m.agencias?.codigo ?? "",
+      identificacion,
+    };
+    actual.total += Number(m.total);
+    gruposPorFondo.set(clave, actual);
+  });
+  gruposPorFondo.forEach((grupo) => {
+    filas.push([
+      grupo.identificacion,
+      grupo.agenciaCodigo,
+      grupo.identificacion,
+      "Reposición fondo caja menor",
+      fmtDate(reembolso.fecha),
+      fmtDate(reembolso.fecha),
+      1,
+      "Reposición fondo caja menor",
+      "013",
+      "24109503",
+      "",
+      0,
+      grupo.total,
+      "",
+      "02",
+      "NO ",
+    ]);
+  });
 
   const aoa = [ENCABEZADOS, ...filas];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -285,11 +303,6 @@ export function exportContabilizacionExcel(
     { wch: 10 }, { wch: 26 }, { wch: 12 }, { wch: 13 }, { wch: 10 }, { wch: 13 },
     { wch: 13 }, { wch: 12 }, { wch: 9 }, { wch: 12 },
   ];
-  for (let i = 0; i < filas.length; i++) {
-    const fila = i + 2;
-    if (ws[`L${fila}`]) ws[`L${fila}`].z = '"$"#,##0';
-    if (ws[`M${fila}`]) ws[`M${fila}`].z = '"$"#,##0';
-  }
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Contabilizacion");

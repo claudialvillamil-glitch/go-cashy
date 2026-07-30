@@ -1,6 +1,6 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
@@ -40,7 +40,15 @@ import { getMyProfile, getAgencias, type Profile } from "@/lib/db";
 let perfilEnMemoria: Profile | null = null;
 let clienteListo = false;
 
-const CLAVE_AGENCIA_SESION = "caja-menor-agencia-sesion";
+export const CLAVE_AGENCIA_SESION = "caja-menor-agencia-sesion";
+
+// Agencia "efectiva" para filtrar datos en cada pantalla: la agencia fija
+// del usuario (responsable/director), o la que eligió opcionalmente
+// (admin/contador/analista/auxiliar), o null si debe verse todo.
+const AgenciaFiltroContext = createContext<string | null>(null);
+export function useAgenciaFiltro() {
+  return useContext(AgenciaFiltroContext);
+}
 
 const nav = [
   { to: "/", label: "Resumen", icon: LayoutDashboard, roles: undefined },
@@ -203,6 +211,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
     ? profile.agencias?.nombre ?? "Sin agencia asignada"
     : agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? null;
 
+  const agenciaFiltro = ROLES_AGENCIA_FIJA.includes(profile.rol)
+    ? profile.agencia_id
+    : tieneSelectorOpcional && agenciaSesion
+      ? agenciaSesion
+      : null;
+
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden md:flex w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -289,7 +303,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto p-6">
           <div className="mb-4 flex items-center gap-2">
             <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
-            {tieneSelectorOpcional ? (
+            {tieneSelectorOpcional && pathname === "/" ? (
               <Select value={agenciaSesion || "todas"} onValueChange={elegirAgenciaOpcional}>
                 <SelectTrigger className="w-64 h-8 text-base font-medium border-none shadow-none px-2 -ml-2">
                   <SelectValue />
@@ -304,12 +318,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </SelectContent>
               </Select>
             ) : (
-              <span className="text-base font-medium text-foreground">
-                {nombreAgenciaMostrado ?? "—"}
-              </span>
+              <>
+                <span className="text-base font-medium text-foreground">
+                  {tieneSelectorOpcional
+                    ? agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? "Todas las agencias"
+                    : nombreAgenciaMostrado ?? "—"}
+                </span>
+                {tieneSelectorOpcional && (
+                  <Link to="/" className="text-xs text-muted-foreground hover:underline ml-1">
+                    (cambiar en Resumen)
+                  </Link>
+                )}
+              </>
             )}
           </div>
-          {children}
+          <AgenciaFiltroContext.Provider value={agenciaFiltro}>
+            {children}
+          </AgenciaFiltroContext.Provider>
         </div>
       </main>
 

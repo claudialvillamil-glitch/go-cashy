@@ -201,8 +201,10 @@ export type Database = {
           created_at: string
           cuenta_contable: string | null
           id: string
+          identificacion_responsable: string | null
           monto_asignado: number
           nombre: string
+          responsable: string | null
         }
         Insert: {
           activo?: boolean
@@ -210,8 +212,10 @@ export type Database = {
           created_at?: string
           cuenta_contable?: string | null
           id?: string
+          identificacion_responsable?: string | null
           monto_asignado?: number
           nombre?: string
+          responsable?: string | null
         }
         Update: {
           activo?: boolean
@@ -219,7 +223,9 @@ export type Database = {
           created_at?: string
           cuenta_contable?: string | null
           id?: string
+          identificacion_responsable?: string | null
           monto_asignado?: number
+          responsable?: string | null
           nombre?: string
         }
         Relationships: [
