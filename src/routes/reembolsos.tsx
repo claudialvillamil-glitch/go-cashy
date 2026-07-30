@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { useMemo, useState } from "react";
 import {
-  computeAsientoReposicion,
   getFondo,
   getTarifasRetencionRenta,
   getConceptosReteica,
@@ -42,7 +41,7 @@ import { DENOMINACIONES } from "@/lib/arqueo";
 import { Download, FileText, PlusCircle, Plus, Trash2, Calculator, Printer, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { exportReembolsoPDF, exportReembolsoExcel, exportReembolsoConSoportesPDF } from "@/lib/exports";
+import { exportReembolsoPDF, exportReembolsoExcel, exportReembolsoConSoportesPDF, exportContabilizacionExcel } from "@/lib/exports";
 
 export const Route = createFileRoute("/reembolsos")({
   head: () => ({
@@ -1007,54 +1006,6 @@ function DetalleReembolso({
               <span className="font-semibold">{fmtMoney(reembolso.total)}</span>
             </div>
 
-            {reembolso.estado === "pagado" && movsQ.data && fondoQ.data && (
-              <div>
-                <div className="text-xs text-muted-foreground uppercase mb-2">
-                  Asiento de reposición del fondo
-                </div>
-                <div className="overflow-x-auto border rounded-md">
-                  <table className="w-full text-xs">
-                    <thead className="bg-muted/50">
-                      <tr className="text-left">
-                        <th className="px-2 py-2">Cuenta</th>
-                        <th className="px-2 py-2">Descripción</th>
-                        <th className="px-2 py-2 text-right">Débito</th>
-                        <th className="px-2 py-2 text-right">Crédito</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const { debitos, creditos } = computeAsientoReposicion(
-                          movsQ.data!,
-                          fondoQ.data!,
-                        );
-                        return (
-                          <>
-                            {debitos.map((d, i) => (
-                              <tr key={`d${i}`} className="border-t">
-                                <td className="px-2 py-1.5 font-mono">{d.cuenta}</td>
-                                <td className="px-2 py-1.5">{d.descripcion}</td>
-                                <td className="px-2 py-1.5 text-right">{fmtMoney(d.valor)}</td>
-                                <td className="px-2 py-1.5 text-right"></td>
-                              </tr>
-                            ))}
-                            {creditos.map((c, i) => (
-                              <tr key={`c${i}`} className="border-t">
-                                <td className="px-2 py-1.5 font-mono">{c.cuenta}</td>
-                                <td className="px-2 py-1.5">{c.descripcion}</td>
-                                <td className="px-2 py-1.5 text-right"></td>
-                                <td className="px-2 py-1.5 text-right">{fmtMoney(c.valor)}</td>
-                              </tr>
-                            ))}
-                          </>
-                        );
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
             {reembolso.arqueo && (
               <div>
                 <div className="text-xs text-muted-foreground uppercase mb-2 flex items-center gap-2">
@@ -1151,6 +1102,16 @@ function DetalleReembolso({
                 }
               >
                 <Download className="h-4 w-4 mr-2" /> Reporte contable (Excel)
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  fondoQ.data &&
+                  movsQ.data &&
+                  exportContabilizacionExcel(reembolso, movsQ.data, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)
+                }
+              >
+                <Download className="h-4 w-4 mr-2" /> Contabilización (plantilla)
               </Button>
               <Button
                 variant="outline"

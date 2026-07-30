@@ -11,7 +11,7 @@ import type {
   ConceptoReteicaDB,
   TarifaReteicaCiudad,
 } from "./db";
-import { computeAsiento, computeAsientoReposicion } from "./db";
+import { computeAsiento } from "./db";
 import { fmtDate, fmtMoney, numeroALetras, pad } from "./format";
 
 function finalizarPDF(doc: jsPDF, filename: string, accion: "descargar" | "imprimir" = "descargar") {
@@ -114,23 +114,6 @@ export function exportReembolsoPDF(
     doc.text(`Observaciones: ${reembolso.observaciones}`, 14, y);
   }
 
-  if (reembolso.estado === "pagado") {
-    const { debitos, creditos } = computeAsientoReposicion(movs, fondo);
-    const yA = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
-    doc.setFontSize(11);
-    doc.text("Asiento de reposición del fondo", 14, yA);
-    autoTable(doc, {
-      startY: yA + 4,
-      head: [["Cuenta", "Descripción", "Débito", "Crédito"]],
-      body: [
-        ...debitos.map((d) => [d.cuenta, d.descripcion, fmtMoney(d.valor), ""]),
-        ...creditos.map((c) => [c.cuenta, c.descripcion, "", fmtMoney(c.valor)]),
-      ],
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [30, 50, 90] },
-    });
-  }
-
   if (reembolso.arqueo) {
     const yQ = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
     doc.setFontSize(11);
@@ -193,6 +176,147 @@ export function exportReembolsoPDF(
   finalizarPDF(doc, `reporte-reembolso-caja-menor-${pad(reembolso.consecutivo)}.pdf`, accion);
 }
 
+// Agrupa en una sola fila todas las líneas de una cuenta específica (ej. la
+// cuenta de reposición del fondo), sumando el total de débito y crédito, en
+// vez de repetirla una vez por cada gasto — así el reporte queda listo para
+// subir a un programa contable sin duplicar esa cuenta.
+// Exporta la contabilización de un reembolso en el formato EXACTO que pide
+// el programa contable de la empresa (16 columnas fijas). Por cada gasto:
+// una fila de débito por el valor base (y por IVA/impoconsumo si aplica),
+// y una fila de crédito por cada retención si aplica. Al final, UNA sola
+// fila de crédito consolidada a la cuenta de reposición (24109503) por el
+// total del reembolso, identificada con el responsable del fondo.
+export function exportContabilizacionExcel(
+  reembolso: Reembolso,
+  movs: Movimiento[],
+  fondo: FondoConfig,
+  tarifas?: TarifaRetencionRenta[],
+  conceptosReteica?: ConceptoReteicaDB[],
+  tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+) {
+  const ENCABEZADOS = [
+    "Identificacion", "Agencia", "Documento referencia", "Descripcion transaccion",
+    "Fecha documento", "Fecha contabilidad", "Consecutivo movimiento", "Descripcion mvto",
+    "Codigo comprobante", "Cuenta contable", "Codigo Centro de Costo", "Monto debito",
+    "Monto credito", "Base retencion", "Esquema", "Replicar NIIF",
+  ];
+
+  const filas: (string | number)[][] = [];
+  let ultimaIdentificacion: string | null = null;
+
+  movs.forEach((m) => {
+    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
+    // La última "credito" que arma computeAsiento siempre es la de "Caja
+    // menor" (contrapartida) por el total del gasto — esa NO va aquí,
+    // porque la reemplazamos por la fila consolidada a 24109503 al final.
+    const creditosSinCajaMenor = creditos.filter((c) => c.descripcion !== "Caja menor");
+
+    const nit = m.proveedores?.nit ?? "";
+    const identificacionFila = nit === ultimaIdentificacion ? "" : nit;
+    ultimaIdentificacion = nit;
+
+    debitos.forEach((d, i) => {
+      filas.push([
+        i === 0 ? identificacionFila : "",
+        m.agencias?.codigo ?? "",
+        pad(m.consecutivo),
+        m.detalle ?? "",
+        fmtDate(m.fecha),
+        fmtDate(m.fecha),
+        1,
+        m.detalle ?? "",
+        "013",
+        d.cuenta,
+        "",
+        d.valor,
+        0,
+        "",
+        "02",
+        "NO ",
+      ]);
+    });
+    creditosSinCajaMenor.forEach((c) => {
+      filas.push([
+        "",
+        m.agencias?.codigo ?? "",
+        pad(m.consecutivo),
+        m.detalle ?? "",
+        fmtDate(m.fecha),
+        fmtDate(m.fecha),
+        1,
+        m.detalle ?? "",
+        "013",
+        c.cuenta,
+        "",
+        0,
+        c.valor,
+        "",
+        "02",
+        "NO ",
+      ]);
+    });
+  });
+
+  // Fila consolidada de reposición del fondo, con la identificación del
+  // responsable (configurada en Configuración → Datos generales).
+  filas.push([
+    fondo.identificacion_responsable || "",
+    movs[0]?.agencias?.codigo ?? "",
+    fondo.identificacion_responsable || "",
+    "Reposición fondo caja menor",
+    fmtDate(reembolso.fecha),
+    fmtDate(reembolso.fecha),
+    1,
+    "Reposición fondo caja menor",
+    "013",
+    "24109503",
+    "",
+    0,
+    reembolso.total,
+    "",
+    "02",
+    "NO ",
+  ]);
+
+  const aoa = [ENCABEZADOS, ...filas];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [
+    { wch: 14 }, { wch: 9 }, { wch: 16 }, { wch: 26 }, { wch: 13 }, { wch: 13 },
+    { wch: 10 }, { wch: 26 }, { wch: 12 }, { wch: 13 }, { wch: 10 }, { wch: 13 },
+    { wch: 13 }, { wch: 12 }, { wch: 9 }, { wch: 12 },
+  ];
+  for (let i = 0; i < filas.length; i++) {
+    const fila = i + 2;
+    if (ws[`L${fila}`]) ws[`L${fila}`].z = '"$"#,##0';
+    if (ws[`M${fila}`]) ws[`M${fila}`].z = '"$"#,##0';
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Contabilizacion");
+  XLSX.writeFile(wb, `contabilizacion-reembolso-${pad(reembolso.consecutivo)}.xlsx`);
+}
+
+function consolidarCuenta(
+  filas: (string | number)[][],
+  cuenta: string,
+  descripcion: string,
+): (string | number)[][] {
+  const resto: (string | number)[][] = [];
+  let totalDebito = 0;
+  let totalCredito = 0;
+  filas.forEach((fila) => {
+    if (fila[2] === cuenta) {
+      totalDebito += Number(fila[4]) || 0;
+      totalCredito += Number(fila[5]) || 0;
+    } else {
+      resto.push(fila);
+    }
+  });
+  if (totalDebito > 0) resto.push(["", "", cuenta, descripcion, totalDebito, 0]);
+  if (totalCredito > 0) resto.push(["", "", cuenta, descripcion, 0, totalCredito]);
+  return resto;
+}
+
 export function exportReembolsoExcel(
   reembolso: Reembolso,
   movs: Movimiento[],
@@ -203,18 +327,25 @@ export function exportReembolsoExcel(
   totalGastosFondo?: number,
 ) {
   const wb = XLSX.utils.book_new();
+  const FORMATO_MONEDA = '"$"#,##0';
+  const marcarMoneda = (ws: XLSX.WorkSheet, celdas: string[]) => {
+    celdas.forEach((addr) => {
+      if (ws[addr]) ws[addr].z = FORMATO_MONEDA;
+    });
+  };
 
   const gastosFondo = reembolso.total_gastos_momento ?? totalGastosFondo ?? reembolso.total;
   const montoFondo = reembolso.monto_fondo_momento ?? Number(fondo.monto_asignado);
   const saldoDisponible = montoFondo - gastosFondo;
 
   // Hoja 1: Resumen del reporte
-  const resumen = [
-    ["REPORTE DE REEMBOLSO DE CAJA MENOR", ""],
+  const resumen: (string | number)[][] = [
+    ["REPORTE DE REEMBOLSO DE CAJA MENOR"],
+    [],
     ["Monto fondo", montoFondo],
     ["Total gastos", gastosFondo],
     ["Total disponible", saldoDisponible],
-    ["", ""],
+    [],
     ["Empresa", fondo.empresa],
     ["Responsable", fondo.responsable],
     ["Fecha de solicitud", fmtDate(reembolso.fecha)],
@@ -222,11 +353,14 @@ export function exportReembolsoExcel(
     ["Estado", reembolso.estado],
     ["Cantidad de movimientos", movs.length],
     ["Total a reembolsar", reembolso.total],
-    ["", ""],
+    [],
     ["Elaborado por", fondo.responsable],
     ["Autorizado por", fondo.nombre_aprobador],
   ];
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
+  wsR["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+  wsR["!cols"] = [{ wch: 26 }, { wch: 28 }];
+  marcarMoneda(wsR, ["B3", "B4", "B5", "B13"]);
   XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
 
   // Hoja 2: Relación de gastos incluidos en esta solicitud (debe coincidir 1 a 1
@@ -242,21 +376,27 @@ export function exportReembolsoExcel(
     Detalle: m.detalle ?? "",
     Factura: m.numero_factura ?? "",
     "Factura electrónica": m.factura_electronica ? "Sí" : "No",
-    Subtotal: m.subtotal,
-    IVA: m.iva,
-    Impoconsumo: m.impoconsumo,
-    "Rete Fuente": m.retencion,
-    ReteICA: m.reteica,
-    ReteIVA: m.reteiva,
-    Total: m.total,
+    Subtotal: Number(m.subtotal),
+    IVA: Number(m.iva),
+    Impoconsumo: Number(m.impoconsumo),
+    "Rete Fuente": Number(m.retencion),
+    ReteICA: Number(m.reteica),
+    ReteIVA: Number(m.reteiva),
+    Total: Number(m.total),
   }));
   const wsG = XLSX.utils.json_to_sheet(rows);
+  wsG["!cols"] = [
+    { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 20 },
+    { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 13 }, { wch: 11 },
+    { wch: 13 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 13 },
+  ];
+  for (let i = 0; i < rows.length; i++) {
+    marcarMoneda(wsG, ["K", "L", "M", "N", "O", "P", "Q"].map((c) => `${c}${i + 2}`));
+  }
   XLSX.utils.book_append_sheet(wb, wsG, "Relación de gastos");
 
   // Hoja 3: Asientos contables generados por cada gasto (débito/crédito).
-  const asientos: (string | number)[][] = [
-    ["Recibo", "Fecha", "Cuenta", "Descripción", "Débito", "Crédito"],
-  ];
+  let asientos: (string | number)[][] = [];
   movs.forEach((m) => {
     const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
     debitos.forEach((d) =>
@@ -266,27 +406,24 @@ export function exportReembolsoExcel(
       asientos.push([pad(m.consecutivo), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
     );
   });
-
-  // Si ya está pagado, se agrega también el asiento de reposición del fondo,
-  // que es el que efectivamente se pasa al programa contable de la empresa.
-  if (reembolso.estado === "pagado") {
-    asientos.push(["", "", "", "", "", ""]);
-    asientos.push(["", "", "REPOSICIÓN DEL FONDO", "", "", ""]);
-    const { debitos, creditos } = computeAsientoReposicion(movs, fondo);
-    debitos.forEach((d) =>
-      asientos.push([pad(reembolso.consecutivo), fmtDate(reembolso.fecha), d.cuenta, d.descripcion, d.valor, 0]),
-    );
-    creditos.forEach((c) =>
-      asientos.push([pad(reembolso.consecutivo), fmtDate(reembolso.fecha), c.cuenta, c.descripcion, 0, c.valor]),
-    );
-  }
+  // La cuenta 24109503 (reposición/retenciones que comparten esa cuenta por
+  // defecto) va en un solo movimiento por el total, no repetida por cada gasto.
+  asientos = consolidarCuenta(asientos, "24109503", "Reposición fondo caja menor");
+  const totalDebitoAsientos = asientos.reduce((s, r) => s + (Number(r[4]) || 0), 0);
+  const totalCreditoAsientos = asientos.reduce((s, r) => s + (Number(r[5]) || 0), 0);
+  asientos.push(["", "", "", "TOTALES", totalDebitoAsientos, totalCreditoAsientos]);
+  asientos.unshift(["Recibo", "Fecha", "Cuenta", "Descripción", "Débito", "Crédito"]);
 
   const wsA = XLSX.utils.aoa_to_sheet(asientos);
+  wsA["!cols"] = [{ wch: 10 }, { wch: 11 }, { wch: 14 }, { wch: 32 }, { wch: 14 }, { wch: 14 }];
+  for (let i = 0; i < asientos.length - 1; i++) {
+    marcarMoneda(wsA, [`E${i + 2}`, `F${i + 2}`]);
+  }
   XLSX.utils.book_append_sheet(wb, wsA, "Asientos contables");
 
   // Hoja 4: Arqueo de caja realizado al momento de la solicitud (si se registró).
   if (reembolso.arqueo) {
-    const filas: (string | number)[][] = [["Denominación", "Cantidad", "Subtotal"]];
+    const filas: (string | number)[][] = [["ARQUEO DE CAJA"], [], ["Denominación", "Cantidad", "Subtotal"]];
     Object.entries(reembolso.arqueo.cantidades).forEach(([valor, cant]) => {
       filas.push([Number(valor), Number(cant), Number(valor) * Number(cant)]);
     });
@@ -311,6 +448,11 @@ export function exportReembolsoExcel(
       Math.abs(reembolso.arqueo.diferencia),
     ]);
     const wsQ = XLSX.utils.aoa_to_sheet(filas);
+    wsQ["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    wsQ["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 16 }];
+    for (let i = 2; i < filas.length; i++) {
+      marcarMoneda(wsQ, [`C${i + 1}`]);
+    }
     XLSX.utils.book_append_sheet(wb, wsQ, "Arqueo de caja");
   }
 
