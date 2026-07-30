@@ -411,7 +411,7 @@ function Nuevo() {
         throw new Error("El archivo (incluso comprimido) supera 5 MB. Intenta con otra foto o un PDF más liviano.");
       }
       const ext = archivoFinal.name.split(".").pop();
-      const path = `${new Date().getFullYear()}/${Date.now()}-${Math.random()
+      const path = `${agencia || "general"}/${new Date().getFullYear()}/${Date.now()}-${Math.random()
         .toString(36)
         .slice(2, 8)}.${ext}`;
       let up = await supabase.storage.from("facturas").upload(path, archivoFinal, {
@@ -482,7 +482,7 @@ function Nuevo() {
         const original = archivosAdicionales[i];
         const comprimido = await comprimirImagen(original);
         const extraExt = comprimido.name.split(".").pop();
-        const extraPath = `${new Date().getFullYear()}/${Date.now()}-${Math.random()
+        const extraPath = `${agencia || "general"}/${new Date().getFullYear()}/${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}-extra${i}.${extraExt}`;
         const upExtra = await supabase.storage.from("facturas").upload(extraPath, comprimido, {
