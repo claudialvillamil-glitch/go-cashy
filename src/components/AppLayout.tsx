@@ -85,11 +85,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
     queryFn: getAgencias,
     enabled: perfilEnMemoria?.rol !== "responsable",
   });
-  const [agenciaSesion, setAgenciaSesion] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return sessionStorage.getItem(CLAVE_AGENCIA_SESION) ?? "";
-  });
+  // Igual que con el perfil: en el primer render (que debe coincidir con lo
+  // que preparó el servidor) siempre arranca vacío. Solo después de montar
+  // en el navegador leemos sessionStorage — evita el choque de hidratación
+  // que rompía el menú.
+  const [agenciaSesion, setAgenciaSesion] = useState<string>("");
   const [agenciaTemp, setAgenciaTemp] = useState("");
+
+  useEffect(() => {
+    const guardada = sessionStorage.getItem(CLAVE_AGENCIA_SESION);
+    if (guardada) setAgenciaSesion(guardada);
+  }, []);
 
   // Una vez que el perfil se cargó bien una vez, lo dejamos guardado y lo
   // seguimos mostrando aunque una recarga de fondo tarde o falle

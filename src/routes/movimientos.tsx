@@ -29,7 +29,7 @@ import { ConceptoPicker } from "@/components/ConceptoPicker";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
-import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw, Pencil } from "lucide-react";
+import { Download, FileText, Search, Trash2, Eye, Layers, Printer, Ban, RotateCcw, Pencil, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -68,6 +68,8 @@ function Movs() {
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState<"todos" | "multi" | "simple">("todos");
   const [detail, setDetail] = useState<Movimiento | null>(null);
+  const [preview, setPreview] = useState<{ label: string; url: string; path: string } | null>(null);
+  const [cargandoPreview, setCargandoPreview] = useState(false);
   const soportesExtraQ = useQuery({
     queryKey: ["soportes-extra", detail?.id],
     queryFn: () => getSoportesAdicionales(detail!.id),
@@ -149,26 +151,18 @@ function Movs() {
 
   const abrirFactura = async (m: Movimiento) => {
     if (!m.factura_path) return;
-    await abrirArchivo(m.factura_path);
+    await verArchivo("Factura", m.factura_path);
   };
 
-  const abrirArchivo = async (path: string) => {
-    // Abrimos la pestaña ANTES de esperar la respuesta (de forma síncrona,
-    // como parte directa del clic) para que el navegador no la bloquee como
-    // pop-up — luego solo le cambiamos la dirección cuando llega la URL.
-    const nuevaPestana = window.open("", "_blank");
-    const { data, error } = await supabase.storage.from("facturas").createSignedUrl(path, 60 * 5);
+  const verArchivo = async (label: string, path: string) => {
+    setCargandoPreview(true);
+    const { data, error } = await supabase.storage.from("facturas").createSignedUrl(path, 60 * 10);
+    setCargandoPreview(false);
     if (error || !data?.signedUrl) {
-      nuevaPestana?.close();
-      toast.error("No se pudo abrir el archivo: " + (error?.message ?? "no se encontró la URL."));
+      toast.error("No se pudo cargar el archivo: " + (error?.message ?? "no se encontró la URL."));
       return;
     }
-    if (nuevaPestana) {
-      nuevaPestana.location.href = data.signedUrl;
-    } else {
-      // Si el navegador igual bloqueó la ventana en blanco, lo intentamos así.
-      window.open(data.signedUrl, "_blank");
-    }
+    setPreview({ label, url: data.signedUrl, path });
   };
 
   return (
@@ -490,7 +484,7 @@ function Movs() {
                     </Button>
                   )}
                   {soportesExtraQ.data?.map((s, i) => (
-                    <Button key={s.id} variant="outline" onClick={() => abrirArchivo(s.factura_path)}>
+                    <Button key={s.id} variant="outline" onClick={() => verArchivo(`Soporte adicional ${i + 1}`, s.factura_path)}>
                       <FileText className="h-4 w-4 mr-2" /> Soporte adicional {i + 1}
                     </Button>
                   ))}
@@ -502,6 +496,39 @@ function Movs() {
       </Dialog>
 
       <EditarMovimientoDialog movimiento={editItem} onClose={() => setEditItem(null)} />
+
+      <Dialog open={!!preview || cargandoPreview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{preview?.label ?? "Cargando..."}</DialogTitle>
+          </DialogHeader>
+          {cargandoPreview ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : preview ? (
+            <div className="space-y-3">
+              {/\.(jpe?g|png|webp|gif)$/i.test(preview.path) ? (
+                <img src={preview.url} alt={preview.label} className="w-full max-h-[70vh] object-contain rounded-md border" />
+              ) : /\.pdf$/i.test(preview.path) ? (
+                <iframe src={preview.url} title={preview.label} className="w-full h-[70vh] rounded-md border" />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No se puede previsualizar este tipo de archivo directamente.
+                </p>
+              )}
+              <a
+                href={preview.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-primary hover:underline"
+              >
+                Abrir en pestaña nueva / descargar
+              </a>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
