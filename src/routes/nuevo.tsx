@@ -624,7 +624,7 @@ function Nuevo() {
                 entregados a un empleado, quien aparece como beneficiario en el recibo de caja
                 menor. La contabilización se generará con base en los soportes agregados abajo.
               </div>
-              <Field label="Beneficiario (empleado a quien se le entregó el dinero) *">
+              <Field label="Beneficiario/quien realizó los pagos *">
                 <ProveedorPicker
                   value={beneficiarioId}
                   onChange={(id) => {

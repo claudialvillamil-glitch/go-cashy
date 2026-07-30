@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, TrendingDown, Receipt, AlertTriangle } from "lucide-react";
 import { getFondo, getMovimientos } from "@/lib/db";
+import { ultimoDiaHabilDelMes } from "@/lib/colombia-holidays";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -69,8 +70,13 @@ function Resumen() {
   const limite = fondo ? Number(fondo.limite_alerta_reembolso_pct) : 80;
   const alcanzoLimite = fondo ? pctReal >= limite : false;
   const hoy = new Date();
-  const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
-  const esCierreDeMes = hoy.getDate() >= ultimoDiaMes - 1;
+  const cierreHabil = ultimoDiaHabilDelMes(hoy.getFullYear(), hoy.getMonth());
+  const diaAntesCierre = new Date(cierreHabil);
+  diaAntesCierre.setDate(diaAntesCierre.getDate() - 1);
+  const esCierreDeMes =
+    hoy.getFullYear() === cierreHabil.getFullYear() &&
+    hoy.getMonth() === cierreHabil.getMonth() &&
+    hoy.getDate() >= diaAntesCierre.getDate();
   const hayPendientes = gastosPendientes.length > 0;
   const mostrarAviso = hayPendientes && (alcanzoLimite || esCierreDeMes);
 
@@ -95,11 +101,12 @@ function Resumen() {
         <div className="flex items-start gap-3 p-4 rounded-lg border border-warning/40 bg-warning/10">
           <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium">Es momento de solicitar el reembolso del fondo</p>
+            <p className="text-sm font-medium">Recuerda realizar el reembolso del fondo por cierre de mes</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {alcanzoLimite &&
                 `Los gastos pendientes ya llegaron al ${pctReal.toFixed(0)}% del fondo (límite: ${limite}%). `}
-              {esCierreDeMes && "Estamos cerca del cierre de mes. "}
+              {esCierreDeMes &&
+                `El cierre de mes (día hábil) es el ${cierreHabil.getDate()}. `}
               Tú decides cuándo crear la solicitud.
             </p>
           </div>
