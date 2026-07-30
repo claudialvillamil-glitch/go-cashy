@@ -447,38 +447,68 @@ export function exportSaldoPendientesPDF(
 }
 
 // Misma información que exportSaldoPendientesPDF ("Reporte actual CM"), pero
-// en Excel.
+// en Excel — todo en una sola hoja, con un diseño más claro.
 export function exportSaldoPendientesExcel(movsPendientes: Movimiento[], fondo: FondoConfig) {
   const totalGastos = movsPendientes.reduce((s, m) => s + Number(m.total), 0);
   const saldoActual = Number(fondo.monto_asignado) - totalGastos;
+  const filas = [...movsPendientes].sort(
+    (a, b) => a.fecha.localeCompare(b.fecha) || a.consecutivo - b.consecutivo,
+  );
+
+  const headerRow = 9; // fila (1-indexada) donde va el encabezado de la tabla
+  const aoa: (string | number)[][] = [
+    ["REPORTE DE SALDO Y GASTOS PENDIENTES POR REEMBOLSAR"],
+    [`Fecha del reporte: ${fmtDate(new Date())}`],
+    [],
+    ["Monto del fondo", "Monto de gastos pendientes", "Saldo actual"],
+    [Number(fondo.monto_asignado), totalGastos, saldoActual],
+    [],
+    [`Gastos pendientes por reembolsar (${filas.length})`],
+    [],
+    ["Fecha", "N° Recibo", "NIT/Identif. proveedor", "Nombre proveedor", "Concepto", "N° Factura", "Valor pagado"],
+    ...filas.map((m) => [
+      fmtDate(m.fecha),
+      pad(m.consecutivo),
+      m.proveedores?.nit ?? "",
+      m.proveedores?.nombre ?? "",
+      m.conceptos?.nombre ?? "",
+      m.numero_factura ?? "",
+      Number(m.total),
+    ]),
+    ["", "", "", "", "", "TOTAL PENDIENTE", totalGastos],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Título y bloque de resumen ocupando varias columnas.
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+    { s: { r: 6, c: 0 }, e: { r: 6, c: 6 } },
+  ];
+  ws["!cols"] = [
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 20 },
+    { wch: 32 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 16 },
+  ];
+
+  // Formato de moneda para los valores numéricos (fondo/gastos/saldo y la
+  // columna de valor pagado, incluida la fila de total).
+  const celdasMoneda = [
+    "A5", "B5", "C5",
+    ...filas.map((_, i) => `G${headerRow + 1 + i}`),
+    `G${headerRow + filas.length + 1}`,
+  ];
+  celdasMoneda.forEach((addr) => {
+    if (ws[addr]) ws[addr].z = '"$"#,##0';
+  });
 
   const wb = XLSX.utils.book_new();
-
-  const resumen = [
-    ["REPORTE DE SALDO Y GASTOS PENDIENTES POR REEMBOLSAR", ""],
-    ["Fecha del reporte", fmtDate(new Date())],
-    ["", ""],
-    ["Monto del fondo", Number(fondo.monto_asignado)],
-    ["Monto de gastos pendientes", totalGastos],
-    ["Saldo actual", saldoActual],
-  ];
-  const wsR = XLSX.utils.aoa_to_sheet(resumen);
-  XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
-
-  const filas = [...movsPendientes]
-    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.consecutivo - b.consecutivo)
-    .map((m) => ({
-      Fecha: fmtDate(m.fecha),
-      "N° Recibo": pad(m.consecutivo),
-      "NIT/Identif. proveedor": m.proveedores?.nit ?? "",
-      "Nombre proveedor": m.proveedores?.nombre ?? "",
-      Concepto: m.conceptos?.nombre ?? "",
-      "N° Factura": m.numero_factura ?? "",
-      "Valor pagado": Number(m.total),
-    }));
-  const wsD = XLSX.utils.json_to_sheet(filas);
-  XLSX.utils.book_append_sheet(wb, wsD, "Gastos pendientes");
-
+  XLSX.utils.book_append_sheet(wb, ws, "Saldo y pendientes");
   XLSX.writeFile(wb, `saldo-y-pendientes-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
