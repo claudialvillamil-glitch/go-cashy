@@ -600,6 +600,8 @@ function NuevaSolicitud({
           observaciones: obs || null,
           estado: "pagado",
           arqueo,
+          monto_fondo_momento: montoTotalFondo,
+          total_gastos_momento: totalPendienteFondo,
         })
         .select("*")
         .single();
@@ -933,16 +935,31 @@ function DetalleReembolso({
         <DialogHeader>
           <DialogTitle>Reporte de Reembolso de Caja Menor</DialogTitle>
         </DialogHeader>
-        {reembolso && fondoQ.data && (
-          <div className="grid grid-cols-3 gap-3 p-3 rounded-md bg-muted/50 border">
-            <Info label="Monto fondo" value={fmtMoney(montoTotalFondo)} />
-            <Info label="Total gastos" value={fmtMoney(totalGastosFondo)} />
-            <Info
-              label="Total disponible"
-              value={fmtMoney(montoTotalFondo - totalGastosFondo)}
-            />
-          </div>
-        )}
+        {reembolso && fondoQ.data && (() => {
+          // Preferimos la "foto" guardada al momento de crear el reembolso.
+          // Si es un reembolso viejo (de antes de este cambio) y no tiene
+          // foto guardada, usamos los valores actuales como respaldo.
+          const montoHistorico = reembolso.monto_fondo_momento ?? montoTotalFondo;
+          const gastosHistorico = reembolso.total_gastos_momento ?? totalGastosFondo;
+          const esHistorico = reembolso.monto_fondo_momento != null;
+          return (
+            <div className="space-y-1">
+              <div className="grid grid-cols-3 gap-3 p-3 rounded-md bg-muted/50 border">
+                <Info label="Monto fondo" value={fmtMoney(montoHistorico)} />
+                <Info label="Total gastos" value={fmtMoney(gastosHistorico)} />
+                <Info
+                  label="Total disponible"
+                  value={fmtMoney(montoHistorico - gastosHistorico)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {esHistorico
+                  ? `Estos valores reflejan cómo estaba el fondo el ${fmtDate(reembolso.fecha)}, cuando se creó este reembolso.`
+                  : "Este reembolso es de antes de que empezáramos a guardar el histórico, así que se muestran los valores actuales del fondo."}
+              </p>
+            </div>
+          );
+        })()}
         {reembolso && (
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-3">

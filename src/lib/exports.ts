@@ -56,8 +56,9 @@ export function exportReembolsoPDF(
   doc.setFontSize(16);
   doc.text("Reporte de Reembolso de Caja Menor", 105, 18, { align: "center" });
 
-  const gastosFondo = totalGastosFondo ?? reembolso.total;
-  const saldoDisponible = Number(fondo.monto_asignado) - gastosFondo;
+  const gastosFondo = reembolso.total_gastos_momento ?? totalGastosFondo ?? reembolso.total;
+  const montoFondo = reembolso.monto_fondo_momento ?? Number(fondo.monto_asignado);
+  const saldoDisponible = montoFondo - gastosFondo;
   doc.setFontSize(10);
   doc.setFillColor(240, 244, 250);
   doc.rect(14, 32, 182, 16, "F");
@@ -66,7 +67,7 @@ export function exportReembolsoPDF(
   doc.text("Total gastos", 82, 38);
   doc.text("Total disponible", 144, 38);
   doc.setFont("helvetica", "normal");
-  doc.text(fmtMoney(fondo.monto_asignado), 20, 44);
+  doc.text(fmtMoney(montoFondo), 20, 44);
   doc.text(fmtMoney(gastosFondo), 82, 44);
   doc.text(fmtMoney(saldoDisponible), 144, 44);
 
@@ -203,13 +204,14 @@ export function exportReembolsoExcel(
 ) {
   const wb = XLSX.utils.book_new();
 
-  const gastosFondo = totalGastosFondo ?? reembolso.total;
-  const saldoDisponible = Number(fondo.monto_asignado) - gastosFondo;
+  const gastosFondo = reembolso.total_gastos_momento ?? totalGastosFondo ?? reembolso.total;
+  const montoFondo = reembolso.monto_fondo_momento ?? Number(fondo.monto_asignado);
+  const saldoDisponible = montoFondo - gastosFondo;
 
   // Hoja 1: Resumen del reporte
   const resumen = [
     ["REPORTE DE REEMBOLSO DE CAJA MENOR", ""],
-    ["Monto fondo", fondo.monto_asignado],
+    ["Monto fondo", montoFondo],
     ["Total gastos", gastosFondo],
     ["Total disponible", saldoDisponible],
     ["", ""],

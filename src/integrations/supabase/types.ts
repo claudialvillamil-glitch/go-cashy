@@ -718,10 +718,12 @@ export type Database = {
           fecha: string
           fecha_aprobacion: string | null
           id: string
+          monto_fondo_momento: number | null
           observaciones: string | null
           periodo_fin: string
           periodo_inicio: string
           total: number
+          total_gastos_momento: number | null
           updated_at: string
         }
         Insert: {
@@ -733,10 +735,12 @@ export type Database = {
           fecha?: string
           fecha_aprobacion?: string | null
           id?: string
+          monto_fondo_momento?: number | null
           observaciones?: string | null
           periodo_fin: string
           periodo_inicio: string
           total?: number
+          total_gastos_momento?: number | null
           updated_at?: string
         }
         Update: {
@@ -748,10 +752,12 @@ export type Database = {
           fecha?: string
           fecha_aprobacion?: string | null
           id?: string
+          monto_fondo_momento?: number | null
           observaciones?: string | null
           periodo_fin?: string
           periodo_inicio?: string
           total?: number
+          total_gastos_momento?: number | null
           updated_at?: string
         }
         Relationships: []
