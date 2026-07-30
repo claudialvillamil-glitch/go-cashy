@@ -153,8 +153,22 @@ function Movs() {
   };
 
   const abrirArchivo = async (path: string) => {
-    const { data } = await supabase.storage.from("facturas").createSignedUrl(path, 60 * 5);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    // Abrimos la pestaña ANTES de esperar la respuesta (de forma síncrona,
+    // como parte directa del clic) para que el navegador no la bloquee como
+    // pop-up — luego solo le cambiamos la dirección cuando llega la URL.
+    const nuevaPestana = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("facturas").createSignedUrl(path, 60 * 5);
+    if (error || !data?.signedUrl) {
+      nuevaPestana?.close();
+      toast.error("No se pudo abrir el archivo: " + (error?.message ?? "no se encontró la URL."));
+      return;
+    }
+    if (nuevaPestana) {
+      nuevaPestana.location.href = data.signedUrl;
+    } else {
+      // Si el navegador igual bloqueó la ventana en blanco, lo intentamos así.
+      window.open(data.signedUrl, "_blank");
+    }
   };
 
   return (
@@ -480,15 +494,6 @@ function Movs() {
                       <FileText className="h-4 w-4 mr-2" /> Soporte adicional {i + 1}
                     </Button>
                   ))}
-                  <Button
-                    variant="outline"
-                    onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-                  >
-                    <Printer className="h-4 w-4 mr-2" /> Imprimir recibo
-                  </Button>
-                  <Button onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}>
-                    <Download className="h-4 w-4 mr-2" /> Descargar recibo
-                  </Button>
                 </CardContent>
               </Card>
             </div>
