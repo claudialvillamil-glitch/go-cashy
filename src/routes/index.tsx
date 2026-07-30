@@ -118,11 +118,10 @@ function Resumen() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(montoTotalFondo)} tone="primary" />
         <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(totalPendiente)} tone="warning" />
         <StatCard icon={Wallet} label="Saldo disponible" value={fmtMoney(saldo)} tone="success" />
-        <StatCard icon={Receipt} label="Movimientos" value={String(movs.length)} tone="muted" />
       </div>
 
       <Card>
