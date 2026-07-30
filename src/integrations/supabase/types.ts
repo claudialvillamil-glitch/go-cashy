@@ -338,6 +338,38 @@ export type Database = {
           },
         ]
       }
+      movimiento_soportes: {
+        Row: {
+          created_at: string
+          factura_path: string
+          id: string
+          movimiento_id: string
+          orden: number
+        }
+        Insert: {
+          created_at?: string
+          factura_path: string
+          id?: string
+          movimiento_id: string
+          orden?: number
+        }
+        Update: {
+          created_at?: string
+          factura_path?: string
+          id?: string
+          movimiento_id?: string
+          orden?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimiento_soportes_movimiento_id_fkey"
+            columns: ["movimiento_id"]
+            isOneToOne: false
+            referencedRelation: "movimientos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movimientos: {
         Row: {
           agencia_id: string | null
@@ -791,6 +823,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_read_factura: { Args: { _name: string }; Returns: boolean }
+      can_write_factura: { Args: { _name: string }; Returns: boolean }
       get_my_agencia: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
       is_active_user: { Args: never; Returns: boolean }
