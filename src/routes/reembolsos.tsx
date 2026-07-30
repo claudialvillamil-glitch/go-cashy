@@ -70,16 +70,21 @@ function Page() {
   const qc = useQueryClient();
   const listQ = useQuery({ queryKey: ["reembolsos"], queryFn: getReembolsos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
-  const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
+  const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
+  const todosQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const puedeSolicitar = profileQ.data?.rol === "admin" || profileQ.data?.rol === "responsable";
   const esAdmin = profileQ.data?.rol === "admin";
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Reembolso | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
-  // Consistente con el Resumen: cuenta como pendiente todo lo que aún no se
-  // haya marcado "pagado" (así ya esté incluido en una solicitud en trámite).
-  const valorGastos = (pendQ.data ?? [])
+  // Valor a reembolsar: solo lo que aún NO está incluido en ninguna solicitud
+  // (para no volver a pedir plata ya solicitada anteriormente).
+  const valorGastos = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  // Saldo actual de caja: sí considera TODO lo no pagado (incluida cualquier
+  // solicitud ya radicada pero aún sin pagar), porque esa plata ya salió
+  // físicamente de la caja.
+  const totalNoPagado = (todosQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
     .reduce((s, m) => s + Number(m.total), 0);
 
@@ -144,7 +149,7 @@ function Page() {
             <div className="p-3 rounded-md bg-muted">
               <div className="text-xs text-muted-foreground">Saldo actual caja</div>
               <div className="text-lg font-semibold">
-                {fmtMoney(Number(fondoQ.data?.monto_asignado ?? 0) - valorGastos)}
+                {fmtMoney(Number(fondoQ.data?.monto_asignado ?? 0) - totalNoPagado)}
               </div>
             </div>
             <div className="p-3 rounded-md bg-primary text-primary-foreground">

@@ -42,23 +42,7 @@ function Resumen() {
 
   const fondo = fondoQ.data;
   const movs = movsQ.data ?? [];
-  const total = movs.filter((m) => m.estado !== "anulado").reduce((s, m) => s + Number(m.total), 0);
 
-  const MESES_CORTOS = [
-    "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-  ];
-  const gastosPorMesMap = new Map<string, { mes: string; total: number; orden: string }>();
-  movs
-    .filter((m) => m.estado !== "anulado")
-    .forEach((m) => {
-      const d = new Date(m.fecha + "T00:00:00");
-      const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const etiqueta = `${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
-      const actual = gastosPorMesMap.get(clave) ?? { mes: etiqueta, total: 0, orden: clave };
-      actual.total += Number(m.total);
-      gastosPorMesMap.set(clave, actual);
-    });
-  const gastosPorMes = [...gastosPorMesMap.values()].sort((a, b) => a.orden.localeCompare(b.orden));
   // El saldo disponible solo se ve afectado por gastos que aún no han sido
   // reembolsados. En cuanto una solicitud de reembolso se marca "pagado",
   // esos gastos ya no restan porque el fondo fue repuesto por la empresa.
@@ -66,6 +50,20 @@ function Resumen() {
   const totalPendiente = gastosPendientes.reduce((s, m) => s + Number(m.total), 0);
   const saldo = fondo ? Number(fondo.monto_asignado) - totalPendiente : 0;
   const pct = fondo ? Math.min(100, (totalPendiente / Number(fondo.monto_asignado)) * 100) : 0;
+
+  const MESES_CORTOS = [
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+  ];
+  const gastosPorMesMap = new Map<string, { mes: string; total: number; orden: string }>();
+  gastosPendientes.forEach((m) => {
+    const d = new Date(m.fecha + "T00:00:00");
+    const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const etiqueta = `${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
+    const actual = gastosPorMesMap.get(clave) ?? { mes: etiqueta, total: 0, orden: clave };
+    actual.total += Number(m.total);
+    gastosPorMesMap.set(clave, actual);
+  });
+  const gastosPorMes = [...gastosPorMesMap.values()].sort((a, b) => a.orden.localeCompare(b.orden));
 
   // Aviso de reembolso: cuando los gastos pendientes llegan al % configurado del
   // fondo, o cuando estamos en los últimos 2 días del mes (cierre de mes).
@@ -158,7 +156,7 @@ function Resumen() {
         <CardHeader>
           <CardTitle className="text-base">Gastos por mes</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Total histórico de gastos (incluye ya reembolsados): <span className="font-medium text-foreground">{fmtMoney(total)}</span>
+            Total gastos pendientes por reembolsar: <span className="font-medium text-foreground">{fmtMoney(totalPendiente)}</span>
           </p>
         </CardHeader>
         <CardContent>
