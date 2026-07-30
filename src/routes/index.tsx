@@ -9,15 +9,6 @@ import { getFondo, getMovimientos } from "@/lib/db";
 import { fmtMoney, fmtDate, pad } from "@/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,19 +42,25 @@ function Resumen() {
   const saldo = fondo ? Number(fondo.monto_asignado) - totalPendiente : 0;
   const pct = fondo ? Math.min(100, (totalPendiente / Number(fondo.monto_asignado)) * 100) : 0;
 
-  const MESES_CORTOS = [
-    "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-  ];
-  const gastosPorMesMap = new Map<string, { mes: string; total: number; orden: string }>();
-  gastosPendientes.forEach((m) => {
+  // Gastos del mes en curso (todos los del mes, excluyendo anulados —
+  // independiente de si ya se reembolsaron, porque esto es informativo del
+  // gasto real ejecutado este mes, no del saldo).
+  const hoyRef = new Date();
+  const gastosDelMes = movs.filter((m) => {
+    if (m.estado === "anulado") return false;
     const d = new Date(m.fecha + "T00:00:00");
-    const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const etiqueta = `${MESES_CORTOS[d.getMonth()]} ${d.getFullYear()}`;
-    const actual = gastosPorMesMap.get(clave) ?? { mes: etiqueta, total: 0, orden: clave };
-    actual.total += Number(m.total);
-    gastosPorMesMap.set(clave, actual);
+    return d.getFullYear() === hoyRef.getFullYear() && d.getMonth() === hoyRef.getMonth();
   });
-  const gastosPorMes = [...gastosPorMesMap.values()].sort((a, b) => a.orden.localeCompare(b.orden));
+  const totalGastosDelMes = gastosDelMes.reduce((s, m) => s + Number(m.total), 0);
+
+  const porConcepto = new Map<string, number>();
+  gastosDelMes.forEach((m) => {
+    const nombre = m.conceptos?.nombre ?? "Sin concepto";
+    porConcepto.set(nombre, (porConcepto.get(nombre) ?? 0) + Number(m.total));
+  });
+  const topConceptos = [...porConcepto.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   // Aviso de reembolso: cuando los gastos pendientes llegan al % configurado del
   // fondo, o cuando estamos en los últimos 2 días del mes (cierre de mes).
@@ -154,26 +151,26 @@ function Resumen() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Gastos por mes</CardTitle>
+          <CardTitle className="text-base">Gastos del mes actual</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Total gastos pendientes por reembolsar: <span className="font-medium text-foreground">{fmtMoney(totalPendiente)}</span>
+            Total gastado este mes: <span className="font-medium text-foreground">{fmtMoney(totalGastosDelMes)}</span>
           </p>
         </CardHeader>
         <CardContent>
-          {gastosPorMes.length === 0 ? (
-            <div className="text-center py-10 text-sm text-muted-foreground">
-              Aún no hay datos suficientes para graficar.
+          {topConceptos.length === 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">
+              Aún no hay gastos registrados este mes.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={gastosPorMes}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => fmtMoney(v)} width={90} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => fmtMoney(v)} />
-                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground uppercase">Conceptos más representativos</p>
+              {topConceptos.map(([nombre, valor]) => (
+                <div key={nombre} className="flex items-center justify-between text-sm border-b last:border-0 py-2">
+                  <span>{nombre}</span>
+                  <span className="font-medium">{fmtMoney(valor)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
