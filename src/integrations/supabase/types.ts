@@ -710,11 +710,13 @@ export type Database = {
       }
       reembolsos: {
         Row: {
+          aprobado_por: string | null
           arqueo: Json | null
           consecutivo: number
           created_at: string
           estado: string
           fecha: string
+          fecha_aprobacion: string | null
           id: string
           observaciones: string | null
           periodo_fin: string
@@ -723,11 +725,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aprobado_por?: string | null
           arqueo?: Json | null
           consecutivo?: number
           created_at?: string
           estado?: string
           fecha?: string
+          fecha_aprobacion?: string | null
           id?: string
           observaciones?: string | null
           periodo_fin: string
@@ -736,11 +740,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aprobado_por?: string | null
           arqueo?: Json | null
           consecutivo?: number
           created_at?: string
           estado?: string
           fecha?: string
+          fecha_aprobacion?: string | null
           id?: string
           observaciones?: string | null
           periodo_fin?: string

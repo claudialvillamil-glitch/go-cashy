@@ -101,6 +101,23 @@ function Page() {
     },
   });
 
+  const aprobar = useMutation({
+    mutationFn: async (id: string) => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth?.user) throw new Error("No se pudo identificar el usuario");
+      const { error } = await supabase
+        .from("reembolsos")
+        .update({ aprobado_por: auth.user.id, fecha_aprobacion: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reembolso aprobado");
+      qc.invalidateQueries({ queryKey: ["reembolsos"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const updateEstado = useMutation({
     mutationFn: async ({ id, estado }: { id: string; estado: string }) => {
       const { error } = await supabase.from("reembolsos").update({ estado }).eq("id", id);
@@ -185,6 +202,7 @@ function Page() {
                 <th className="px-4 py-3 font-medium">Periodo</th>
                 <th className="px-4 py-3 font-medium text-right">Total</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium">Aprobación</th>
                 <th className="px-4 py-3 font-medium text-right">Acciones</th>
               </tr>
             </thead>
@@ -206,11 +224,32 @@ function Page() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="solicitado">Solicitado</SelectItem>
                         <SelectItem value="aprobado">Aprobado</SelectItem>
                         <SelectItem value="pagado">Pagado</SelectItem>
                       </SelectContent>
                     </Select>
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.aprobado_por ? (
+                      <div className="text-xs">
+                        <Badge variant="secondary">Aprobado</Badge>
+                        <div className="text-muted-foreground mt-1">
+                          {r.aprobado_por_perfil?.nombre || r.aprobado_por_perfil?.email} ·{" "}
+                          {fmtDate(r.fecha_aprobacion)}
+                        </div>
+                      </div>
+                    ) : profileQ.data?.rol === "director_agencia" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => aprobar.mutate(r.id)}
+                        disabled={aprobar.isPending}
+                      >
+                        Aprobar
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Pendiente</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
@@ -559,7 +598,7 @@ function NuevaSolicitud({
           periodo_fin: perFin,
           total,
           observaciones: obs || null,
-          estado: "solicitado",
+          estado: "pagado",
           arqueo,
         })
         .select("*")
@@ -574,7 +613,10 @@ function NuevaSolicitud({
       return data as Reembolso;
     },
     onSuccess: (r) => {
-      toast.success(`Solicitud N° ${pad(r.consecutivo)} creada`);
+      toast.warning(
+        `Reembolso N° ${pad(r.consecutivo)} registrado como pagado. Es obligatorio gestionar el pago en cheque el día de hoy.`,
+        { duration: 12000 },
+      );
       qc.invalidateQueries();
       onOpenChange(false);
       setInicio("");

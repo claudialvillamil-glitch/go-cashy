@@ -184,6 +184,9 @@ export type Reembolso = {
   observaciones: string | null;
   created_at: string;
   arqueo: ArqueoCaja | null;
+  aprobado_por: string | null;
+  fecha_aprobacion: string | null;
+  aprobado_por_perfil?: { nombre: string; email: string } | null;
 };
 
 export type FondoConfig = {
@@ -282,7 +285,15 @@ export type Profile = {
   id: string;
   nombre: string;
   email: string;
-  rol: "pendiente" | "admin" | "responsable" | "contador" | "auditoria" | "analista_contable";
+  rol:
+    | "pendiente"
+    | "admin"
+    | "responsable"
+    | "contador"
+    | "auditoria"
+    | "analista_contable"
+    | "director_agencia"
+    | "auxiliar_contable";
   agencia_id: string | null;
   fondo_agencia_id: string | null;
   activo: boolean;
@@ -313,11 +324,11 @@ export async function getProfiles() {
 export async function getReembolsos() {
   const { data, error } = await supabase
     .from("reembolsos")
-    .select("*")
+    .select("*, aprobado_por_perfil:profiles!reembolsos_aprobado_por_fkey(nombre, email)")
     .order("fecha", { ascending: false })
     .order("consecutivo", { ascending: false });
   if (error) throw error;
-  return data as Reembolso[];
+  return data as unknown as Reembolso[];
 }
 
 export async function getMovimientosPendientes() {

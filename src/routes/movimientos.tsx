@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -328,141 +328,186 @@ function Movs() {
       </Card>
 
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Recibo N° {detail && pad(detail.consecutivo)}</DialogTitle>
+            <DialogTitle>Recibo N° {detail && pad(detail.consecutivo)} (vista de solo lectura)</DialogTitle>
           </DialogHeader>
           {detail && (
-            <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <Info label="Fecha" value={fmtDate(detail.fecha)} />
-                <Info label="Agencia" value={detail.agencias?.nombre ?? "—"} />
-                <Info label="Proveedor / Beneficiario" value={detail.proveedores?.nombre ?? ""} />
-                <Info label="NIT / Identificación" value={detail.proveedores?.nit ?? ""} />
-                <Info label="Concepto" value={detail.conceptos?.nombre ?? ""} />
-                <Info label="N° Factura" value={detail.numero_factura ?? "—"} />
-                <Info label="Factura electrónica" value={detail.factura_electronica ? "Sí" : "No"} />
-                <Info label="Varios soportes" value={detail.multi_soporte ? "Sí" : "No"} />
-              </div>
-              <div className="p-3 rounded-md bg-muted">
-                <div className="text-xs text-muted-foreground mb-1">Detalle</div>
-                <div>{detail.detalle || "—"}</div>
-              </div>
-              {detail.observaciones && (
-                <div className="p-3 rounded-md bg-muted">
-                  <div className="text-xs text-muted-foreground mb-1">Observaciones</div>
-                  <div>{detail.observaciones}</div>
-                </div>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Información del recibo</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <CampoLectura label="N° Recibo" value={pad(detail.consecutivo)} />
+                  <CampoLectura label="Fecha" value={fmtDate(detail.fecha)} />
+                  <CampoLectura label="Agencia" value={detail.agencias?.nombre ?? "—"} />
+                  <CampoLectura label="Varios soportes" value={detail.multi_soporte ? "Sí" : "No"} />
+                  {detail.multi_soporte && (
+                    <div className="md:col-span-2">
+                      <CampoLectura
+                        label="Beneficiario (empleado a quien se le entregó el dinero)"
+                        value={detail.proveedores?.nombre ?? ""}
+                      />
+                    </div>
+                  )}
+                  <div className="md:col-span-2">
+                    <CampoLectura label="Detalle" value={detail.detalle ?? ""} />
+                  </div>
+                  {detail.observaciones && (
+                    <div className="md:col-span-2">
+                      <CampoLectura label="Observaciones" value={detail.observaciones} />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {!detail.multi_soporte ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Proveedor y valores</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <CampoLectura label="Proveedor" value={detail.proveedores?.nombre ?? ""} />
+                    </div>
+                    <CampoLectura label="NIT / Identificación" value={detail.proveedores?.nit ?? ""} />
+                    <CampoLectura label="Concepto" value={detail.conceptos?.nombre ?? ""} />
+                    <CampoLectura label="N° Factura" value={detail.numero_factura ?? "—"} />
+                    <CampoLectura label="Factura electrónica" value={detail.factura_electronica ? "Sí" : "No"} />
+                    <CampoLectura label="Subtotal" value={fmtMoney(detail.subtotal)} />
+                    <CampoLectura label="IVA" value={fmtMoney(detail.iva)} />
+                    <CampoLectura label="Impoconsumo" value={fmtMoney(detail.impoconsumo)} />
+                    <CampoLectura label="Retención en la fuente" value={fmtMoney(detail.retencion)} />
+                    <CampoLectura label="ReteICA" value={fmtMoney(detail.reteica)} />
+                    <CampoLectura label="ReteIVA" value={fmtMoney(detail.reteiva)} />
+                    <div className="md:col-span-2 flex justify-between items-center p-3 rounded-md bg-primary text-primary-foreground">
+                      <span className="text-sm">Total</span>
+                      <span className="font-semibold">{fmtMoney(detail.total)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Soportes del recibo ({detail.movimiento_items?.length ?? 0})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {[...(detail.movimiento_items ?? [])]
+                      .sort((a, b) => a.orden - b.orden)
+                      .map((it, i) => (
+                        <div key={i} className="p-4 rounded-lg border space-y-3">
+                          <div className="text-xs font-medium text-muted-foreground">
+                            Soporte #{i + 1}
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <CampoLectura label="Proveedor" value={it.proveedores?.nombre ?? ""} />
+                            <CampoLectura label="Concepto" value={it.conceptos?.nombre ?? ""} />
+                            <CampoLectura label="N° Factura" value={it.numero_factura ?? "—"} />
+                            <CampoLectura label="Factura electrónica" value={it.factura_electronica ? "Sí" : "No"} />
+                            <div className="md:col-span-2">
+                              <CampoLectura label="Detalle" value={it.detalle ?? ""} />
+                            </div>
+                            <CampoLectura label="Subtotal" value={fmtMoney(it.subtotal)} />
+                            <CampoLectura label="IVA" value={fmtMoney(it.iva)} />
+                            <CampoLectura label="Total del soporte" value={fmtMoney(it.total)} />
+                          </div>
+                        </div>
+                      ))}
+                    <div className="flex justify-between items-center p-3 rounded-md bg-primary text-primary-foreground">
+                      <span className="text-sm">Total del recibo</span>
+                      <span className="font-semibold">{fmtMoney(detail.total)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
-              {detail.multi_soporte && detail.movimiento_items && detail.movimiento_items.length > 0 && (
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase mb-2">
-                    Soportes incluidos ({detail.movimiento_items.length})
-                  </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Asiento contable</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <table className="w-full text-xs border">
                     <thead className="bg-muted">
                       <tr>
-                        <th className="px-2 py-1.5 text-left">Proveedor</th>
-                        <th className="px-2 py-1.5 text-left">Concepto</th>
-                        <th className="px-2 py-1.5 text-left">Factura</th>
-                        <th className="px-2 py-1.5 text-left">Detalle</th>
-                        <th className="px-2 py-1.5 text-right">Total</th>
+                        <th className="px-2 py-1.5 text-left">Cuenta</th>
+                        <th className="px-2 py-1.5 text-left">Descripción</th>
+                        <th className="px-2 py-1.5 text-right">Débito</th>
+                        <th className="px-2 py-1.5 text-right">Crédito</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {[...detail.movimiento_items]
-                        .sort((a, b) => a.orden - b.orden)
-                        .map((it, i) => (
-                          <tr key={i} className="border-t">
-                            <td className="px-2 py-1.5">{it.proveedores?.nombre ?? ""}</td>
-                            <td className="px-2 py-1.5">{it.conceptos?.nombre ?? ""}</td>
-                            <td className="px-2 py-1.5">{it.numero_factura ?? "—"}</td>
-                            <td className="px-2 py-1.5">{it.detalle ?? "—"}</td>
-                            <td className="px-2 py-1.5 text-right">{fmtMoney(it.total)}</td>
-                          </tr>
-                        ))}
+                      {(() => {
+                        const { debitos, creditos } = computeAsiento(detail, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
+                        return [
+                          ...debitos.map((d, i) => (
+                            <tr key={"d" + i} className="border-t">
+                              <td className="px-2 py-1.5 font-mono">{d.cuenta}</td>
+                              <td className="px-2 py-1.5">{d.descripcion}</td>
+                              <td className="px-2 py-1.5 text-right">{fmtMoney(d.valor)}</td>
+                              <td className="px-2 py-1.5"></td>
+                            </tr>
+                          )),
+                          ...creditos.map((c, i) => (
+                            <tr key={"c" + i} className="border-t">
+                              <td className="px-2 py-1.5 font-mono">{c.cuenta}</td>
+                              <td className="px-2 py-1.5">{c.descripcion}</td>
+                              <td className="px-2 py-1.5"></td>
+                              <td className="px-2 py-1.5 text-right">{fmtMoney(c.valor)}</td>
+                            </tr>
+                          )),
+                        ];
+                      })()}
                     </tbody>
                   </table>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <Info label="Subtotal" value={fmtMoney(detail.subtotal)} />
-                <Info label="IVA" value={fmtMoney(detail.iva)} />
-                <Info label="Impoconsumo" value={fmtMoney(detail.impoconsumo)} />
-                <Info label="Rete Fuente" value={fmtMoney(detail.retencion)} />
-                <Info label="ReteICA" value={fmtMoney(detail.reteica)} />
-                <Info label="ReteIVA" value={fmtMoney(detail.reteiva)} />
-              </div>
-              <div className="flex justify-between p-3 rounded-md bg-primary text-primary-foreground">
-                <span>Total</span>
-                <span className="font-semibold">{fmtMoney(detail.total)}</span>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div>
-                <div className="text-xs text-muted-foreground uppercase mb-2">Asiento contable</div>
-                <table className="w-full text-xs border">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left">Cuenta</th>
-                      <th className="px-2 py-1.5 text-left">Descripción</th>
-                      <th className="px-2 py-1.5 text-right">Débito</th>
-                      <th className="px-2 py-1.5 text-right">Crédito</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const { debitos, creditos } = computeAsiento(detail, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
-                      return [
-                        ...debitos.map((d, i) => (
-                          <tr key={"d" + i} className="border-t">
-                            <td className="px-2 py-1.5 font-mono">{d.cuenta}</td>
-                            <td className="px-2 py-1.5">{d.descripcion}</td>
-                            <td className="px-2 py-1.5 text-right">{fmtMoney(d.valor)}</td>
-                            <td className="px-2 py-1.5"></td>
-                          </tr>
-                        )),
-                        ...creditos.map((c, i) => (
-                          <tr key={"c" + i} className="border-t">
-                            <td className="px-2 py-1.5 font-mono">{c.cuenta}</td>
-                            <td className="px-2 py-1.5">{c.descripcion}</td>
-                            <td className="px-2 py-1.5"></td>
-                            <td className="px-2 py-1.5 text-right">{fmtMoney(c.valor)}</td>
-                          </tr>
-                        )),
-                      ];
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                {detail.factura_path && (
-                  <Button variant="outline" onClick={() => abrirFactura(detail)}>
-                    <FileText className="h-4 w-4 mr-2" /> Ver factura
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Soporte documental</CardTitle>
+                </CardHeader>
+                <CardContent className="flex gap-2 flex-wrap">
+                  {detail.factura_path && (
+                    <Button variant="outline" onClick={() => abrirFactura(detail)}>
+                      <FileText className="h-4 w-4 mr-2" /> Ver factura
+                    </Button>
+                  )}
+                  {soportesExtraQ.data?.map((s, i) => (
+                    <Button key={s.id} variant="outline" onClick={() => abrirArchivo(s.factura_path)}>
+                      <FileText className="h-4 w-4 mr-2" /> Soporte adicional {i + 1}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="outline"
+                    onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
+                  >
+                    <Printer className="h-4 w-4 mr-2" /> Imprimir recibo
                   </Button>
-                )}
-                {soportesExtraQ.data?.map((s, i) => (
-                  <Button key={s.id} variant="outline" onClick={() => abrirArchivo(s.factura_path)}>
-                    <FileText className="h-4 w-4 mr-2" /> Soporte adicional {i + 1}
+                  <Button onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}>
+                    <Download className="h-4 w-4 mr-2" /> Descargar recibo
                   </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}
-                >
-                  <Printer className="h-4 w-4 mr-2" /> Imprimir recibo
-                </Button>
-                <Button onClick={() => fondoQ.data && exportReciboPDF(detail, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)}>
-                  <Download className="h-4 w-4 mr-2" /> Descargar recibo
-                </Button>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
       <EditarMovimientoDialog movimiento={editItem} onClose={() => setEditItem(null)} />
+    </div>
+  );
+}
+
+function CampoLectura({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="flex min-h-10 w-full items-center rounded-md border border-input bg-muted/40 px-3 py-2 text-sm">
+        {value || "—"}
+      </div>
     </div>
   );
 }

@@ -30,9 +30,11 @@ const ROLES = [
   { value: "pendiente", label: "Pendiente" },
   { value: "admin", label: "Administrador" },
   { value: "responsable", label: "Responsable de agencia" },
+  { value: "director_agencia", label: "Director de agencia" },
   { value: "contador", label: "Contador (solo lectura)" },
   { value: "auditoria", label: "Gerencia/Auditoría (solo lectura)" },
   { value: "analista_contable", label: "Analista contable (solo lectura)" },
+  { value: "auxiliar_contable", label: "Auxiliar contable (solo lectura)" },
 ];
 
 function Usuarios() {
@@ -64,7 +66,8 @@ function Usuarios() {
         <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
         <p className="text-sm text-muted-foreground">
           Activa las cuentas nuevas y asigna el rol y la agencia de cada persona. Los
-          "Responsables de agencia" solo pueden trabajar en la agencia que les asignes aquí.
+          "Responsables de agencia" y "Directores de agencia" solo trabajan/consultan la
+          agencia que les asignes aquí.
         </p>
       </header>
 
@@ -119,7 +122,7 @@ function Usuarios() {
                           patch: { agencia_id: v === "ninguna" ? null : v },
                         })
                       }
-                      disabled={p.rol !== "responsable"}
+                      disabled={p.rol !== "responsable" && p.rol !== "director_agencia"}
                     >
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Sin agencia" />

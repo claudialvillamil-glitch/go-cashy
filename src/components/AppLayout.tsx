@@ -47,11 +47,11 @@ const nav = [
   { to: "/nuevo", label: "Nuevo recibo", icon: PlusCircle, roles: ["admin", "responsable"] },
   { to: "/movimientos", label: "Movimientos", icon: ListChecks, roles: undefined },
   { to: "/reembolsos", label: "Reembolsos", icon: Receipt, roles: undefined },
-  { to: "/contabilidad", label: "Contabilidad", icon: Calculator, roles: ["admin", "contador", "auditoria", "analista_contable"] },
+  { to: "/contabilidad", label: "Contabilidad", icon: Calculator, roles: ["admin", "contador", "auditoria", "analista_contable", "auxiliar_contable"] },
   { to: "/proveedores", label: "Proveedores", icon: Users, roles: undefined },
   { to: "/conceptos", label: "Conceptos", icon: Tags, roles: ["admin"] },
   { to: "/usuarios", label: "Usuarios", icon: UserCog, roles: ["admin"] },
-  { to: "/configuracion", label: "Configuración", icon: Settings, roles: ["admin", "contador", "analista_contable"] },
+  { to: "/configuracion", label: "Configuración", icon: Settings, roles: ["admin", "contador", "analista_contable", "auxiliar_contable"] },
 ] as const;
 
 const ROL_LABEL: Record<string, string> = {
@@ -60,6 +60,8 @@ const ROL_LABEL: Record<string, string> = {
   contador: "Contador",
   auditoria: "Gerencia/Auditoría",
   analista_contable: "Analista contable",
+  director_agencia: "Director de agencia",
+  auxiliar_contable: "Auxiliar contable",
   pendiente: "Pendiente de activación",
 };
 
@@ -170,7 +172,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const navFiltrado = nav.filter((n) => !n.roles || (n.roles as readonly string[]).includes(profile.rol));
 
-  const ROLES_SELECTOR_OPCIONAL = ["admin", "contador", "analista_contable"];
+  const ROLES_SELECTOR_OPCIONAL = ["admin", "contador", "analista_contable", "auxiliar_contable"];
+  const ROLES_AGENCIA_FIJA = ["responsable", "director_agencia"];
   const tieneSelectorOpcional = ROLES_SELECTOR_OPCIONAL.includes(profile.rol);
   const necesitaElegirAgencia = profile.rol === "auditoria" && !agenciaSesion;
 
@@ -190,10 +193,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   };
 
-  const nombreAgenciaMostrado =
-    profile.rol === "responsable"
-      ? profile.agencias?.nombre ?? "Sin agencia asignada"
-      : agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? null;
+  const nombreAgenciaMostrado = ROLES_AGENCIA_FIJA.includes(profile.rol)
+    ? profile.agencias?.nombre ?? "Sin agencia asignada"
+    : agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? null;
 
   return (
     <div className="flex min-h-screen bg-background">
