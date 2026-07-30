@@ -59,7 +59,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // Una vez que el perfil se cargó bien una vez, lo dejamos guardado y lo
   // seguimos mostrando aunque una recarga de fondo tarde o falle
   // momentáneamente — así el menú no "parpadea" ni desaparece solo.
-  const [perfilEstable, setPerfilEstable] = useState<Profile | null>(null);
+  const [perfilEstable, setPerfilEstable] = useState<Profile | null>(
+    () => (profileQ.data as Profile) ?? null,
+  );
   useEffect(() => {
     if (profileQ.data) setPerfilEstable(profileQ.data as Profile);
   }, [profileQ.data]);

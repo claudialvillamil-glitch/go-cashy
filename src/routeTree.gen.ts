@@ -9,55 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UsuariosRouteImport } from './routes/usuarios'
-import { Route as ReembolsosRouteImport } from './routes/reembolsos'
-import { Route as ProveedoresRouteImport } from './routes/proveedores'
-import { Route as NuevoRouteImport } from './routes/nuevo'
-import { Route as MovimientosRouteImport } from './routes/movimientos'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ContabilidadRouteImport } from './routes/contabilidad'
-import { Route as ConfiguracionRouteImport } from './routes/configuracion'
-import { Route as ConceptosRouteImport } from './routes/conceptos'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConceptosRouteImport } from './routes/conceptos'
+import { Route as ConfiguracionRouteImport } from './routes/configuracion'
+import { Route as ContabilidadRouteImport } from './routes/contabilidad'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MovimientosRouteImport } from './routes/movimientos'
+import { Route as NuevoRouteImport } from './routes/nuevo'
+import { Route as ProveedoresRouteImport } from './routes/proveedores'
+import { Route as ReembolsosRouteImport } from './routes/reembolsos'
+import { Route as UsuariosRouteImport } from './routes/usuarios'
 
-const UsuariosRoute = UsuariosRouteImport.update({
-  id: '/usuarios',
-  path: '/usuarios',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReembolsosRoute = ReembolsosRouteImport.update({
-  id: '/reembolsos',
-  path: '/reembolsos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProveedoresRoute = ProveedoresRouteImport.update({
-  id: '/proveedores',
-  path: '/proveedores',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NuevoRoute = NuevoRouteImport.update({
-  id: '/nuevo',
-  path: '/nuevo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MovimientosRoute = MovimientosRouteImport.update({
-  id: '/movimientos',
-  path: '/movimientos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContabilidadRoute = ContabilidadRouteImport.update({
-  id: '/contabilidad',
-  path: '/contabilidad',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfiguracionRoute = ConfiguracionRouteImport.update({
-  id: '/configuracion',
-  path: '/configuracion',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConceptosRoute = ConceptosRouteImport.update({
@@ -65,9 +30,44 @@ const ConceptosRoute = ConceptosRouteImport.update({
   path: '/conceptos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ConfiguracionRoute = ConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContabilidadRoute = ContabilidadRouteImport.update({
+  id: '/contabilidad',
+  path: '/contabilidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovimientosRoute = MovimientosRouteImport.update({
+  id: '/movimientos',
+  path: '/movimientos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NuevoRoute = NuevoRouteImport.update({
+  id: '/nuevo',
+  path: '/nuevo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProveedoresRoute = ProveedoresRouteImport.update({
+  id: '/proveedores',
+  path: '/proveedores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReembolsosRoute = ReembolsosRouteImport.update({
+  id: '/reembolsos',
+  path: '/reembolsos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsuariosRoute = UsuariosRouteImport.update({
+  id: '/usuarios',
+  path: '/usuarios',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -162,60 +162,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/usuarios': {
-      id: '/usuarios'
-      path: '/usuarios'
-      fullPath: '/usuarios'
-      preLoaderRoute: typeof UsuariosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reembolsos': {
-      id: '/reembolsos'
-      path: '/reembolsos'
-      fullPath: '/reembolsos'
-      preLoaderRoute: typeof ReembolsosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/proveedores': {
-      id: '/proveedores'
-      path: '/proveedores'
-      fullPath: '/proveedores'
-      preLoaderRoute: typeof ProveedoresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/nuevo': {
-      id: '/nuevo'
-      path: '/nuevo'
-      fullPath: '/nuevo'
-      preLoaderRoute: typeof NuevoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/movimientos': {
-      id: '/movimientos'
-      path: '/movimientos'
-      fullPath: '/movimientos'
-      preLoaderRoute: typeof MovimientosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contabilidad': {
-      id: '/contabilidad'
-      path: '/contabilidad'
-      fullPath: '/contabilidad'
-      preLoaderRoute: typeof ContabilidadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracion': {
-      id: '/configuracion'
-      path: '/configuracion'
-      fullPath: '/configuracion'
-      preLoaderRoute: typeof ConfiguracionRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/conceptos': {
@@ -225,11 +176,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConceptosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/configuracion': {
+      id: '/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof ConfiguracionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contabilidad': {
+      id: '/contabilidad'
+      path: '/contabilidad'
+      fullPath: '/contabilidad'
+      preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movimientos': {
+      id: '/movimientos'
+      path: '/movimientos'
+      fullPath: '/movimientos'
+      preLoaderRoute: typeof MovimientosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nuevo': {
+      id: '/nuevo'
+      path: '/nuevo'
+      fullPath: '/nuevo'
+      preLoaderRoute: typeof NuevoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proveedores': {
+      id: '/proveedores'
+      path: '/proveedores'
+      fullPath: '/proveedores'
+      preLoaderRoute: typeof ProveedoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reembolsos': {
+      id: '/reembolsos'
+      path: '/reembolsos'
+      fullPath: '/reembolsos'
+      preLoaderRoute: typeof ReembolsosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usuarios': {
+      id: '/usuarios'
+      path: '/usuarios'
+      fullPath: '/usuarios'
+      preLoaderRoute: typeof UsuariosRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -250,3 +250,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
