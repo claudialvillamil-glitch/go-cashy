@@ -18,6 +18,7 @@ import { Route as MovimientosRouteImport } from './routes/movimientos'
 import { Route as NuevoRouteImport } from './routes/nuevo'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as ReembolsosRouteImport } from './routes/reembolsos'
+import { Route as RestablecerRouteImport } from './routes/restablecer'
 import { Route as UsuariosRouteImport } from './routes/usuarios'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const ReembolsosRoute = ReembolsosRouteImport.update({
   path: '/reembolsos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RestablecerRoute = RestablecerRouteImport.update({
+  id: '/restablecer',
+  path: '/restablecer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsuariosRoute = UsuariosRouteImport.update({
   id: '/usuarios',
   path: '/usuarios',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
   '/reembolsos': typeof ReembolsosRoute
+  '/restablecer': typeof RestablecerRoute
   '/usuarios': typeof UsuariosRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
   '/reembolsos': typeof ReembolsosRoute
+  '/restablecer': typeof RestablecerRoute
   '/usuarios': typeof UsuariosRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/nuevo': typeof NuevoRoute
   '/proveedores': typeof ProveedoresRoute
   '/reembolsos': typeof ReembolsosRoute
+  '/restablecer': typeof RestablecerRoute
   '/usuarios': typeof UsuariosRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/nuevo'
     | '/proveedores'
     | '/reembolsos'
+    | '/restablecer'
     | '/usuarios'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/nuevo'
     | '/proveedores'
     | '/reembolsos'
+    | '/restablecer'
     | '/usuarios'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/nuevo'
     | '/proveedores'
     | '/reembolsos'
+    | '/restablecer'
     | '/usuarios'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   NuevoRoute: typeof NuevoRoute
   ProveedoresRoute: typeof ProveedoresRoute
   ReembolsosRoute: typeof ReembolsosRoute
+  RestablecerRoute: typeof RestablecerRoute
   UsuariosRoute: typeof UsuariosRoute
 }
 
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReembolsosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/restablecer': {
+      id: '/restablecer'
+      path: '/restablecer'
+      fullPath: '/restablecer'
+      preLoaderRoute: typeof RestablecerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/usuarios': {
       id: '/usuarios'
       path: '/usuarios'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   NuevoRoute: NuevoRoute,
   ProveedoresRoute: ProveedoresRoute,
   ReembolsosRoute: ReembolsosRoute,
+  RestablecerRoute: RestablecerRoute,
   UsuariosRoute: UsuariosRoute,
 }
 export const routeTree = rootRouteImport

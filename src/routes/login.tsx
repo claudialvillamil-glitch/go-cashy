@@ -17,7 +17,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [modo, setModo] = useState<"login" | "registro">("login");
+  const [modo, setModo] = useState<"login" | "registro" | "recuperar">("login");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,6 +31,15 @@ function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate({ to: "/" });
+      } else if (modo === "recuperar") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/restablecer`,
+        });
+        if (error) throw error;
+        toast.success(
+          "Si el correo está registrado, te enviamos un enlace para restablecer la contraseña. Revisa tu bandeja (y la de spam).",
+        );
+        setModo("login");
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -61,7 +70,7 @@ function LoginPage() {
             <div className="font-semibold">Caja Menor</div>
           </div>
           <CardTitle className="text-lg">
-            {modo === "login" ? "Iniciar sesión" : "Crear cuenta"}
+            {modo === "login" ? "Iniciar sesión" : modo === "registro" ? "Crear cuenta" : "Recuperar contraseña"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -81,24 +90,35 @@ function LoginPage() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Contraseña</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
+            {modo !== "recuperar" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Contraseña</Label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {modo === "login" ? "Entrar" : "Crear cuenta"}
+              {modo === "login" ? "Entrar" : modo === "registro" ? "Crear cuenta" : "Enviar enlace de recuperación"}
             </Button>
           </form>
+          {modo === "login" && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:underline mt-3 block mx-auto"
+              onClick={() => setModo("recuperar")}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
           <button
             type="button"
-            className="text-xs text-muted-foreground hover:underline mt-4 block mx-auto"
+            className="text-xs text-muted-foreground hover:underline mt-2 block mx-auto"
             onClick={() => setModo(modo === "login" ? "registro" : "login")}
           >
             {modo === "login"
