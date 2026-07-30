@@ -455,12 +455,38 @@ function Nuevo() {
       const sumReteica = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.reteica) || 0), 0) : (parseFloat(reteica) || 0);
       const sumReteiva = multiSoporte ? items.reduce((a, i) => a + (parseFloat(i.reteiva) || 0), 0) : (parseFloat(reteiva) || 0);
 
+      // Consecutivo propio de este fondo/agencia (para el N° de recibo con
+      // prefijo, ej. "AR-0001"). Si no hay fondo específico, se cuenta por
+      // agencia sola.
+      let numeroFondo: number | null = null;
+      if (fondoAgenciaSel?.id) {
+        const { data: maxRow } = await supabase
+          .from("movimientos")
+          .select("numero_fondo")
+          .eq("fondo_agencia_id", fondoAgenciaSel.id)
+          .order("numero_fondo", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        numeroFondo = (maxRow?.numero_fondo ?? 0) + 1;
+      } else if (agencia) {
+        const { data: maxRow } = await supabase
+          .from("movimientos")
+          .select("numero_fondo")
+          .eq("agencia_id", agencia)
+          .is("fondo_agencia_id", null)
+          .order("numero_fondo", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        numeroFondo = (maxRow?.numero_fondo ?? 0) + 1;
+      }
+
       const { data, error } = await supabase
         .from("movimientos")
         .insert({
           fecha,
           agencia_id: agencia || null,
           fondo_agencia_id: fondoAgenciaSel?.id || null,
+          numero_fondo: numeroFondo,
           proveedor_id: proveedorId,
           concepto_id: conceptoId,
           detalle,

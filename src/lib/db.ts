@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { pad } from "./format";
 
 export type Proveedor = {
   id: string;
@@ -47,7 +48,7 @@ export type Concepto = {
   activo: boolean;
 };
 
-export type Agencia = { id: string; nombre: string; codigo: number | null; monto_asignado: number };
+export type Agencia = { id: string; nombre: string; codigo: number | null; monto_asignado: number; prefijo: string | null };
 
 export type TarifaRetencionRenta = {
   id: string;
@@ -105,6 +106,7 @@ export type Movimiento = {
   fecha: string;
   agencia_id: string | null;
   fondo_agencia_id: string | null;
+  numero_fondo: number | null;
   proveedor_id: string;
   concepto_id: string;
   detalle: string | null;
@@ -138,6 +140,18 @@ export type Movimiento = {
   movimiento_items?: MovimientoItem[];
   reembolsos?: { id: string; estado: string } | null;
 };
+
+// Número de recibo que se muestra al usuario: si el movimiento tiene un
+// fondo específico con prefijo configurado, usa "PREFIJO-0001" (consecutivo
+// propio de ese fondo); si no, usa el prefijo de la agencia; si tampoco hay
+// prefijo configurado, se ve el consecutivo interno de siempre (5 dígitos).
+export function folioRecibo(mov: Movimiento): string {
+  const prefijo = mov.fondos_agencia?.prefijo || mov.agencias?.prefijo;
+  if (prefijo && mov.numero_fondo != null) {
+    return `${prefijo}-${pad(mov.numero_fondo, 4)}`;
+  }
+  return pad(mov.consecutivo);
+}
 
 export type MovimientoItem = {
   id: string;
@@ -224,7 +238,7 @@ export async function getFondo(): Promise<FondoConfig> {
 export async function getMovimientos() {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*)), reembolsos(id, estado)")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*)), reembolsos(id, estado), fondos_agencia(*)")
     .order("fecha", { ascending: false })
     .order("consecutivo", { ascending: false });
   if (error) throw error;
@@ -258,6 +272,7 @@ export type FondoAgencia = {
   activo: boolean;
   responsable: string | null;
   identificacion_responsable: string | null;
+  prefijo: string | null;
 };
 
 export async function getFondosAgencia() {
@@ -339,7 +354,7 @@ export async function getReembolsos() {
 export async function getMovimientosPendientes() {
   const { data, error } = await supabase
     .from("movimientos")
-    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*))")
+    .select("*, proveedores(*), conceptos(*), agencias(*), movimiento_items(*, proveedores(*), conceptos(*)), fondos_agencia(*)")
     .is("reembolso_id", null)
     .neq("estado", "anulado")
     .order("fecha", { ascending: true });

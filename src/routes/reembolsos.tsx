@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout, useAgenciaFiltro } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,11 @@ import {
   getMovimientosPendientes,
   getMovimientos,
   getReembolsos,
+  getFondosAgencia,
+  folioRecibo,
   type Reembolso,
   type ReciboProvisional,
+  type Movimiento,
 } from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
 import { DENOMINACIONES } from "@/lib/arqueo";
@@ -69,7 +72,17 @@ function Page() {
   const qc = useQueryClient();
   const listQ = useQuery({ queryKey: ["reembolsos"], queryFn: getReembolsos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
-  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
+  const { agenciaId: agenciaFiltro, fondoAgenciaId: fondoFiltro } = useAgenciaFiltro();
+  const fondosAgQ = useQuery({
+    queryKey: ["fondos-agencia"],
+    queryFn: getFondosAgencia,
+    enabled: !!agenciaFiltro,
+  });
+  const montoTotalFondo = agenciaFiltro
+    ? (fondosAgQ.data ?? [])
+        .filter((f) => f.activo && f.agencia_id === agenciaFiltro && (!fondoFiltro || f.id === fondoFiltro))
+        .reduce((s, f) => s + Number(f.monto_asignado), 0)
+    : Number(fondoQ.data?.monto_asignado ?? 0);
   const pendQ = useQuery({ queryKey: ["movimientos-pendientes"], queryFn: getMovimientosPendientes });
   const todosQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
@@ -78,14 +91,17 @@ function Page() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<Reembolso | null>(null);
   const hoy = new Date().toISOString().slice(0, 10);
+  const coincideFiltro = (m: Movimiento) =>
+    !agenciaFiltro || (m.agencia_id === agenciaFiltro && (!fondoFiltro || m.fondo_agencia_id === fondoFiltro));
   // Valor a reembolsar: solo lo que aún NO está incluido en ninguna solicitud
   // (para no volver a pedir plata ya solicitada anteriormente).
-  const valorGastos = (pendQ.data ?? []).reduce((s, m) => s + Number(m.total), 0);
+  const valorGastos = (pendQ.data ?? []).filter(coincideFiltro).reduce((s, m) => s + Number(m.total), 0);
   // Saldo actual de caja: sí considera TODO lo no pagado (incluida cualquier
   // solicitud ya radicada pero aún sin pagar), porque esa plata ya salió
   // físicamente de la caja.
   const totalNoPagado = (todosQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .filter(coincideFiltro)
     .reduce((s, m) => s + Number(m.total), 0);
 
   const del = useMutation({
@@ -497,7 +513,19 @@ function NuevaSolicitud({
 }) {
   const qc = useQueryClient();
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
-  const montoTotalFondo = Number(fondoQ.data?.monto_asignado ?? 0);
+  const { agenciaId: agenciaFiltro, fondoAgenciaId: fondoFiltro } = useAgenciaFiltro();
+  const fondosAgQ = useQuery({
+    queryKey: ["fondos-agencia"],
+    queryFn: getFondosAgencia,
+    enabled: open && !!agenciaFiltro,
+  });
+  const montoTotalFondo = agenciaFiltro
+    ? (fondosAgQ.data ?? [])
+        .filter((f) => f.activo && f.agencia_id === agenciaFiltro && (!fondoFiltro || f.id === fondoFiltro))
+        .reduce((s, f) => s + Number(f.monto_asignado), 0)
+    : Number(fondoQ.data?.monto_asignado ?? 0);
+  const coincideFiltroGlobal = (m: Movimiento) =>
+    !agenciaFiltro || (m.agencia_id === agenciaFiltro && (!fondoFiltro || m.fondo_agencia_id === fondoFiltro));
   const pendQ = useQuery({
     queryKey: ["movimientos-pendientes"],
     queryFn: getMovimientosPendientes,
@@ -527,11 +555,12 @@ function NuevaSolicitud({
   const listaFiltrada = useMemo(() => {
     const all = pendQ.data ?? [];
     return all.filter((m) => {
+      if (!coincideFiltroGlobal(m)) return false;
       if (inicio && m.fecha < inicio) return false;
       if (fin && m.fecha > fin) return false;
       return true;
     });
-  }, [pendQ.data, inicio, fin]);
+  }, [pendQ.data, inicio, fin, agenciaFiltro, fondoFiltro]);
 
   const seleccionados = useMemo(
     () => listaFiltrada.filter((m) => seleccion[m.id] ?? true),
@@ -541,6 +570,7 @@ function NuevaSolicitud({
 
   const totalPendienteFondo = (todosNoPagadosQ.data ?? [])
     .filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado")
+    .filter(coincideFiltroGlobal)
     .reduce((s, m) => s + Number(m.total), 0);
   const saldoTeorico = montoTotalFondo - totalPendienteFondo;
 
@@ -687,7 +717,7 @@ function NuevaSolicitud({
                             }
                           />
                         </td>
-                        <td className="px-2 py-1.5 font-mono">{pad(m.consecutivo)}</td>
+                        <td className="px-2 py-1.5 font-mono">{folioRecibo(m)}</td>
                         <td className="px-2 py-1.5">{fmtDate(m.fecha)}</td>
                         <td className="px-2 py-1.5">{m.proveedores?.nombre}</td>
                         <td className="px-2 py-1.5 text-muted-foreground">{m.conceptos?.nombre}</td>
@@ -990,7 +1020,7 @@ function DetalleReembolso({
                 <tbody>
                   {(movsQ.data ?? []).map((m) => (
                     <tr key={m.id} className="border-t">
-                      <td className="px-2 py-1.5 font-mono">{pad(m.consecutivo)}</td>
+                      <td className="px-2 py-1.5 font-mono">{folioRecibo(m)}</td>
                       <td className="px-2 py-1.5">{fmtDate(m.fecha)}</td>
                       <td className="px-2 py-1.5">{m.proveedores?.nombre}</td>
                       <td className="px-2 py-1.5 text-muted-foreground">{m.conceptos?.nombre}</td>

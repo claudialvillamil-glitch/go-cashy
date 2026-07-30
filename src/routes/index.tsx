@@ -31,7 +31,7 @@ export const Route = createFileRoute("/")({
 function Resumen() {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
-  const agenciaFiltro = useAgenciaFiltro();
+  const { agenciaId: agenciaFiltro, fondoAgenciaId: fondoFiltro } = useAgenciaFiltro();
   const fondosAgenciaQ = useQuery({
     queryKey: ["fondos-agencia"],
     queryFn: getFondosAgencia,
@@ -42,11 +42,19 @@ function Resumen() {
   const todosLosMovs = movsQ.data ?? [];
   // Si hay una agencia elegida (fija por rol, o elegida opcionalmente arriba),
   // se filtra todo a esa agencia — incluyendo el monto del fondo, que pasa a
-  // ser la suma de los fondos configurados para esa agencia específica.
-  const movs = agenciaFiltro ? todosLosMovs.filter((m) => m.agencia_id === agenciaFiltro) : todosLosMovs;
+  // ser la suma de los fondos configurados para esa agencia específica. Si
+  // además se eligió un fondo puntual (cuando la agencia tiene más de uno),
+  // se filtra también a ese fondo exacto.
+  const movs = agenciaFiltro
+    ? todosLosMovs.filter(
+        (m) => m.agencia_id === agenciaFiltro && (!fondoFiltro || m.fondo_agencia_id === fondoFiltro),
+      )
+    : todosLosMovs;
   const montoTotalFondo = agenciaFiltro
     ? (fondosAgenciaQ.data ?? [])
-        .filter((f) => f.activo && f.agencia_id === agenciaFiltro)
+        .filter(
+          (f) => f.activo && f.agencia_id === agenciaFiltro && (!fondoFiltro || f.id === fondoFiltro),
+        )
         .reduce((s, f) => s + Number(f.monto_asignado), 0)
     : Number(fondo?.monto_asignado ?? 0);
 

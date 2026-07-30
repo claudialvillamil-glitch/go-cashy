@@ -322,6 +322,7 @@ function AgenciasCard() {
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
   const [montoAsignado, setMontoAsignado] = useState("");
+  const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -329,6 +330,7 @@ function AgenciasCard() {
         nombre: nombre.trim(),
         codigo: codigo ? Number(codigo) : null,
         monto_asignado: Number(montoAsignado) || 0,
+        prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
     },
@@ -337,6 +339,7 @@ function AgenciasCard() {
       setNombre("");
       setCodigo("");
       setMontoAsignado("");
+      setPrefijo("");
       qc.invalidateQueries({ queryKey: ["agencias"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -349,6 +352,21 @@ function AgenciasCard() {
     },
     onSuccess: () => {
       toast.success("Monto asignado actualizado");
+      qc.invalidateQueries({ queryKey: ["agencias"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarPrefijo = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
+      const { error } = await supabase
+        .from("agencias")
+        .update({ prefijo: valor.trim().toUpperCase() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Prefijo actualizado");
       qc.invalidateQueries({ queryKey: ["agencias"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -376,8 +394,8 @@ function AgenciasCard() {
           <Building2 className="h-4 w-4" /> Agencias
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Crea las agencias o sucursales del fondo de caja menor. Próximamente podrás vincular
-          un usuario responsable a cada agencia, para que solo pueda registrar gastos en la suya.
+          Crea las agencias o sucursales del fondo de caja menor. El prefijo se usa para el N° de
+          recibo (ej. "AR-0001"); si lo dejas vacío, se sigue usando el consecutivo normal.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -396,6 +414,12 @@ function AgenciasCard() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && nombre.trim()) crear.mutate();
             }}
+          />
+          <Input
+            placeholder="Prefijo (ej. AR)"
+            className="w-28"
+            value={prefijo}
+            onChange={(e) => setPrefijo(e.target.value)}
           />
           <Input
             placeholder="Monto asignado"
@@ -420,6 +444,17 @@ function AgenciasCard() {
                 {a.nombre}
               </span>
               <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Prefijo"
+                  defaultValue={a.prefijo ?? ""}
+                  className="w-24 h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor.toUpperCase() !== (a.prefijo ?? "")) {
+                      actualizarPrefijo.mutate({ id: a.id, valor });
+                    }
+                  }}
+                />
                 <Input
                   type="number"
                   min="0"
@@ -854,6 +889,7 @@ function FondosAgenciaCard() {
   const [monto, setMonto] = useState("");
   const [responsable, setResponsable] = useState("");
   const [identificacionResponsable, setIdentificacionResponsable] = useState("");
+  const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -865,6 +901,7 @@ function FondosAgenciaCard() {
         monto_asignado: Number(monto) || 0,
         responsable: responsable.trim() || null,
         identificacion_responsable: identificacionResponsable.trim() || null,
+        prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
     },
@@ -875,6 +912,7 @@ function FondosAgenciaCard() {
       setMonto("");
       setResponsable("");
       setIdentificacionResponsable("");
+      setPrefijo("");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -910,6 +948,21 @@ function FondosAgenciaCard() {
     },
     onSuccess: () => {
       toast.success("Responsable actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarPrefijo = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
+      const { error } = await supabase
+        .from("fondos_agencia")
+        .update({ prefijo: valor.trim().toUpperCase() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Prefijo actualizado");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -987,6 +1040,11 @@ function FondosAgenciaCard() {
             value={identificacionResponsable}
             onChange={(e) => setIdentificacionResponsable(e.target.value)}
           />
+          <Input
+            placeholder="Prefijo (ej. ARG)"
+            value={prefijo}
+            onChange={(e) => setPrefijo(e.target.value)}
+          />
         </div>
 
         <div className="rounded-md border divide-y">
@@ -1036,7 +1094,7 @@ function FondosAgenciaCard() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 pl-6">
+              <div className="grid grid-cols-3 gap-2 pl-6">
                 <Input
                   placeholder="Responsable del fondo"
                   defaultValue={f.responsable ?? ""}
@@ -1064,6 +1122,17 @@ function FondosAgenciaCard() {
                         responsable: f.responsable ?? "",
                         identificacion: valor,
                       });
+                    }
+                  }}
+                />
+                <Input
+                  placeholder="Prefijo"
+                  defaultValue={f.prefijo ?? ""}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor.toUpperCase() !== (f.prefijo ?? "")) {
+                      actualizarPrefijo.mutate({ id: f.id, valor });
                     }
                   }}
                 />

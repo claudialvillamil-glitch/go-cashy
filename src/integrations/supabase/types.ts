@@ -21,6 +21,7 @@ export type Database = {
           id: string
           monto_asignado: number
           nombre: string
+          prefijo: string | null
         }
         Insert: {
           codigo?: number | null
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           monto_asignado?: number
           nombre: string
+          prefijo?: string | null
         }
         Update: {
           codigo?: number | null
@@ -35,6 +37,7 @@ export type Database = {
           id?: string
           monto_asignado?: number
           nombre?: string
+          prefijo?: string | null
         }
         Relationships: []
       }
@@ -204,6 +207,7 @@ export type Database = {
           identificacion_responsable: string | null
           monto_asignado: number
           nombre: string
+          prefijo: string | null
           responsable: string | null
         }
         Insert: {
@@ -215,6 +219,7 @@ export type Database = {
           identificacion_responsable?: string | null
           monto_asignado?: number
           nombre?: string
+          prefijo?: string | null
           responsable?: string | null
         }
         Update: {
@@ -225,6 +230,7 @@ export type Database = {
           id?: string
           identificacion_responsable?: string | null
           monto_asignado?: number
+          prefijo?: string | null
           responsable?: string | null
           nombre?: string
         }
@@ -392,6 +398,7 @@ export type Database = {
           factura_url: string | null
           fecha: string
           fondo_agencia_id: string | null
+          numero_fondo: number | null
           id: string
           impoconsumo: number
           iva: number
@@ -435,6 +442,7 @@ export type Database = {
           factura_url?: string | null
           fecha?: string
           fondo_agencia_id?: string | null
+          numero_fondo?: number | null
           id?: string
           impoconsumo?: number
           iva?: number
@@ -478,6 +486,7 @@ export type Database = {
           factura_url?: string | null
           fecha?: string
           fondo_agencia_id?: string | null
+          numero_fondo?: number | null
           id?: string
           impoconsumo?: number
           iva?: number

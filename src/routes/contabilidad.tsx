@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout, useAgenciaFiltro } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
+  folioRecibo,
   type Movimiento,
 } from "@/lib/db";
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
@@ -96,9 +97,12 @@ function Contabilidad() {
 
   const movs = movsQ.data ?? [];
 
+  const { agenciaId: agenciaFiltroGlobal, fondoAgenciaId: fondoFiltroGlobal } = useAgenciaFiltro();
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return movs.filter((m) => {
+      if (agenciaFiltroGlobal && m.agencia_id !== agenciaFiltroGlobal) return false;
+      if (fondoFiltroGlobal && m.fondo_agencia_id !== fondoFiltroGlobal) return false;
       if (desde && m.fecha < desde) return false;
       if (hasta && m.fecha > hasta) return false;
       if (reciboDesde && m.consecutivo < Number(reciboDesde)) return false;
@@ -120,7 +124,7 @@ function Contabilidad() {
           m.conceptos?.nombre,
           m.detalle,
           m.numero_factura,
-          pad(m.consecutivo),
+          folioRecibo(m),
         ]
           .filter(Boolean)
           .join(" ")
@@ -129,7 +133,7 @@ function Contabilidad() {
       }
       return true;
     });
-  }, [movs, busqueda, desde, hasta, reciboDesde, reciboHasta, agencia, proveedor, concepto, estado, docSoporte, soporte]);
+  }, [movs, busqueda, desde, hasta, reciboDesde, reciboHasta, agencia, proveedor, concepto, estado, docSoporte, soporte, agenciaFiltroGlobal, fondoFiltroGlobal]);
 
   const noReembolsados = filtrados.filter(
     (m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado",
@@ -459,7 +463,7 @@ function FilaMovimiento({
   const requiereDoc = !m.factura_electronica;
   return (
     <tr className="border-t hover:bg-muted/30">
-      <td className="px-3 py-2 font-mono">{pad(m.consecutivo)}</td>
+      <td className="px-3 py-2 font-mono">{folioRecibo(m)}</td>
       <td className="px-3 py-2">{fmtDate(m.fecha)}</td>
       <td className="px-3 py-2">{m.proveedores?.nombre}</td>
       <td className="px-3 py-2 font-mono">{m.proveedores?.nit}</td>
@@ -532,7 +536,7 @@ function DetalleGastoDialog({
     <Dialog open={!!movimiento} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detalle del gasto N° {pad(m.consecutivo)}</DialogTitle>
+          <DialogTitle>Detalle del gasto N° {folioRecibo(m)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <div className="grid grid-cols-2 gap-3">

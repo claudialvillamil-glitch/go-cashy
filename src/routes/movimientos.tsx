@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppLayout } from "@/components/AppLayout";
+import { AppLayout, useAgenciaFiltro } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   getMyProfile,
   getAgencias,
   getSoportesAdicionales,
+  folioRecibo,
   type Movimiento,
 } from "@/lib/db";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
@@ -77,8 +78,14 @@ function Movs() {
   });
   const [editItem, setEditItem] = useState<Movimiento | null>(null);
 
+  const { agenciaId: agenciaFiltro, fondoAgenciaId: fondoFiltro } = useAgenciaFiltro();
   const filtered = useMemo(() => {
     let list = movsQ.data ?? [];
+    if (agenciaFiltro) {
+      list = list.filter(
+        (m) => m.agencia_id === agenciaFiltro && (!fondoFiltro || m.fondo_agencia_id === fondoFiltro),
+      );
+    }
     if (tipo === "multi") list = list.filter((m) => m.multi_soporte);
     else if (tipo === "simple") list = list.filter((m) => !m.multi_soporte);
     if (!q.trim()) return list;
@@ -96,7 +103,7 @@ function Movs() {
             it.numero_factura?.toLowerCase().includes(s),
         ),
     );
-  }, [movsQ.data, q, tipo]);
+  }, [movsQ.data, q, tipo, agenciaFiltro, fondoFiltro]);
 
   const noReembolsados = useMemo(
     () => filtered.filter((m) => m.reembolsos?.estado !== "pagado" && m.estado !== "anulado"),
@@ -237,7 +244,7 @@ function Movs() {
                   key={m.id}
                   className={`border-t hover:bg-muted/30 ${m.estado === "anulado" ? "opacity-50" : ""}`}
                 >
-                  <td className="px-4 py-3 font-mono text-xs">{pad(m.consecutivo)}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{folioRecibo(m)}</td>
                   <td className="px-4 py-3">{fmtDate(m.fecha)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -347,7 +354,7 @@ function Movs() {
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Recibo N° {detail && pad(detail.consecutivo)} (vista de solo lectura)</DialogTitle>
+            <DialogTitle>Recibo N° {detail && folioRecibo(detail)} (vista de solo lectura)</DialogTitle>
           </DialogHeader>
           {detail && (
             <div className="space-y-4">
@@ -356,7 +363,7 @@ function Movs() {
                   <CardTitle className="text-base">Información del recibo</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
-                  <CampoLectura label="N° Recibo" value={pad(detail.consecutivo)} />
+                  <CampoLectura label="N° Recibo" value={folioRecibo(detail)} />
                   <CampoLectura label="Fecha" value={fmtDate(detail.fecha)} />
                   <CampoLectura label="Agencia" value={detail.agencias?.nombre ?? "—"} />
                   <CampoLectura label="Varios soportes" value={detail.multi_soporte ? "Sí" : "No"} />
@@ -649,7 +656,7 @@ function EditarMovimientoDialog({
     <Dialog open={!!movimiento} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar recibo N° {pad(movimiento.consecutivo)}</DialogTitle>
+          <DialogTitle>Editar recibo N° {folioRecibo(movimiento)}</DialogTitle>
         </DialogHeader>
 
         {movimiento.multi_soporte ? (

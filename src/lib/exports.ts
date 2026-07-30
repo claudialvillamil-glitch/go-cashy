@@ -11,7 +11,7 @@ import type {
   ConceptoReteicaDB,
   TarifaReteicaCiudad,
 } from "./db";
-import { computeAsiento } from "./db";
+import { computeAsiento, folioRecibo } from "./db";
 import { fmtDate, fmtMoney, numeroALetras, pad } from "./format";
 
 function finalizarPDF(doc: jsPDF, filename: string, accion: "descargar" | "imprimir" = "descargar") {
@@ -89,7 +89,7 @@ export function exportReembolsoPDF(
     startY: y0 + 26,
     head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Rte.Fte", "RteICA", "RteIVA", "Total"]],
     body: movs.map((m) => [
-      pad(m.consecutivo),
+      folioRecibo(m),
       fmtDate(m.fecha),
       m.proveedores?.nombre ?? "",
       m.conceptos?.nombre ?? "",
@@ -219,7 +219,7 @@ export function exportContabilizacionExcel(
       filas.push([
         i === 0 ? identificacionFila : "",
         m.agencias?.codigo ?? "",
-        pad(m.consecutivo),
+        folioRecibo(m),
         m.detalle ?? "",
         fmtDate(m.fecha),
         fmtDate(m.fecha),
@@ -239,7 +239,7 @@ export function exportContabilizacionExcel(
       filas.push([
         "",
         m.agencias?.codigo ?? "",
-        pad(m.consecutivo),
+        folioRecibo(m),
         m.detalle ?? "",
         fmtDate(m.fecha),
         fmtDate(m.fecha),
@@ -379,7 +379,7 @@ export function exportReembolsoExcel(
   // Hoja 2: Relación de gastos incluidos en esta solicitud (debe coincidir 1 a 1
   // con los movimientos que forman parte del reembolso).
   const rows = movs.map((m) => ({
-    "Recibo N°": pad(m.consecutivo),
+    "Recibo N°": folioRecibo(m),
     Fecha: fmtDate(m.fecha),
     Agencia: m.agencias?.nombre ?? "",
     Proveedor: m.proveedores?.nombre ?? "",
@@ -408,33 +408,7 @@ export function exportReembolsoExcel(
   }
   XLSX.utils.book_append_sheet(wb, wsG, "Relación de gastos");
 
-  // Hoja 3: Asientos contables generados por cada gasto (débito/crédito).
-  let asientos: (string | number)[][] = [];
-  movs.forEach((m) => {
-    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
-    debitos.forEach((d) =>
-      asientos.push([pad(m.consecutivo), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
-    );
-    creditos.forEach((c) =>
-      asientos.push([pad(m.consecutivo), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
-    );
-  });
-  // La cuenta 24109503 (reposición/retenciones que comparten esa cuenta por
-  // defecto) va en un solo movimiento por el total, no repetida por cada gasto.
-  asientos = consolidarCuenta(asientos, "24109503", "Reposición fondo caja menor");
-  const totalDebitoAsientos = asientos.reduce((s, r) => s + (Number(r[4]) || 0), 0);
-  const totalCreditoAsientos = asientos.reduce((s, r) => s + (Number(r[5]) || 0), 0);
-  asientos.push(["", "", "", "TOTALES", totalDebitoAsientos, totalCreditoAsientos]);
-  asientos.unshift(["Recibo", "Fecha", "Cuenta", "Descripción", "Débito", "Crédito"]);
-
-  const wsA = XLSX.utils.aoa_to_sheet(asientos);
-  wsA["!cols"] = [{ wch: 10 }, { wch: 11 }, { wch: 14 }, { wch: 32 }, { wch: 14 }, { wch: 14 }];
-  for (let i = 0; i < asientos.length - 1; i++) {
-    marcarMoneda(wsA, [`E${i + 2}`, `F${i + 2}`]);
-  }
-  XLSX.utils.book_append_sheet(wb, wsA, "Asientos contables");
-
-  // Hoja 4: Arqueo de caja realizado al momento de la solicitud (si se registró).
+  // Hoja 3: Arqueo de caja realizado al momento de la solicitud (si se registró).
   if (reembolso.arqueo) {
     const filas: (string | number)[][] = [["ARQUEO DE CAJA"], [], ["Denominación", "Cantidad", "Subtotal"]];
     Object.entries(reembolso.arqueo.cantidades).forEach(([valor, cant]) => {
@@ -477,7 +451,7 @@ export function exportExcel(
   fondo: FondoConfig,
 ) {
   const rows = movs.map((m) => ({
-    "Recibo N°": pad(m.consecutivo),
+    "Recibo N°": folioRecibo(m),
     Fecha: fmtDate(m.fecha),
     Agencia: m.agencias?.nombre ?? "",
     Proveedor: m.proveedores?.nombre ?? "",
@@ -533,10 +507,10 @@ export function exportAsientosContablesExcel(
     .forEach((m) => {
       const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
       debitos.forEach((d) =>
-        asientos.push([pad(m.consecutivo), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
+        asientos.push([folioRecibo(m), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
       );
       creditos.forEach((c) =>
-        asientos.push([pad(m.consecutivo), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
+        asientos.push([folioRecibo(m), fmtDate(m.fecha), c.cuenta, c.descripcion, 0, c.valor]),
       );
     });
 
@@ -585,7 +559,7 @@ export function exportSaldoPendientesPDF(
       .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.consecutivo - b.consecutivo)
       .map((m) => [
         fmtDate(m.fecha),
-        pad(m.consecutivo),
+        folioRecibo(m),
         m.proveedores?.nit ?? "",
         m.proveedores?.nombre ?? "",
         m.conceptos?.nombre ?? "",
@@ -623,7 +597,7 @@ export function exportSaldoPendientesExcel(movsPendientes: Movimiento[], fondo: 
     ["Fecha", "N° Recibo", "NIT/Identif. proveedor", "Nombre proveedor", "Concepto", "N° Factura", "Valor pagado"],
     ...filas.map((m) => [
       fmtDate(m.fecha),
-      pad(m.consecutivo),
+      folioRecibo(m),
       m.proveedores?.nit ?? "",
       m.proveedores?.nombre ?? "",
       m.conceptos?.nombre ?? "",
@@ -732,7 +706,7 @@ export function exportPDF(
     startY: (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6,
     head: [["Recibo", "Fecha", "Proveedor", "Concepto", "Factura", "F.E.", "Subtotal", "IVA", "Rte.Fte", "RteICA", "RteIVA", "Total"]],
     body: movs.map((m) => [
-      pad(m.consecutivo),
+      folioRecibo(m),
       fmtDate(m.fecha),
       m.proveedores?.nombre ?? "",
       m.conceptos?.nombre ?? "",
@@ -754,10 +728,10 @@ export function exportPDF(
   movs.forEach((m) => {
     const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
     debitos.forEach((d) =>
-      asientosBody.push([pad(m.consecutivo), d.cuenta, d.descripcion, fmtMoney(d.valor), ""]),
+      asientosBody.push([folioRecibo(m), d.cuenta, d.descripcion, fmtMoney(d.valor), ""]),
     );
     creditos.forEach((c) =>
-      asientosBody.push([pad(m.consecutivo), c.cuenta, c.descripcion, "", fmtMoney(c.valor)]),
+      asientosBody.push([folioRecibo(m), c.cuenta, c.descripcion, "", fmtMoney(c.valor)]),
     );
   });
 
@@ -816,7 +790,7 @@ function buildReciboDoc(
   doc.text("RECIBO DE CAJA MENOR", x0 + w / 2 + 10, y0 + 12, { align: "center" });
   doc.setTextColor(200, 0, 0);
   doc.setFontSize(14);
-  doc.text(`N° ${pad(mov.consecutivo)}`, x0 + w - 6, y0 + 20, { align: "right" });
+  doc.text(`N° ${folioRecibo(mov)}`, x0 + w - 6, y0 + 20, { align: "right" });
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
 
@@ -951,7 +925,7 @@ export function exportReciboPDF(
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
 ) {
   const doc = buildReciboDoc(mov, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
-  finalizarPDF(doc, `recibo-${pad(mov.consecutivo)}.pdf`, accion);
+  finalizarPDF(doc, `recibo-${folioRecibo(mov)}.pdf`, accion);
 }
 
 // Descarga la imagen/PDF de soporte de un movimiento como bytes crudos,
@@ -1008,7 +982,7 @@ async function buildConsolidadoPDF(
             const scale = Math.min(maxW / img.width, maxH / img.height, 1);
             const w = img.width * scale;
             const h = img.height * scale;
-            page.drawText(`Soporte — Recibo N° ${pad(mov.consecutivo)}`, {
+            page.drawText(`Soporte — Recibo N° ${folioRecibo(mov)}`, {
               x: 30,
               y: pageH - 40,
               size: 12,

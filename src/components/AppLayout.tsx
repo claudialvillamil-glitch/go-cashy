@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { getMyProfile, getAgencias, type Profile } from "@/lib/db";
+import { getMyProfile, getAgencias, getFondosAgencia, type Profile } from "@/lib/db";
 
 // Caché en memoria a nivel de módulo (no de componente): sobrevive a que
 // AppLayout se vuelva a montar en cada cambio de pantalla, sin afectar la
@@ -42,10 +42,12 @@ let clienteListo = false;
 
 export const CLAVE_AGENCIA_SESION = "caja-menor-agencia-sesion";
 
-// Agencia "efectiva" para filtrar datos en cada pantalla: la agencia fija
-// del usuario (responsable/director), o la que eligió opcionalmente
-// (admin/contador/analista/auxiliar), o null si debe verse todo.
-const AgenciaFiltroContext = createContext<string | null>(null);
+// Agencia (y, si aplica, fondo específico) "efectiva" para filtrar datos en
+// cada pantalla: la agencia fija del usuario (responsable/director), o la
+// que eligió opcionalmente (admin/contador/analista/auxiliar), o null si
+// debe verse todo.
+export type FiltroAgencia = { agenciaId: string | null; fondoAgenciaId: string | null };
+const AgenciaFiltroContext = createContext<FiltroAgencia>({ agenciaId: null, fondoAgenciaId: null });
 export function useAgenciaFiltro() {
   return useContext(AgenciaFiltroContext);
 }
@@ -91,6 +93,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const agsQ = useQuery({
     queryKey: ["agencias"],
     queryFn: getAgencias,
+    enabled: perfilEnMemoria?.rol !== "responsable",
+  });
+  const fondosAgQ = useQuery({
+    queryKey: ["fondos-agencia"],
+    queryFn: getFondosAgencia,
     enabled: perfilEnMemoria?.rol !== "responsable",
   });
   // Igual que con el perfil: en el primer render (que debe coincidir con lo
@@ -197,25 +204,52 @@ export function AppLayout({ children }: { children: ReactNode }) {
     setAgenciaSesion(agenciaTemp);
   };
 
-  const elegirAgenciaOpcional = (id: string) => {
-    if (id === "todas") {
+  const elegirAgenciaOpcional = (valor: string) => {
+    if (valor === "todas") {
       sessionStorage.removeItem(CLAVE_AGENCIA_SESION);
       setAgenciaSesion("");
     } else {
-      sessionStorage.setItem(CLAVE_AGENCIA_SESION, id);
-      setAgenciaSesion(id);
+      sessionStorage.setItem(CLAVE_AGENCIA_SESION, valor);
+      setAgenciaSesion(valor);
     }
   };
 
+  // Cada opción representa una agencia completa, o (si la agencia tiene más
+  // de un fondo activo) un fondo específico dentro de ella — en ese caso el
+  // valor guardado combina ambos ids como "agenciaId::fondoId".
+  type OpcionAgencia = { value: string; label: string; agenciaId: string; fondoAgenciaId: string | null };
+  const opcionesAgencia: OpcionAgencia[] = (agsQ.data ?? []).flatMap((a) => {
+    const fondosDeEsta = (fondosAgQ.data ?? []).filter((f) => f.activo && f.agencia_id === a.id);
+    const prefijo = a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre;
+    if (fondosDeEsta.length > 1) {
+      return fondosDeEsta.map(
+        (f): OpcionAgencia => ({
+          value: `${a.id}::${f.id}`,
+          label: `${prefijo} - ${f.nombre}`,
+          agenciaId: a.id,
+          fondoAgenciaId: f.id,
+        }),
+      );
+    }
+    return [{ value: a.id, label: prefijo, agenciaId: a.id, fondoAgenciaId: null }] as OpcionAgencia[];
+  });
+
+  const parseValorAgencia = (valor: string): FiltroAgencia => {
+    const [agenciaId, fondoAgenciaId] = valor.split("::");
+    return { agenciaId: agenciaId || null, fondoAgenciaId: fondoAgenciaId || null };
+  };
+
+  const opcionSeleccionada = opcionesAgencia.find((o) => o.value === agenciaSesion);
+
   const nombreAgenciaMostrado = ROLES_AGENCIA_FIJA.includes(profile.rol)
     ? profile.agencias?.nombre ?? "Sin agencia asignada"
-    : agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? null;
+    : opcionSeleccionada?.label ?? null;
 
-  const agenciaFiltro = ROLES_AGENCIA_FIJA.includes(profile.rol)
-    ? profile.agencia_id
+  const agenciaFiltro: FiltroAgencia = ROLES_AGENCIA_FIJA.includes(profile.rol)
+    ? { agenciaId: profile.agencia_id, fondoAgenciaId: profile.fondo_agencia_id }
     : tieneSelectorOpcional && agenciaSesion
-      ? agenciaSesion
-      : null;
+      ? parseValorAgencia(agenciaSesion)
+      : { agenciaId: null, fondoAgenciaId: null };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -305,14 +339,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
             {tieneSelectorOpcional && pathname === "/" ? (
               <Select value={agenciaSesion || "todas"} onValueChange={elegirAgenciaOpcional}>
-                <SelectTrigger className="w-64 h-8 text-base font-medium border-none shadow-none px-2 -ml-2">
+                <SelectTrigger className="w-72 h-8 text-base font-medium border-none shadow-none px-2 -ml-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas las agencias</SelectItem>
-                  {agsQ.data?.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                  {opcionesAgencia.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -320,9 +354,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ) : (
               <>
                 <span className="text-base font-medium text-foreground">
-                  {tieneSelectorOpcional
-                    ? agsQ.data?.find((a) => a.id === agenciaSesion)?.nombre ?? "Todas las agencias"
-                    : nombreAgenciaMostrado ?? "—"}
+                  {tieneSelectorOpcional ? opcionSeleccionada?.label ?? "Todas las agencias" : nombreAgenciaMostrado ?? "—"}
                 </span>
                 {tieneSelectorOpcional && (
                   <Link to="/" className="text-xs text-muted-foreground hover:underline ml-1">
