@@ -37,8 +37,8 @@ import {
 import { fmtDate, fmtMoney, pad } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Eye, ExternalLink as ExternalLinkIcon, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
-import { exportAsientosContablesExcel, exportLibroCajaMenorConSoportesPDF, exportExcel, exportPDF } from "@/lib/exports";
+import { Search, Eye, ExternalLink as ExternalLinkIcon, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { exportAsientosContablesExcel, exportLibroCajaMenorConSoportesPDF, exportExcel } from "@/lib/exports";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
@@ -221,26 +221,6 @@ function Contabilidad() {
             onClick={() => fondoQ.data && exportExcel(filtrados, fondoQ.data)}
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" /> Reporte de gastos y saldo (Excel)
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!fondoQ.data || noReembolsados.length === 0}
-            onClick={() =>
-              fondoQ.data &&
-              exportPDF(noReembolsados, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data)
-            }
-          >
-            <FileText className="h-4 w-4 mr-2" /> Reporte gastos y saldos (PDF)
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!fondoQ.data || noReembolsados.length === 0}
-            onClick={() =>
-              fondoQ.data &&
-              exportPDF(noReembolsados, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data)
-            }
-          >
-            <Printer className="h-4 w-4 mr-2" /> Imprimir reporte
           </Button>
         </div>
       </header>

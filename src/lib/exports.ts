@@ -493,18 +493,6 @@ export function exportExcel(
   const ws = XLSX.utils.json_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb, ws, "Movimientos");
 
-  const total = movs.reduce((s, m) => s + Number(m.total), 0);
-  const resumen = [
-    ["Empresa", fondo.empresa],
-    ["Responsable", fondo.responsable],
-    ["Monto asignado", fondo.monto_asignado],
-    ["Total gastos", total],
-    ["Saldo disponible", Number(fondo.monto_asignado) - total],
-    ["Cantidad movimientos", movs.length],
-  ];
-  const wsR = XLSX.utils.aoa_to_sheet(resumen);
-  XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
-
   XLSX.writeFile(wb, `caja-menor-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
