@@ -46,8 +46,12 @@ const formVacio = {
   aplica_reteiva: false,
   responsable_iva: true,
   es_declarante_renta: true,
+  tipo_declarante_renta: "contribuyente",
+  autorretenedor_renta: false,
+  autorretenedor_ica: false,
   es_facturador_electronico: false,
-  regimen_tributario: "comun",
+  regimen_tributario: "responsable_iva",
+  pertenece_regimen_simple: false,
   tipo_impuesto: "iva",
 };
 
@@ -88,6 +92,16 @@ export function ProveedorPicker({
   const crear = useMutation({
     mutationFn: async () => {
       if (!form.nombre.trim() || !form.nit.trim()) throw new Error("Nombre y NIT son obligatorios");
+      const { data: existente } = await supabase
+        .from("proveedores")
+        .select("id, nombre")
+        .eq("nit", form.nit.trim())
+        .maybeSingle();
+      if (existente) {
+        throw new Error(
+          `Ya existe un proveedor con ese NIT/identificación: "${existente.nombre}". Búscalo arriba en vez de crear uno nuevo.`,
+        );
+      }
       const { data: auth } = await supabase.auth.getUser();
       const { data: perfil } = auth?.user
         ? await supabase.from("profiles").select("rol").eq("id", auth.user.id).maybeSingle()
@@ -110,7 +124,12 @@ export function ProveedorPicker({
         })
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        if ((error as { code?: string }).code === "23505") {
+          throw new Error("Ya existe un proveedor con ese NIT/identificación.");
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: (p) => {

@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { getConceptos, getConceptosRetencionRenta, type Concepto } from "@/lib/db";
+import { getConceptos, getConceptosRetencionRenta, getConceptosReteica, type Concepto } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -51,6 +51,7 @@ const empty: Partial<Concepto> = {
   cuenta_impoconsumo: "",
   cuenta_retencion: "24109503",
   concepto_retencion_renta_id: null,
+  concepto_reteica_id: null,
   cuenta_reteica: "",
   cuenta_reteiva: "",
   cuenta_contrapartida: "11050501",
@@ -66,6 +67,7 @@ function Cons() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const retencionQ = useQuery({ queryKey: ["conceptos-retencion-renta"], queryFn: getConceptosRetencionRenta });
+  const reteicaQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Concepto>>(empty);
 
@@ -78,6 +80,7 @@ function Cons() {
         cuenta_impoconsumo: form.cuenta_impoconsumo || null,
         cuenta_retencion: form.cuenta_retencion || null,
         concepto_retencion_renta_id: form.concepto_retencion_renta_id || null,
+        concepto_reteica_id: form.concepto_reteica_id || null,
         cuenta_reteica: form.cuenta_reteica || null,
         cuenta_reteiva: form.cuenta_reteiva || null,
         cuenta_contrapartida: form.cuenta_contrapartida || "11050501",
@@ -240,48 +243,30 @@ function Cons() {
 
               <div className="rounded-md border p-3 space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground">ReteICA</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <F label="Cuenta ReteICA">
-                    <Input
-                      value={form.cuenta_reteica ?? ""}
-                      onChange={(e) => setForm({ ...form, cuenta_reteica: e.target.value })}
-                    />
-                  </F>
-                  <F label="% ReteICA">
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={Number(form.porcentaje_reteica ?? 0)}
-                      onChange={(e) =>
-                        setForm({ ...form, porcentaje_reteica: Number(e.target.value) })
-                      }
-                    />
-                  </F>
-                </div>
-              </div>
-
-              <div className="rounded-md border p-3 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground">
-                  ReteIVA <span className="font-normal">(se calcula sobre el valor del IVA, no del subtotal)</span>
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <F label="Cuenta ReteIVA">
-                    <Input
-                      value={form.cuenta_reteiva ?? ""}
-                      onChange={(e) => setForm({ ...form, cuenta_reteiva: e.target.value })}
-                    />
-                  </F>
-                  <F label="% ReteIVA">
-                    <Input
-                      type="number"
-                      step="1"
-                      value={Math.round(Number(form.porcentaje_reteiva ?? 0))}
-                      onChange={(e) =>
-                        setForm({ ...form, porcentaje_reteiva: Math.round(Number(e.target.value)) })
-                      }
-                    />
-                  </F>
-                </div>
+                <F label="Concepto de ReteICA (Compras/Servicios)">
+                  <Select
+                    value={form.concepto_reteica_id ?? "ninguno"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, concepto_reteica_id: v === "ninguno" ? null : v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ninguno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ninguno">Ninguno (no aplica ReteICA)</SelectItem>
+                      {reteicaQ.data?.filter((r) => r.activo).map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    La tarifa, el tope mínimo y la cuenta contable (que varían por agencia) se
+                    configuran en Configuración → ReteICA por agencia/concepto.
+                  </p>
+                </F>
               </div>
 
               <Button
@@ -309,9 +294,6 @@ function Cons() {
                 <th className="px-4 py-3 font-medium">Rete Fuente</th>
                 <th className="px-4 py-3 font-medium">%</th>
                 <th className="px-4 py-3 font-medium">ReteICA</th>
-                <th className="px-4 py-3 font-medium">%</th>
-                <th className="px-4 py-3 font-medium">ReteIVA</th>
-                <th className="px-4 py-3 font-medium">%</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 text-right"></th>
               </tr>
@@ -332,14 +314,9 @@ function Cons() {
                     {c.cuenta_retencion ?? "—"}
                   </td>
                   <td className="px-4 py-3">{Number(c.porcentaje_retencion ?? 0)}%</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {c.cuenta_reteica ?? "—"}
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {reteicaQ.data?.find((r) => r.id === c.concepto_reteica_id)?.nombre ?? "—"}
                   </td>
-                  <td className="px-4 py-3">{Number(c.porcentaje_reteica ?? 0)}%</td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {c.cuenta_reteiva ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">{Math.round(Number(c.porcentaje_reteiva ?? 0))}%</td>
                   <td className="px-4 py-3">
                     <Badge variant={c.activo ? "default" : "secondary"}>
                       {c.activo ? "Activo" : "Inactivo"}

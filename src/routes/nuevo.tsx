@@ -90,8 +90,6 @@ function Nuevo() {
   const [subtotal, setSubtotal] = useState<string>("");
   const [iva, setIva] = useState<string>("0");
   const [impoconsumo, setImpoconsumo] = useState<string>("0");
-  const [aplicaIva, setAplicaIva] = useState(true);
-  const [aplicaImpoconsumo, setAplicaImpoconsumo] = useState(false);
   const [retencion, setRetencion] = useState<string>("0");
   const [reteica, setReteica] = useState<string>("0");
   const [reteiva, setReteiva] = useState<string>("0");
@@ -127,6 +125,15 @@ function Nuevo() {
     [provsQ.data, proveedor],
   );
 
+  // El IVA y el Impoconsumo ya no se eligen manualmente: se activan solos
+  // según cómo esté configurado el proveedor (si es responsable de IVA, y
+  // qué impuesto factura). El valor calculado sigue siendo editable.
+  const aplicaIva =
+    !!proveedorSel?.responsable_iva &&
+    (proveedorSel?.tipo_impuesto === "iva" || proveedorSel?.tipo_impuesto === "ambos");
+  const aplicaImpoconsumo =
+    proveedorSel?.tipo_impuesto === "impoconsumo" || proveedorSel?.tipo_impuesto === "ambos";
+
   // Si el proveedor está marcado como facturador electrónico, se activa solo
   // "El proveedor emite factura electrónica" (y se exige el número); si no
   // lo es, se desactiva y el campo de número de factura queda deshabilitado.
@@ -139,16 +146,30 @@ function Nuevo() {
   // Si el gasto elegido (concepto) ya tiene un concepto de retención asignado
   // en Configuración (Compras/Servicios), lo aplicamos solos — el usuario no
   // tiene que acordarse de elegirlo cada vez. Sigue pudiendo desmarcarlo o
-  // cambiarlo manualmente si hace falta.
+  // cambiarlo manualmente si hace falta. No aplica si el proveedor es
+  // Régimen Simple o autorretenedor de renta.
   useEffect(() => {
-    if (conceptoSel?.concepto_retencion_renta_id) {
+    const exentoRenta = proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_renta;
+    if (conceptoSel?.concepto_retencion_renta_id && !exentoRenta) {
       setConceptoRetencionRentaId(conceptoSel.concepto_retencion_renta_id);
       setAplicaRetencion(true);
     } else {
       setConceptoRetencionRentaId("");
       setAplicaRetencion(false);
     }
-  }, [concepto]);
+  }, [concepto, proveedor]);
+
+  // Lo mismo para ReteICA: el gasto ya indica si es "Compras" o "Servicios",
+  // y de ahí sale la tarifa/tope de la agencia (Configuración). No aplica si
+  // el proveedor es Régimen Simple o autorretenedor de ICA.
+  useEffect(() => {
+    const exentoIca = proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_ica;
+    if (conceptoSel?.concepto_reteica_id && !exentoIca) {
+      setConceptoReteicaId(conceptoSel.concepto_reteica_id);
+    } else {
+      setConceptoReteicaId("");
+    }
+  }, [concepto, proveedor]);
 
   // Auto-calcular IVA sugerido según el concepto (modo simple)
   const onSubtotalChange = (v: string) => {
@@ -165,23 +186,14 @@ function Nuevo() {
     setProveedor(id);
     const p = provsQ.data?.find((x) => x.id === id);
     if (!p) return;
-    const esRegimenSimple = p.regimen_tributario === "simple";
-    setAplicaRetencion(esRegimenSimple ? false : p.aplica_retencion);
+    const esRegimenSimple = p.pertenece_regimen_simple;
+    // Un autorretenedor (de renta o de ICA) no lleva retención en ese
+    // impuesto específico, porque se la practica él mismo.
+    setAplicaRetencion(esRegimenSimple || p.autorretenedor_renta ? false : p.aplica_retencion);
     setTarifaRetencionId(p.tarifa_retencion_id ?? "");
-    setAplicaReteica(esRegimenSimple ? false : p.aplica_reteica);
-    setConceptoReteicaId(p.concepto_reteica_id ?? "");
+    setAplicaReteica(esRegimenSimple || p.autorretenedor_ica ? false : p.aplica_reteica);
     setTarifaReteica(p.aplica_reteica ? String(p.tarifa_reteica) : "");
     setAplicaReteiva(p.aplica_reteiva);
-    if (p.tipo_impuesto === "impoconsumo") {
-      setAplicaImpoconsumo(true);
-      setAplicaIva(false);
-    } else if (p.tipo_impuesto === "ambos") {
-      setAplicaIva(true);
-      setAplicaImpoconsumo(true);
-    } else {
-      setAplicaIva(true);
-      setAplicaImpoconsumo(false);
-    }
   };
 
   // IVA: se calcula automático cuando la casilla "Aplica IVA" está marcada.
@@ -238,16 +250,20 @@ function Nuevo() {
     setRetencion(conceptoRetencionSel ? String(Math.round((s * tarifaAplicable) / 100)) : "0");
   }, [aplicaRetencion, conceptoRetencionRentaId, esDeclarante, subtotal, conceptosRetencionRentaQ.data]);
 
-  // ReteICA: busca la tarifa configurada para esta agencia + el CIIU del
-  // proveedor (o la tarifa general de la agencia si no hay una específica
-  // para ese CIIU). Se puede seguir ajustando manualmente si hace falta.
+  // ReteICA: busca la tarifa configurada para esta agencia + concepto
+  // (Compras/Servicios, que puede tener un tope distinto) + el CIIU del
+  // proveedor (o la tarifa general de esa agencia/concepto). Se puede
+  // seguir ajustando manualmente si hace falta.
   const tarifaReteicaCiudadSel = useMemo(() => {
-    const candidatas = (reteicaCiudadQ.data ?? []).filter((t) => t.activo && t.agencia_id === agencia);
+    if (!conceptoReteicaId) return null;
+    const candidatas = (reteicaCiudadQ.data ?? []).filter(
+      (t) => t.activo && t.agencia_id === agencia && t.concepto_reteica_id === conceptoReteicaId,
+    );
     const ciiu = proveedorSel?.codigo_ciiu?.trim();
     const exacta = ciiu ? candidatas.find((t) => t.codigo_ciiu === ciiu) : undefined;
     const general = candidatas.find((t) => !t.codigo_ciiu);
     return exacta ?? general ?? null;
-  }, [reteicaCiudadQ.data, agencia, proveedorSel?.codigo_ciiu]);
+  }, [reteicaCiudadQ.data, agencia, conceptoReteicaId, proveedorSel?.codigo_ciiu]);
 
   // Al cambiar la tarifa detectada (por cambio de agencia o proveedor),
   // precargamos su valor en el campo (sigue siendo editable).
@@ -271,12 +287,22 @@ function Nuevo() {
 
   // Si hay una tarifa configurada para esta agencia + proveedor (por CIIU) y
   // no está bloqueada por el tope, el ReteICA se activa solo. El usuario
-  // puede desmarcarlo si en un caso puntual no debe aplicar.
+  // puede desmarcarlo si en un caso puntual no debe aplicar. Excepción: a
+  // los autorretenedores de ICA y a Régimen Simple nunca se les practica.
   useEffect(() => {
+    if (proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_ica) {
+      return;
+    }
     if (tarifaReteicaCiudadSel && !reteicaBloqueadaPorTope && subtotalNum > 0) {
       setAplicaReteica(true);
     }
-  }, [tarifaReteicaCiudadSel, reteicaBloqueadaPorTope, subtotalNum]);
+  }, [
+    tarifaReteicaCiudadSel,
+    reteicaBloqueadaPorTope,
+    subtotalNum,
+    proveedorSel?.pertenece_regimen_simple,
+    proveedorSel?.autorretenedor_ica,
+  ]);
 
   // ReteICA: base * tarifa por mil / 1.000, redondeado sin decimales.
   useEffect(() => {
@@ -385,30 +411,63 @@ function Nuevo() {
 
   const onItemSubtotalChange = (idx: number, v: string) => {
     const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
+    const p = provsQ.data?.find((x) => x.id === items[idx]?.proveedor_id);
     const patch: Partial<ItemDraft> = { subtotal: v };
     const s = parseFloat(v) || 0;
+    const cuantiaMinima = uvtValor > 0 ? CUANTIA_MINIMA_UVT_SERVICIOS * uvtValor : 0;
+    const superaBase = cuantiaMinima === 0 || s >= cuantiaMinima;
     if (c) {
       const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
       patch.iva = String(ivaCalc);
-      if (c.porcentaje_reteica) {
-        patch.reteica = String(Math.round((s * Number(c.porcentaje_reteica)) / 100));
-      }
-      if (c.porcentaje_reteiva) {
-        patch.reteiva = String(Math.round((ivaCalc * Number(c.porcentaje_reteiva)) / 100));
-      }
+      // Régimen Simple: no aplica retención en la fuente ni ReteICA.
+      patch.reteica =
+        c.porcentaje_reteica && !p?.pertenece_regimen_simple && !p?.autorretenedor_ica
+          ? String(Math.round((s * Number(c.porcentaje_reteica)) / 100))
+          : "0";
+      // ReteIVA depende del proveedor (15% fijo sobre el IVA), no del
+      // concepto — sí aplica en Régimen Simple, siempre que supere la base.
+      patch.reteiva =
+        p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
     }
     setItem(idx, patch);
   };
 
   const onItemConceptoChange = (idx: number, conceptoId: string) => {
     const c = consQ.data?.find((x) => x.id === conceptoId);
+    const p = provsQ.data?.find((x) => x.id === items[idx]?.proveedor_id);
     const s = parseFloat(items[idx]?.subtotal ?? "") || 0;
+    const cuantiaMinima = uvtValor > 0 ? CUANTIA_MINIMA_UVT_SERVICIOS * uvtValor : 0;
+    const superaBase = cuantiaMinima === 0 || s >= cuantiaMinima;
     const patch: Partial<ItemDraft> = { concepto_id: conceptoId };
     if (c && s > 0) {
       const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
       patch.iva = String(ivaCalc);
-      patch.reteica = String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100));
-      patch.reteiva = String(Math.round((ivaCalc * Number(c.porcentaje_reteiva ?? 0)) / 100));
+      patch.reteica =
+        !p?.pertenece_regimen_simple && !p?.autorretenedor_ica
+          ? String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100))
+          : "0";
+      patch.reteiva = p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
+    }
+    setItem(idx, patch);
+  };
+
+  // Si cambia el proveedor de un ítem (sin tocar concepto/subtotal), hay que
+  // recalcular igual — un proveedor en Régimen Simple no lleva retención en
+  // la fuente ni ReteICA, aunque el concepto sí las tenga configuradas.
+  const onItemProveedorChange = (idx: number, proveedorId: string) => {
+    const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
+    const p = provsQ.data?.find((x) => x.id === proveedorId);
+    const s = parseFloat(items[idx]?.subtotal ?? "") || 0;
+    const cuantiaMinima = uvtValor > 0 ? CUANTIA_MINIMA_UVT_SERVICIOS * uvtValor : 0;
+    const superaBase = cuantiaMinima === 0 || s >= cuantiaMinima;
+    const patch: Partial<ItemDraft> = { proveedor_id: proveedorId };
+    if (c && s > 0) {
+      const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
+      patch.reteica =
+        !p?.pertenece_regimen_simple && !p?.autorretenedor_ica
+          ? String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100))
+          : "0";
+      patch.reteiva = p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
     }
     setItem(idx, patch);
   };
@@ -789,7 +848,6 @@ function Nuevo() {
                   ` · IVA ${conceptoSel.cuenta_iva} (${Math.round(Number(conceptoSel.porcentaje_iva))}%)`}
                 {conceptoSel.cuenta_retencion && ` · cta. retención ${conceptoSel.cuenta_retencion}`}
                 {conceptoSel.cuenta_reteica && ` · cta. ReteICA ${conceptoSel.cuenta_reteica}`}
-                {conceptoSel.cuenta_reteiva && ` · cta. ReteIVA ${conceptoSel.cuenta_reteiva}`}
               </p>
             )}
           </CardHeader>
@@ -799,23 +857,33 @@ function Nuevo() {
               {proveedorSel && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {REGIMENES_TRIBUTARIOS.find((r) => r.value === proveedorSel.regimen_tributario)?.label}
-                  {!proveedorSel.responsable_iva && " · No responsable de IVA"}
+                  {proveedorSel.pertenece_regimen_simple && " · Régimen Simple"}
+                  {proveedorSel.autorretenedor_renta && " · Autorretenedor renta"}
+                  {proveedorSel.autorretenedor_ica && " · Autorretenedor ICA"}
                 </p>
               )}
-              {proveedorSel && proveedorSel.regimen_tributario === "simple" && (
+              {proveedorSel && proveedorSel.pertenece_regimen_simple && (
                 <p className="text-xs text-warning mt-0.5">
                   Régimen simple: no aplica retención en la fuente ni ReteICA (quedaron
                   deshabilitadas). El ReteIVA sí aplica si el monto supera la cuantía mínima.
                 </p>
               )}
-              {proveedorSel &&
-                (proveedorSel.regimen_tributario === "gran_contribuyente" ||
-                  proveedorSel.regimen_tributario === "autorretenedor") && (
-                  <p className="text-xs text-warning mt-0.5">
-                    Este proveedor generalmente no lleva retención en la fuente normal — verifica
-                    antes de aplicarla.
-                  </p>
-                )}
+              {proveedorSel && !proveedorSel.pertenece_regimen_simple && proveedorSel.autorretenedor_renta && (
+                <p className="text-xs text-warning mt-0.5">
+                  Autorretenedor de renta: no aplica retención en la fuente (quedó deshabilitada).
+                </p>
+              )}
+              {proveedorSel && !proveedorSel.pertenece_regimen_simple && proveedorSel.autorretenedor_ica && (
+                <p className="text-xs text-warning mt-0.5">
+                  Autorretenedor de ICA: no aplica ReteICA (quedó deshabilitada).
+                </p>
+              )}
+              {proveedorSel && proveedorSel.regimen_tributario === "gran_contribuyente" && (
+                <p className="text-xs text-warning mt-0.5">
+                  Este proveedor generalmente no lleva retención en la fuente normal — verifica
+                  antes de aplicarla.
+                </p>
+              )}
             </Field>
             <Field label="Concepto del gasto *">
               <ConceptoPicker value={concepto} onChange={onConceptoChange} />
@@ -858,38 +926,26 @@ function Nuevo() {
                   onChange={(e) => onSubtotalChange(e.target.value)}
                 />
               </Field>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    id="aplica-iva"
-                    checked={aplicaIva}
-                    onCheckedChange={(v) => setAplicaIva(v === true)}
+              {aplicaIva && (
+                <Field label="IVA (según proveedor, editable)">
+                  <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} />
+                </Field>
+              )}
+              {aplicaImpoconsumo && (
+                <Field label="Impoconsumo 8% (según proveedor, editable)">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={impoconsumo}
+                    onChange={(e) => setImpoconsumo(e.target.value)}
                   />
-                  <Label htmlFor="aplica-iva" className="text-xs font-normal cursor-pointer">
-                    IVA (sugerido, editable)
-                  </Label>
-                </div>
-                <Input type="number" min="0" value={iva} onChange={(e) => setIva(e.target.value)} disabled={!aplicaIva} />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    id="aplica-impoconsumo"
-                    checked={aplicaImpoconsumo}
-                    onCheckedChange={(v) => setAplicaImpoconsumo(v === true)}
-                  />
-                  <Label htmlFor="aplica-impoconsumo" className="text-xs font-normal cursor-pointer">
-                    Impoconsumo (8%, editable)
-                  </Label>
-                </div>
-                <Input
-                  type="number"
-                  min="0"
-                  value={impoconsumo}
-                  onChange={(e) => setImpoconsumo(e.target.value)}
-                  disabled={!aplicaImpoconsumo}
-                />
-              </div>
+                </Field>
+              )}
+              {proveedor && !aplicaIva && !aplicaImpoconsumo && (
+                <p className="text-xs text-muted-foreground self-center">
+                  Este proveedor no factura IVA ni Impoconsumo, según su configuración.
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2 space-y-3">
@@ -899,7 +955,7 @@ function Nuevo() {
                   <Checkbox
                     id="aplica-retencion"
                     checked={aplicaRetencion}
-                    disabled={proveedorSel?.regimen_tributario === "simple" || retencionBloqueada}
+                    disabled={proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_renta || retencionBloqueada}
                     onCheckedChange={(v) => setAplicaRetencion(v === true)}
                   />
                   <Label htmlFor="aplica-retencion" className="text-sm font-normal cursor-pointer">
@@ -929,14 +985,12 @@ function Nuevo() {
                         </p>
                       )}
                     </Field>
-                    <Field label="Retención calculada (automática)">
+                    <Field label="Retención calculada (editable)">
                       <Input
                         type="number"
                         min="0"
                         value={retencion}
-                        readOnly
-                        disabled
-                        className="bg-muted font-mono"
+                        onChange={(e) => setRetencion(e.target.value)}
                       />
                     </Field>
                   </div>
@@ -964,14 +1018,12 @@ function Nuevo() {
                 </div>
                 {aplicaReteiva && (
                   <div className="grid gap-3 md:grid-cols-2 pt-1">
-                    <Field label="ReteIVA calculado (automático)">
+                    <Field label="ReteIVA calculado (editable)">
                       <Input
                         type="number"
                         min="0"
                         value={reteiva}
-                        readOnly
-                        disabled
-                        className="bg-muted font-mono"
+                        onChange={(e) => setReteiva(e.target.value)}
                       />
                     </Field>
                   </div>
@@ -990,7 +1042,7 @@ function Nuevo() {
                   <Checkbox
                     id="aplica-reteica"
                     checked={aplicaReteica}
-                    disabled={proveedorSel?.regimen_tributario === "simple" || reteicaBloqueadaPorTope}
+                    disabled={proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_ica || reteicaBloqueadaPorTope}
                     onCheckedChange={(v) => setAplicaReteica(v === true)}
                   />
                   <Label htmlFor="aplica-reteica" className="text-sm font-normal cursor-pointer">
@@ -1035,15 +1087,18 @@ function Nuevo() {
                 )}
                 {tarifaReteicaCiudadSel && !reteicaBloqueadaPorTope && (
                   <p className="text-xs text-muted-foreground">
-                    Tarifa detectada para esta agencia
+                    Tarifa detectada para esta agencia ·{" "}
+                    {reteicaConceptosQ.data?.find((c) => c.id === conceptoReteicaId)?.nombre}
                     {tarifaReteicaCiudadSel.codigo_ciiu ? ` y CIIU ${tarifaReteicaCiudadSel.codigo_ciiu}` : " (general)"}:{" "}
                     {Number(tarifaReteicaCiudadSel.tarifa)}‰. Se aplicó automáticamente.
                   </p>
                 )}
                 {reteicaBloqueadaPorTope && (
                   <p className="text-xs text-warning">
-                    El subtotal no supera el tope mínimo ({fmtMoney(Number(tarifaReteicaCiudadSel?.tope ?? 0))}) configurado
-                    para esta agencia/actividad, así que el ReteICA queda bloqueado.
+                    El subtotal no supera el tope mínimo ({fmtMoney(Number(tarifaReteicaCiudadSel?.tope ?? 0))})
+                    configurado para esta agencia/
+                    {reteicaConceptosQ.data?.find((c) => c.id === conceptoReteicaId)?.nombre.toLowerCase()},
+                    así que el ReteICA queda bloqueado.
                   </p>
                 )}
               </div>
@@ -1087,6 +1142,7 @@ function Nuevo() {
                 total={itemTotals[idx] ?? 0}
                 conceptos={consQ.data ?? []}
                 onChange={(patch) => setItem(idx, patch)}
+                onProveedorChange={(v) => onItemProveedorChange(idx, v)}
                 onConceptoChange={(v) => onItemConceptoChange(idx, v)}
                 onSubtotalChange={(v) => onItemSubtotalChange(idx, v)}
                 onRemove={() =>
@@ -1293,6 +1349,7 @@ function ItemRow({
   total,
   conceptos,
   onChange,
+  onProveedorChange,
   onConceptoChange,
   onSubtotalChange,
   onRemove,
@@ -1303,6 +1360,7 @@ function ItemRow({
   total: number;
   conceptos: Concepto[];
   onChange: (patch: Partial<ItemDraft>) => void;
+  onProveedorChange: (v: string) => void;
   onConceptoChange: (v: string) => void;
   onSubtotalChange: (v: string) => void;
   onRemove: () => void;
@@ -1330,7 +1388,7 @@ function ItemRow({
         <Field label="Proveedor *">
           <ProveedorPicker
             value={item.proveedor_id}
-            onChange={(v) => onChange({ proveedor_id: v })}
+            onChange={onProveedorChange}
           />
         </Field>
         <Field label="Concepto *">
@@ -1414,7 +1472,6 @@ function ItemRow({
           Cuenta gasto <b>{c.cuenta_gasto}</b>
           {c.cuenta_iva && ` · IVA ${c.cuenta_iva} (${Math.round(Number(c.porcentaje_iva))}%)`}
           {c.cuenta_reteica && ` · ReteICA ${c.cuenta_reteica} (${Number(c.porcentaje_reteica)}%)`}
-          {c.cuenta_reteiva && ` · ReteIVA ${c.cuenta_reteiva} (${Math.round(Number(c.porcentaje_reteiva))}%)`}
         </p>
       )}
     </div>

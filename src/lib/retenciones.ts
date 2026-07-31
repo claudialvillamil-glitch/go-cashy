@@ -20,11 +20,25 @@ export const RETEICA_CONCEPTOS = [
 ];
 
 export const REGIMENES_TRIBUTARIOS = [
-  { value: "comun", label: "Responsable de IVA (régimen común)" },
-  { value: "simple", label: "No responsable de IVA (régimen simple)" },
+  { value: "no_responsable_iva", label: "No responsable de IVA" },
+  { value: "responsable_iva", label: "Responsable de IVA" },
   { value: "gran_contribuyente", label: "Gran contribuyente" },
-  { value: "autorretenedor", label: "Autorretenedor" },
 ];
+
+// Clasificación del tipo de declarante de renta — dimensión independiente
+// de la responsabilidad de IVA.
+export const TIPOS_DECLARANTE_RENTA = [
+  { value: "contribuyente", label: "Contribuyente" },
+  { value: "no_contribuyente", label: "No contribuyente" },
+  { value: "regimen_simple", label: "Régimen simple" },
+  { value: "regimen_especial", label: "Régimen especial" },
+];
+
+// Ya no se pregunta aparte si es "Responsable de IVA" — se deriva
+// directamente de la categoría elegida arriba.
+export function responsableIvaSegunRegimen(regimen: string): boolean {
+  return regimen === "responsable_iva" || regimen === "gran_contribuyente";
+}
 
 export const TIPOS_IDENTIFICACION = [
   { value: "CC", label: "Cédula de ciudadanía" },

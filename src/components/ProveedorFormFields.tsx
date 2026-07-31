@@ -13,7 +13,12 @@ import {
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { getTarifasRetencionRenta, getConceptosReteica } from "@/lib/db";
 import { calcularDV } from "@/lib/format";
-import { REGIMENES_TRIBUTARIOS, TIPOS_IDENTIFICACION } from "@/lib/retenciones";
+import {
+  REGIMENES_TRIBUTARIOS,
+  TIPOS_IDENTIFICACION,
+  TIPOS_DECLARANTE_RENTA,
+  responsableIvaSegunRegimen,
+} from "@/lib/retenciones";
 import { DEPARTAMENTOS_COLOMBIA, CIUDADES_POR_DEPARTAMENTO } from "@/lib/colombia";
 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
@@ -235,14 +240,14 @@ export function ProveedorFormFields({
 
       <div className="rounded-md border p-3 space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Información tributaria</p>
-        <F label="Régimen tributario">
+        <F label="Régimen / responsabilidad de IVA">
           <Select
-            value={form.regimen_tributario ?? "comun"}
+            value={form.regimen_tributario ?? "responsable_iva"}
             onValueChange={(v) =>
               setForm({
                 ...form,
                 regimen_tributario: v,
-                ...(v === "simple" ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                responsable_iva: responsableIvaSegunRegimen(v),
               })
             }
           >
@@ -260,12 +265,67 @@ export function ProveedorFormFields({
         </F>
         <div className="flex items-center gap-2 pt-1">
           <Checkbox
-            id="pff-resp-iva"
-            checked={form.responsable_iva ?? true}
-            onCheckedChange={(v) => setForm({ ...form, responsable_iva: v === true })}
+            id="pff-regimen-simple"
+            checked={form.pertenece_regimen_simple ?? false}
+            onCheckedChange={(v) =>
+              setForm({
+                ...form,
+                pertenece_regimen_simple: v === true,
+                ...(v === true ? { aplica_retencion: false, aplica_reteica: false } : {}),
+              })
+            }
           />
-          <Label htmlFor="pff-resp-iva" className="text-sm font-normal cursor-pointer">
-            Responsable de IVA (cobra IVA en sus facturas)
+          <Label htmlFor="pff-regimen-simple" className="text-sm font-normal cursor-pointer">
+            Pertenece al Régimen Simple de Tributación (RST)
+          </Label>
+        </div>
+        <F label="Tipo de declarante de renta">
+          <Select
+            value={form.tipo_declarante_renta ?? "contribuyente"}
+            onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_DECLARANTE_RENTA.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </F>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="pff-autorret-renta"
+            checked={form.autorretenedor_renta ?? false}
+            onCheckedChange={(v) =>
+              setForm({
+                ...form,
+                autorretenedor_renta: v === true,
+                ...(v === true ? { aplica_retencion: false } : {}),
+              })
+            }
+          />
+          <Label htmlFor="pff-autorret-renta" className="text-sm font-normal cursor-pointer">
+            Autorretenedor de renta (no se le practica retención en la fuente)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="pff-autorret-ica"
+            checked={form.autorretenedor_ica ?? false}
+            onCheckedChange={(v) =>
+              setForm({
+                ...form,
+                autorretenedor_ica: v === true,
+                ...(v === true ? { aplica_reteica: false } : {}),
+              })
+            }
+          />
+          <Label htmlFor="pff-autorret-ica" className="text-sm font-normal cursor-pointer">
+            Autorretenedor de ICA (no se le practica ReteICA)
           </Label>
         </div>
         <div className="flex items-center gap-2 pt-1">
@@ -310,7 +370,7 @@ export function ProveedorFormFields({
             placeholder="Ej. 4711"
           />
         </F>
-        {form.regimen_tributario === "simple" && (
+        {form.pertenece_regimen_simple && (
           <p className="text-xs text-warning">
             Régimen simple: no aplica retención en la fuente ni ReteICA (se desactivaron
             automáticamente).

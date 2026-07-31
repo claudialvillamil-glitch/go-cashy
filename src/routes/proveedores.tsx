@@ -26,7 +26,12 @@ import * as XLSX from "xlsx";
 import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getMyProfile, type Proveedor } from "@/lib/db";
 import { calcularDV } from "@/lib/format";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { REGIMENES_TRIBUTARIOS, TIPOS_IDENTIFICACION } from "@/lib/retenciones";
+import {
+  REGIMENES_TRIBUTARIOS,
+  TIPOS_IDENTIFICACION,
+  TIPOS_DECLARANTE_RENTA,
+  responsableIvaSegunRegimen,
+} from "@/lib/retenciones";
 import { DEPARTAMENTOS_COLOMBIA, CIUDADES_POR_DEPARTAMENTO } from "@/lib/colombia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -70,8 +75,12 @@ const empty = {
   aplica_reteiva: false,
   responsable_iva: true,
   es_declarante_renta: true,
+  tipo_declarante_renta: "contribuyente",
+  autorretenedor_renta: false,
+  autorretenedor_ica: false,
   es_facturador_electronico: false,
-  regimen_tributario: "comun",
+  regimen_tributario: "responsable_iva",
+  pertenece_regimen_simple: false,
   tipo_impuesto: "iva",
 };
 
@@ -105,7 +114,8 @@ function Provs() {
         Email: "contacto@alfombrando.com",
         Dirección: "Cra 10 # 20-30",
         "Responsable de IVA (Sí/No)": "Sí",
-        "Régimen (comun/simple/gran_contribuyente/autorretenedor)": "comun",
+        "Régimen (no_responsable_iva/responsable_iva/gran_contribuyente)": "responsable_iva",
+        "Régimen Simple (Sí/No)": "No",
       },
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
@@ -127,6 +137,7 @@ function Provs() {
       Departamento: p.departamento ?? "",
       Ciudad: p.ciudad ?? "",
       Régimen: REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ?? "",
+      "Régimen Simple": p.pertenece_regimen_simple ? "Sí" : "No",
       "Responsable de IVA": p.responsable_iva ? "Sí" : "No",
       "Impuesto que factura": p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA",
       "Aplica Rte. Fuente": p.aplica_retencion ? "Sí" : "No",
@@ -157,6 +168,7 @@ function Provs() {
         codigo_ciiu: string | null;
         responsable_iva: boolean;
         regimen_tributario: string;
+        pertenece_regimen_simple: boolean;
       }> = [];
       let omitidos = 0;
 
@@ -172,13 +184,34 @@ function Provs() {
           continue;
         }
         existentes.add(nit);
-        const respIvaRaw = String(
-          row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "sí",
+        const regimenSimpleRaw = String(row["Régimen Simple (Sí/No)"] ?? row["Régimen Simple"] ?? "no")
+          .trim()
+          .toLowerCase();
+        const pertenece_regimen_simple = ["si", "sí", "s", "true", "yes"].includes(regimenSimpleRaw);
+        const regimenRaw = String(
+          row["Régimen (no_responsable_iva/responsable_iva/gran_contribuyente)"] ??
+            row["Régimen"] ??
+            "responsable_iva",
         )
           .trim()
           .toLowerCase();
-        const regimenRaw = String(
-          row["Régimen (comun/simple/gran_contribuyente/autorretenedor)"] ?? row["Régimen"] ?? "comun",
+        // Compatibilidad con nombres de régimen antiguos, por si se importa
+        // un archivo exportado antes de este cambio.
+        const regimenNormalizado =
+          regimenRaw === "comun"
+            ? "responsable_iva"
+            : regimenRaw === "autorretenedor"
+              ? "gran_contribuyente"
+              : regimenRaw === "simple"
+                ? "responsable_iva"
+                : regimenRaw;
+        const regimen_tributario = ["no_responsable_iva", "responsable_iva", "gran_contribuyente"].includes(
+          regimenNormalizado,
+        )
+          ? regimenNormalizado
+          : "responsable_iva";
+        const respIvaRaw = String(
+          row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "",
         )
           .trim()
           .toLowerCase();
@@ -189,12 +222,13 @@ function Provs() {
           email: String(row["Email"] ?? "").trim() || null,
           direccion: String(row["Dirección"] ?? row["Direccion"] ?? "").trim() || null,
           codigo_ciiu: String(row["Código CIIU"] ?? row["Codigo CIIU"] ?? "").trim() || null,
-          responsable_iva: !["no", "n", "false"].includes(respIvaRaw),
-          regimen_tributario: ["comun", "simple", "gran_contribuyente", "autorretenedor"].includes(
-            regimenRaw,
-          )
-            ? regimenRaw
-            : "comun",
+          // Si el archivo trae explícitamente "Responsable de IVA", respeta
+          // ese valor; si no, se deriva del régimen elegido.
+          responsable_iva: respIvaRaw
+            ? !["no", "n", "false"].includes(respIvaRaw)
+            : responsableIvaSegunRegimen(regimen_tributario),
+          regimen_tributario,
+          pertenece_regimen_simple,
         });
       }
 
@@ -216,7 +250,7 @@ function Provs() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const esRegimenSimple = form.regimen_tributario === "simple";
+      const esRegimenSimple = !!form.pertenece_regimen_simple;
       const payload = {
         nombre: form.nombre,
         activo: form.activo ?? true,
@@ -239,13 +273,32 @@ function Provs() {
         tarifa_reteica: Number(form.tarifa_reteica) || 0,
         aplica_reteiva: form.aplica_reteiva ?? false,
         responsable_iva: form.responsable_iva ?? true,
+        pertenece_regimen_simple: form.pertenece_regimen_simple ?? false,
+        tipo_declarante_renta: form.tipo_declarante_renta || "contribuyente",
+        autorretenedor_renta: form.autorretenedor_renta ?? false,
+        autorretenedor_ica: form.autorretenedor_ica ?? false,
         regimen_tributario: form.regimen_tributario || "comun",
         tipo_impuesto: form.tipo_impuesto || "iva",
       };
       if (form.id) {
         const { error } = await supabase.from("proveedores").update(payload).eq("id", form.id);
-        if (error) throw error;
+        if (error) {
+          if (error.code === "23505") {
+            throw new Error("Ya existe otro proveedor con ese NIT/identificación.");
+          }
+          throw error;
+        }
       } else {
+        const { data: existente } = await supabase
+          .from("proveedores")
+          .select("id, nombre")
+          .eq("nit", form.nit!)
+          .maybeSingle();
+        if (existente) {
+          throw new Error(
+            `Ya existe un proveedor con ese NIT/identificación: "${existente.nombre}". Verifica antes de crear uno nuevo.`,
+          );
+        }
         const esResponsable = profileQ.data?.rol === "responsable";
         const { error } = await supabase.from("proveedores").insert({
           ...payload,
@@ -253,7 +306,12 @@ function Provs() {
           nit: form.nit!,
           estado_validacion: esResponsable ? "pendiente" : "validado",
         });
-        if (error) throw error;
+        if (error) {
+          if (error.code === "23505") {
+            throw new Error("Ya existe un proveedor con ese NIT/identificación.");
+          }
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -590,16 +648,14 @@ function Provs() {
 
               <div className="rounded-md border p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground">Información tributaria</p>
-                <F label="Régimen tributario">
+                <F label="Régimen / responsabilidad de IVA">
                   <Select
-                    value={form.regimen_tributario ?? "comun"}
+                    value={form.regimen_tributario ?? "responsable_iva"}
                     onValueChange={(v) =>
                       setForm({
                         ...form,
                         regimen_tributario: v,
-                        // En régimen simple no aplica retención en la fuente ni ReteICA;
-                        // el ReteIVA sí puede aplicar si supera la base de retención.
-                        ...(v === "simple" ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                        responsable_iva: responsableIvaSegunRegimen(v),
                       })
                     }
                   >
@@ -617,12 +673,69 @@ function Provs() {
                 </F>
                 <div className="flex items-center gap-2 pt-1">
                   <Checkbox
-                    id="prov-resp-iva"
-                    checked={form.responsable_iva ?? true}
-                    onCheckedChange={(v) => setForm({ ...form, responsable_iva: v === true })}
+                    id="prov-regimen-simple"
+                    checked={form.pertenece_regimen_simple ?? false}
+                    onCheckedChange={(v) =>
+                      setForm({
+                        ...form,
+                        pertenece_regimen_simple: v === true,
+                        // En régimen simple no aplica retención en la fuente ni ReteICA;
+                        // el ReteIVA sí puede aplicar si supera la base de retención.
+                        ...(v === true ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                      })
+                    }
                   />
-                  <Label htmlFor="prov-resp-iva" className="text-sm font-normal cursor-pointer">
-                    Responsable de IVA (cobra IVA en sus facturas)
+                  <Label htmlFor="prov-regimen-simple" className="text-sm font-normal cursor-pointer">
+                    Pertenece al Régimen Simple de Tributación (RST)
+                  </Label>
+                </div>
+                <F label="Tipo de declarante de renta">
+                  <Select
+                    value={form.tipo_declarante_renta ?? "contribuyente"}
+                    onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_DECLARANTE_RENTA.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </F>
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="prov-autorret-renta"
+                    checked={form.autorretenedor_renta ?? false}
+                    onCheckedChange={(v) =>
+                      setForm({
+                        ...form,
+                        autorretenedor_renta: v === true,
+                        ...(v === true ? { aplica_retencion: false } : {}),
+                      })
+                    }
+                  />
+                  <Label htmlFor="prov-autorret-renta" className="text-sm font-normal cursor-pointer">
+                    Autorretenedor de renta (no se le practica retención en la fuente)
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="prov-autorret-ica"
+                    checked={form.autorretenedor_ica ?? false}
+                    onCheckedChange={(v) =>
+                      setForm({
+                        ...form,
+                        autorretenedor_ica: v === true,
+                        ...(v === true ? { aplica_reteica: false } : {}),
+                      })
+                    }
+                  />
+                  <Label htmlFor="prov-autorret-ica" className="text-sm font-normal cursor-pointer">
+                    Autorretenedor de ICA (no se le practica ReteICA)
                   </Label>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
@@ -672,17 +785,16 @@ function Provs() {
                     placeholder="Ej. 4711"
                   />
                 </F>
-                {form.regimen_tributario === "simple" && (
+                {form.pertenece_regimen_simple && (
                   <p className="text-xs text-warning">
                     Régimen simple: no aplica retención en la fuente ni ReteICA (se desactivaron
                     automáticamente). El ReteIVA sí aplica si el monto supera la cuantía mínima.
                   </p>
                 )}
-                {(form.regimen_tributario === "gran_contribuyente" ||
-                  form.regimen_tributario === "autorretenedor") && (
+                {form.regimen_tributario === "gran_contribuyente" && (
                   <p className="text-xs text-warning">
-                    Los grandes contribuyentes y autorretenedores generalmente no llevan retención
-                    en la fuente normal — verifica antes de aplicarla.
+                    Los grandes contribuyentes generalmente no llevan retención en la fuente
+                    normal — verifica antes de aplicarla.
                   </p>
                 )}
               </div>
@@ -831,6 +943,7 @@ function Provs() {
                     <div className="text-xs">
                       {REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ??
                         "—"}
+                      {p.pertenece_regimen_simple && " · Régimen Simple"}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Factura:{" "}

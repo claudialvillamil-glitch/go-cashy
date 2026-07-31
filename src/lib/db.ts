@@ -21,6 +21,9 @@ export type Proveedor = {
   tipo_retencion_renta: string | null;
   tarifa_retencion_id: string | null;
   es_declarante_renta: boolean;
+  tipo_declarante_renta: string;
+  autorretenedor_renta: boolean;
+  autorretenedor_ica: boolean;
   es_facturador_electronico: boolean;
   aplica_reteica: boolean;
   concepto_reteica: string;
@@ -29,6 +32,7 @@ export type Proveedor = {
   aplica_reteiva: boolean;
   responsable_iva: boolean;
   regimen_tributario: string;
+  pertenece_regimen_simple: boolean;
   tipo_impuesto: string;
 };
 
@@ -41,6 +45,7 @@ export type Concepto = {
   cuenta_retencion: string | null;
   concepto_retencion_renta_id: string | null;
   cuenta_reteica: string | null;
+  concepto_reteica_id: string | null;
   cuenta_reteiva: string | null;
   cuenta_contrapartida: string;
   porcentaje_retencion: number | null;
@@ -95,6 +100,7 @@ export type TarifaReteicaCiudad = {
   id: string;
   agencia_id: string;
   codigo_ciiu: string | null;
+  concepto_reteica_id: string | null;
   tarifa: number;
   tope: number;
   cuenta: string | null;

@@ -51,6 +51,7 @@ export type Database = {
           cuenta_iva: string | null
           cuenta_reteica: string | null
           cuenta_reteiva: string | null
+          concepto_reteica_id: string | null
           concepto_retencion_renta_id: string | null
           cuenta_retencion: string | null
           id: string
@@ -70,6 +71,7 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          concepto_reteica_id?: string | null
           concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
@@ -89,6 +91,7 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          concepto_reteica_id?: string | null
           concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
@@ -673,8 +676,11 @@ export type Database = {
           direccion: string | null
           email: string | null
           es_declarante_renta: boolean
+          autorretenedor_ica: boolean
+          autorretenedor_renta: boolean
           es_facturador_electronico: boolean
           estado_validacion: string
+          pertenece_regimen_simple: boolean
           id: string
           nit: string
           nombre: string
@@ -684,6 +690,7 @@ export type Database = {
           tarifa_reteica: number
           tarifa_retencion_id: string | null
           telefono: string | null
+          tipo_declarante_renta: string
           tipo_identificacion: string
           tipo_impuesto: string
           tipo_proveedor: string
@@ -705,8 +712,11 @@ export type Database = {
           direccion?: string | null
           email?: string | null
           es_declarante_renta?: boolean
+          autorretenedor_ica?: boolean
+          autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
           estado_validacion?: string
+          pertenece_regimen_simple?: boolean
           id?: string
           nit: string
           nombre: string
@@ -716,6 +726,7 @@ export type Database = {
           tarifa_reteica?: number
           tarifa_retencion_id?: string | null
           telefono?: string | null
+          tipo_declarante_renta?: string
           tipo_identificacion?: string
           tipo_impuesto?: string
           tipo_proveedor?: string
@@ -737,8 +748,11 @@ export type Database = {
           direccion?: string | null
           email?: string | null
           es_declarante_renta?: boolean
+          autorretenedor_ica?: boolean
+          autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
           estado_validacion?: string
+          pertenece_regimen_simple?: boolean
           id?: string
           nit?: string
           nombre?: string
@@ -748,6 +762,7 @@ export type Database = {
           tarifa_reteica?: number
           tarifa_retencion_id?: string | null
           telefono?: string | null
+          tipo_declarante_renta?: string
           tipo_identificacion?: string
           tipo_impuesto?: string
           tipo_proveedor?: string
@@ -830,6 +845,7 @@ export type Database = {
           activo: boolean
           agencia_id: string
           codigo_ciiu: string | null
+          concepto_reteica_id: string | null
           created_at: string
           cuenta: string | null
           id: string
@@ -840,6 +856,7 @@ export type Database = {
           activo?: boolean
           agencia_id: string
           codigo_ciiu?: string | null
+          concepto_reteica_id?: string | null
           created_at?: string
           cuenta?: string | null
           id?: string
@@ -850,6 +867,7 @@ export type Database = {
           activo?: boolean
           agencia_id?: string
           codigo_ciiu?: string | null
+          concepto_reteica_id?: string | null
           created_at?: string
           cuenta?: string | null
           id?: string

@@ -866,7 +866,9 @@ function TarifasReteicaCiudadCard() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const [agenciaId, setAgenciaId] = useState("");
+  const [conceptoReteicaId, setConceptoReteicaId] = useState("");
   const [codigoCiiu, setCodigoCiiu] = useState("");
   const [tarifa, setTarifa] = useState("");
   const [tope, setTope] = useState("");
@@ -875,8 +877,10 @@ function TarifasReteicaCiudadCard() {
   const crear = useMutation({
     mutationFn: async () => {
       if (!agenciaId) throw new Error("Selecciona la agencia");
+      if (!conceptoReteicaId) throw new Error("Selecciona el concepto (Compras o Servicios)");
       const { error } = await supabase.from("tarifas_reteica_ciudad").insert({
         agencia_id: agenciaId,
+        concepto_reteica_id: conceptoReteicaId,
         codigo_ciiu: codigoCiiu.trim() || null,
         tarifa: Number(tarifa) || 0,
         tope: Number(tope) || 0,
@@ -923,15 +927,16 @@ function TarifasReteicaCiudadCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Tarifas de ReteICA por agencia / actividad (CIIU)</CardTitle>
+        <CardTitle className="text-base">Tarifas de ReteICA por agencia / concepto / actividad (CIIU)</CardTitle>
         <p className="text-sm text-muted-foreground">
-          El ICA varía por ciudad y por actividad económica. Configura aquí la tarifa por mil, el
-          tope mínimo (base gravable) y la cuenta contable de cada combinación agencia + CIIU.
-          Deja el CIIU en blanco para que sea la tarifa general de esa agencia.
+          El ICA varía por ciudad y por actividad económica — y el tope mínimo (base gravable)
+          suele ser distinto para Compras y para Servicios. Configura aquí cada combinación
+          agencia + concepto (+ CIIU opcional). Deja el CIIU en blanco para que sea la tarifa
+          general de esa agencia/concepto.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
           <Select value={agenciaId} onValueChange={setAgenciaId}>
             <SelectTrigger className="md:col-span-1">
               <SelectValue placeholder="Agencia" />
@@ -940,6 +945,18 @@ function TarifasReteicaCiudadCard() {
               {agsQ.data?.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={conceptoReteicaId} onValueChange={setConceptoReteicaId}>
+            <SelectTrigger className="md:col-span-1">
+              <SelectValue placeholder="Concepto" />
+            </SelectTrigger>
+            <SelectContent>
+              {conceptosQ.data?.filter((c) => c.activo).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nombre}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -964,7 +981,10 @@ function TarifasReteicaCiudadCard() {
           />
           <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
         </div>
-        <Button onClick={() => crear.mutate()} disabled={!agenciaId || !tarifa || crear.isPending}>
+        <Button
+          onClick={() => crear.mutate()}
+          disabled={!agenciaId || !conceptoReteicaId || !tarifa || crear.isPending}
+        >
           <Plus className="h-4 w-4 mr-2" /> Agregar tarifa
         </Button>
 
@@ -979,6 +999,8 @@ function TarifasReteicaCiudadCard() {
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">
                     {t.agencias?.codigo != null ? `${t.agencias.codigo} - ${t.agencias?.nombre}` : t.agencias?.nombre}
+                    {" · "}
+                    {conceptosQ.data?.find((c) => c.id === t.concepto_reteica_id)?.nombre ?? "Sin concepto"}
                     {t.codigo_ciiu ? ` · CIIU ${t.codigo_ciiu}` : " · Tarifa general"}
                   </div>
                   <div className="text-xs text-muted-foreground">
