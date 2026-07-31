@@ -315,6 +315,7 @@ export type FondoAgencia = {
   cuenta_contable: string | null;
   nombre: string;
   monto_asignado: number;
+  monto_maximo_gasto: number;
   activo: boolean;
   responsable: string | null;
   identificacion_responsable: string | null;

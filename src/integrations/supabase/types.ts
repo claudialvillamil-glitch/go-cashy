@@ -269,6 +269,7 @@ export type Database = {
           id: string
           identificacion_responsable: string | null
           monto_asignado: number
+          monto_maximo_gasto: number
           nombre: string
           prefijo: string | null
           responsable: string | null
@@ -281,6 +282,7 @@ export type Database = {
           id?: string
           identificacion_responsable?: string | null
           monto_asignado?: number
+          monto_maximo_gasto?: number
           nombre?: string
           prefijo?: string | null
           responsable?: string | null
@@ -293,6 +295,7 @@ export type Database = {
           id?: string
           identificacion_responsable?: string | null
           monto_asignado?: number
+          monto_maximo_gasto?: number
           prefijo?: string | null
           responsable?: string | null
           nombre?: string

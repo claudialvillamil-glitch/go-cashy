@@ -45,7 +45,7 @@ const formVacio = {
   tarifa_reteica: 0,
   aplica_reteiva: false,
   responsable_iva: true,
-  es_declarante_renta: true,
+  es_declarante_renta: false,
   tipo_declarante_renta: "contribuyente",
   autorretenedor_renta: false,
   autorretenedor_ica: false,

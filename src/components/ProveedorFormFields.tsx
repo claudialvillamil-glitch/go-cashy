@@ -331,7 +331,7 @@ export function ProveedorFormFields({
         <div className="flex items-center gap-2 pt-1">
           <Checkbox
             id="pff-declarante"
-            checked={form.es_declarante_renta ?? true}
+            checked={form.es_declarante_renta ?? false}
             onCheckedChange={(v) => setForm({ ...form, es_declarante_renta: v === true })}
           />
           <Label htmlFor="pff-declarante" className="text-sm font-normal cursor-pointer">

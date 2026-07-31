@@ -1215,6 +1215,7 @@ function FondosAgenciaCard() {
   const [nombre, setNombre] = useState("Caja menor");
   const [cuenta, setCuenta] = useState("");
   const [monto, setMonto] = useState("");
+  const [montoMaximoGasto, setMontoMaximoGasto] = useState("");
   const [responsable, setResponsable] = useState("");
   const [identificacionResponsable, setIdentificacionResponsable] = useState("");
   const [prefijo, setPrefijo] = useState("");
@@ -1227,6 +1228,7 @@ function FondosAgenciaCard() {
         nombre: nombre.trim() || "Caja menor",
         cuenta_contable: cuenta.trim() || null,
         monto_asignado: Number(monto) || 0,
+        monto_maximo_gasto: Number(montoMaximoGasto) || 0,
         responsable: responsable.trim() || null,
         identificacion_responsable: identificacionResponsable.trim() || null,
         prefijo: prefijo.trim().toUpperCase() || null,
@@ -1238,6 +1240,7 @@ function FondosAgenciaCard() {
       setNombre("Caja menor");
       setCuenta("");
       setMonto("");
+      setMontoMaximoGasto("");
       setResponsable("");
       setIdentificacionResponsable("");
       setPrefijo("");
@@ -1253,6 +1256,18 @@ function FondosAgenciaCard() {
     },
     onSuccess: () => {
       toast.success("Monto actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarMontoMaximo = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
+      const { error } = await supabase.from("fondos_agencia").update({ monto_maximo_gasto: valor }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Monto máximo actualizado");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1355,6 +1370,13 @@ function FondosAgenciaCard() {
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
           />
+          <Input
+            type="number"
+            min="0"
+            placeholder="Monto máximo por gasto"
+            value={montoMaximoGasto}
+            onChange={(e) => setMontoMaximoGasto(e.target.value)}
+          />
           <Button onClick={() => crear.mutate()} disabled={!agenciaId || crear.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Agregar fondo
           </Button>
@@ -1398,19 +1420,37 @@ function FondosAgenciaCard() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    defaultValue={f.monto_asignado}
-                    className="w-32 h-8 text-sm"
-                    onBlur={(e) => {
-                      const valor = Number(e.target.value) || 0;
-                      if (valor !== Number(f.monto_asignado)) {
-                        actualizarMonto.mutate({ id: f.id, valor });
-                      }
-                    }}
-                  />
+                <div className="flex items-end gap-2">
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-muted-foreground">Monto asignado</div>
+                    <Input
+                      type="number"
+                      min="0"
+                      defaultValue={f.monto_asignado}
+                      className="w-32 h-8 text-sm"
+                      onBlur={(e) => {
+                        const valor = Number(e.target.value) || 0;
+                        if (valor !== Number(f.monto_asignado)) {
+                          actualizarMonto.mutate({ id: f.id, valor });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-muted-foreground">Máx. por gasto</div>
+                    <Input
+                      type="number"
+                      min="0"
+                      defaultValue={f.monto_maximo_gasto}
+                      className="w-32 h-8 text-sm"
+                      onBlur={(e) => {
+                        const valor = Number(e.target.value) || 0;
+                        if (valor !== Number(f.monto_maximo_gasto)) {
+                          actualizarMontoMaximo.mutate({ id: f.id, valor });
+                        }
+                      }}
+                    />
+                  </div>
                   <Button
                     size="icon"
                     variant="ghost"

@@ -74,7 +74,7 @@ const empty = {
   tarifa_reteica: 0,
   aplica_reteiva: false,
   responsable_iva: true,
-  es_declarante_renta: true,
+  es_declarante_renta: false,
   tipo_declarante_renta: "contribuyente",
   autorretenedor_renta: false,
   autorretenedor_ica: false,
@@ -274,10 +274,12 @@ function Provs() {
         aplica_reteiva: form.aplica_reteiva ?? false,
         responsable_iva: form.responsable_iva ?? true,
         pertenece_regimen_simple: form.pertenece_regimen_simple ?? false,
+        es_declarante_renta: form.es_declarante_renta ?? false,
+        es_facturador_electronico: form.es_facturador_electronico ?? false,
         tipo_declarante_renta: form.tipo_declarante_renta || "contribuyente",
         autorretenedor_renta: form.autorretenedor_renta ?? false,
         autorretenedor_ica: form.autorretenedor_ica ?? false,
-        regimen_tributario: form.regimen_tributario || "comun",
+        regimen_tributario: form.regimen_tributario || "responsable_iva",
         tipo_impuesto: form.tipo_impuesto || "iva",
       };
       if (form.id) {
@@ -741,7 +743,7 @@ function Provs() {
                 <div className="flex items-center gap-2 pt-1">
                   <Checkbox
                     id="prov-declarante"
-                    checked={form.es_declarante_renta ?? true}
+                    checked={form.es_declarante_renta ?? false}
                     onCheckedChange={(v) => setForm({ ...form, es_declarante_renta: v === true })}
                   />
                   <Label htmlFor="prov-declarante" className="text-sm font-normal cursor-pointer">
@@ -997,7 +999,15 @@ function Provs() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          setForm(p);
+                          const regimenValidos = ["no_responsable_iva", "responsable_iva", "gran_contribuyente"];
+                          const regimenNormalizado = regimenValidos.includes(p.regimen_tributario)
+                            ? p.regimen_tributario
+                            : p.regimen_tributario === "simple"
+                              ? "responsable_iva"
+                              : p.regimen_tributario === "autorretenedor"
+                                ? "gran_contribuyente"
+                                : "responsable_iva";
+                          setForm({ ...p, regimen_tributario: regimenNormalizado });
                           const listaCiudades = CIUDADES_POR_DEPARTAMENTO[p.departamento ?? ""] ?? [];
                           setCiudadManual(!!p.ciudad && !listaCiudades.includes(p.ciudad));
                           setPrimerNombre("");

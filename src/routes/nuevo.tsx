@@ -371,9 +371,6 @@ function Nuevo() {
   const totalMulti = itemTotals.reduce((a, b) => a + b, 0);
   const total = multiSoporte ? totalMulti : totalSimple;
 
-  const excedeLimite =
-    fondoQ.data && total > Number(fondoQ.data.monto_maximo_gasto);
-
   // Alerta (no bloquea el guardado): el pago no debe superar el 15% del
   // fondo de caja menor elegido para esta agencia (una agencia puede tener
   // más de un fondo, ej. "Secretaría de Gerencia" y "Agencia").
@@ -393,6 +390,15 @@ function Nuevo() {
       ? Number(fondoAgenciaSel.monto_asignado) * 0.15
       : null;
   const excedeTopeAgencia = maxPorAgencia !== null && total > maxPorAgencia;
+
+  // El límite por gasto viene primero del fondo/agencia específico (si se
+  // configuró uno mayor a 0); si no, se usa el límite global de
+  // Configuración → Datos generales como respaldo.
+  const limiteMontoMaximo =
+    fondoAgenciaSel && Number(fondoAgenciaSel.monto_maximo_gasto) > 0
+      ? Number(fondoAgenciaSel.monto_maximo_gasto)
+      : Number(fondoQ.data?.monto_maximo_gasto ?? 0);
+  const excedeLimite = limiteMontoMaximo > 0 && total > limiteMontoMaximo;
 
   const itemsValidos =
     !multiSoporte ||
@@ -811,7 +817,7 @@ function Nuevo() {
             />
           </Field>
           <Field label="Fecha *">
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <Input type="date" value={fecha} readOnly disabled className="bg-muted" />
           </Field>
           <Field label="Agencia">
             <Select
@@ -1199,7 +1205,7 @@ function Nuevo() {
           </div>
           {excedeLimite && (
             <div className="mt-3 text-sm p-3 rounded-md bg-destructive/10 text-destructive">
-              El monto supera el límite autorizado por gasto ({fmtMoney(fondoQ.data?.monto_maximo_gasto)}).
+              El monto supera el límite autorizado por gasto ({fmtMoney(limiteMontoMaximo)}).
             </div>
           )}
           {excedeTopeAgencia && (
