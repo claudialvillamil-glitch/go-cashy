@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getMyProfile, type Proveedor } from "@/lib/db";
 import { calcularDV } from "@/lib/format";
@@ -102,7 +102,23 @@ function Provs() {
   const [segundoNombre, setSegundoNombre] = useState("");
   const [primerApellido, setPrimerApellido] = useState("");
   const [segundoApellido, setSegundoApellido] = useState("");
+  const [duplicado, setDuplicado] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const nit = (form.nit ?? "").trim();
+    if (!nit) {
+      setDuplicado(null);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      let query = supabase.from("proveedores").select("id, nombre").eq("nit", nit);
+      if (form.id) query = query.neq("id", form.id);
+      const { data } = await query.maybeSingle();
+      setDuplicado(data?.nombre ?? null);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [form.nit, form.id]);
 
   const descargarPlantilla = () => {
     const wb = XLSX.utils.book_new();
@@ -452,6 +468,58 @@ function Provs() {
                   </SelectContent>
                 </Select>
               </F>
+              {form.tipo_proveedor === "natural" ? (
+                <F label="Tipo de identificación">
+                  <Select
+                    value={form.tipo_identificacion ?? "CC"}
+                    onValueChange={(v) => setForm({ ...form, tipo_identificacion: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_IDENTIFICACION.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </F>
+              ) : null}
+              <div className="grid grid-cols-2 gap-3">
+                <F label={form.tipo_proveedor === "natural" ? "Número de identificación *" : "NIT *"}>
+                  <Input
+                    autoFocus
+                    value={form.nit ?? ""}
+                    onChange={(e) => {
+                      const nit = e.target.value;
+                      if (form.tipo_proveedor === "natural") {
+                        setForm({ ...form, nit });
+                      } else {
+                        setForm({ ...form, nit, digito_verificacion: calcularDV(nit) });
+                      }
+                    }}
+                  />
+                </F>
+                {form.tipo_proveedor !== "natural" && (
+                  <F label="Dígito de verificación (automático)">
+                    <Input
+                      maxLength={1}
+                      value={form.digito_verificacion ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })
+                      }
+                    />
+                  </F>
+                )}
+              </div>
+              {duplicado && (
+                <p className="text-xs text-warning -mt-2">
+                  Ya existe un proveedor con este número: <b>{duplicado}</b>. Ciérralo y búscalo
+                  en la lista en vez de crear uno nuevo.
+                </p>
+              )}
               {form.tipo_proveedor === "natural" && !form.id ? (
                 <div className="md:col-span-2 grid grid-cols-2 gap-3">
                   <F label="Primer nombre *">
@@ -538,55 +606,6 @@ function Provs() {
                 <Label htmlFor="prov-activo" className="text-sm font-normal cursor-pointer">
                   Proveedor activo (desmarca en vez de eliminar si ya tiene movimientos)
                 </Label>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {form.tipo_proveedor === "natural" ? (
-                  <F label="Tipo de identificación">
-                    <Select
-                      value={form.tipo_identificacion ?? "CC"}
-                      onValueChange={(v) => setForm({ ...form, tipo_identificacion: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_IDENTIFICACION.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </F>
-                ) : (
-                  <F label="NIT *">
-                    <Input
-                      value={form.nit ?? ""}
-                      onChange={(e) => {
-                        const nit = e.target.value;
-                        setForm({ ...form, nit, digito_verificacion: calcularDV(nit) });
-                      }}
-                    />
-                  </F>
-                )}
-                {form.tipo_proveedor === "natural" ? (
-                  <F label="Número de identificación *">
-                    <Input
-                      value={form.nit ?? ""}
-                      onChange={(e) => setForm({ ...form, nit: e.target.value })}
-                    />
-                  </F>
-                ) : (
-                  <F label="Dígito de verificación (automático)">
-                    <Input
-                      maxLength={1}
-                      value={form.digito_verificacion ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })
-                      }
-                    />
-                  </F>
-                )}
               </div>
 
               <F label="Dirección">

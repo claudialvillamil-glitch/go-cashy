@@ -52,6 +52,12 @@ export const Route = createFileRoute("/nuevo")({
   ),
 });
 
+// Guarda un borrador en el navegador mientras se llena el recibo, para que
+// si el usuario tiene que salir (ej. a crear un concepto en Configuración)
+// pueda continuar donde iba al volver. No se puede guardar el archivo de la
+// factura (hay que volver a adjuntarlo), pero sí todo lo demás.
+const CLAVE_BORRADOR = "go-cashy-borrador-recibo";
+
 function Nuevo() {
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -109,6 +115,113 @@ function Nuevo() {
   const [multiSoporte, setMultiSoporte] = useState(false);
   const [beneficiarioId, setBeneficiarioId] = useState("");
   const [items, setItems] = useState<ItemDraft[]>([blankItem()]);
+
+  // --- Borrador automático (ver nota arriba) ---
+  const [borradorDisponible, setBorradorDisponible] = useState(false);
+  const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<string | null>(null);
+  const [borradorYaDecidido, setBorradorYaDecidido] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(CLAVE_BORRADOR);
+      if (raw) {
+        const datos = JSON.parse(raw);
+        setBorradorDisponible(true);
+        setBorradorGuardadoEn(datos._guardadoEn ?? null);
+      }
+    } catch {
+      // Ignorar si el borrador está corrupto
+    }
+  }, []);
+
+  const restaurarBorrador = () => {
+    try {
+      const raw = sessionStorage.getItem(CLAVE_BORRADOR);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.agencia !== undefined) setAgencia(d.agencia);
+      if (d.fondoAgenciaId !== undefined) setFondoAgenciaId(d.fondoAgenciaId);
+      if (d.proveedor !== undefined) setProveedor(d.proveedor);
+      if (d.concepto !== undefined) setConcepto(d.concepto);
+      if (d.detalle !== undefined) setDetalle(d.detalle);
+      if (d.numeroFactura !== undefined) setNumeroFactura(d.numeroFactura);
+      if (d.subtotal !== undefined) setSubtotal(d.subtotal);
+      if (d.iva !== undefined) setIva(d.iva);
+      if (d.impoconsumo !== undefined) setImpoconsumo(d.impoconsumo);
+      if (d.retencion !== undefined) setRetencion(d.retencion);
+      if (d.reteica !== undefined) setReteica(d.reteica);
+      if (d.reteiva !== undefined) setReteiva(d.reteiva);
+      if (d.aplicaRetencion !== undefined) setAplicaRetencion(d.aplicaRetencion);
+      if (d.conceptoRetencionRentaId !== undefined) setConceptoRetencionRentaId(d.conceptoRetencionRentaId);
+      if (d.conceptoReteicaId !== undefined) setConceptoReteicaId(d.conceptoReteicaId);
+      if (d.tarifaReteica !== undefined) setTarifaReteica(d.tarifaReteica);
+      if (d.aplicaReteiva !== undefined) setAplicaReteiva(d.aplicaReteiva);
+      if (d.observaciones !== undefined) setObservaciones(d.observaciones);
+      if (d.facturaElectronica !== undefined) setFacturaElectronica(d.facturaElectronica);
+      if (d.multiSoporte !== undefined) setMultiSoporte(d.multiSoporte);
+      if (d.beneficiarioId !== undefined) setBeneficiarioId(d.beneficiarioId);
+      if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
+      toast.success("Borrador restaurado. Recuerda volver a adjuntar la factura.");
+    } catch {
+      toast.error("No se pudo restaurar el borrador.");
+    }
+    setBorradorYaDecidido(true);
+  };
+
+  const descartarBorrador = () => {
+    sessionStorage.removeItem(CLAVE_BORRADOR);
+    setBorradorYaDecidido(true);
+    setBorradorDisponible(false);
+  };
+
+  // Guarda automáticamente (con un pequeño retraso) cada vez que algo del
+  // formulario cambia, mientras el usuario ya decidió qué hacer con un
+  // borrador anterior (para no pisarlo antes de que elija restaurar o no).
+  useEffect(() => {
+    if (borradorDisponible && !borradorYaDecidido) return;
+    const timeout = setTimeout(() => {
+      const vacio =
+        !proveedor && !concepto && !subtotal && !detalle && items.length === 1 && !items[0].proveedor_id;
+      if (vacio) return;
+      const datos = {
+        _guardadoEn: new Date().toISOString(),
+        agencia,
+        fondoAgenciaId,
+        proveedor,
+        concepto,
+        detalle,
+        numeroFactura,
+        subtotal,
+        iva,
+        impoconsumo,
+        retencion,
+        reteica,
+        reteiva,
+        aplicaRetencion,
+        conceptoRetencionRentaId,
+        conceptoReteicaId,
+        tarifaReteica,
+        aplicaReteiva,
+        observaciones,
+        facturaElectronica,
+        multiSoporte,
+        beneficiarioId,
+        items,
+      };
+      try {
+        sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify(datos));
+      } catch {
+        // Si sessionStorage falla (modo privado, etc.), no hacemos nada.
+      }
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [
+    agencia, fondoAgenciaId, proveedor, concepto, detalle, numeroFactura, subtotal, iva,
+    impoconsumo, retencion, reteica, reteiva, aplicaRetencion, conceptoRetencionRentaId,
+    conceptoReteicaId, tarifaReteica, aplicaReteiva, observaciones, facturaElectronica,
+    multiSoporte, beneficiarioId, items, borradorDisponible, borradorYaDecidido,
+  ]);
+
 
   // La agencia queda predeterminada a la primera disponible en cuanto carga la lista.
   useEffect(() => {
@@ -724,6 +837,7 @@ function Nuevo() {
       return movimientoParaImprimir;
     },
     onSuccess: (mov) => {
+      sessionStorage.removeItem(CLAVE_BORRADOR);
       if (fondoQ.data) {
         const fondo = fondoQ.data;
         toast.custom(
@@ -772,6 +886,28 @@ function Nuevo() {
           Completa todos los campos y adjunta la factura como soporte.
         </p>
       </header>
+
+      {borradorDisponible && !borradorYaDecidido && (
+        <div className="flex items-center justify-between gap-3 p-4 rounded-lg border border-primary/40 bg-primary/5 flex-wrap">
+          <div>
+            <p className="text-sm font-medium">Tienes un recibo sin terminar</p>
+            <p className="text-xs text-muted-foreground">
+              {borradorGuardadoEn
+                ? `Guardado automáticamente el ${new Date(borradorGuardadoEn).toLocaleString("es-CO")}. `
+                : ""}
+              Recuerda que tendrás que volver a adjuntar la factura.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={descartarBorrador}>
+              Empezar de cero
+            </Button>
+            <Button size="sm" onClick={restaurarBorrador}>
+              Continuar donde iba
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -953,6 +1089,11 @@ function Nuevo() {
                   {proveedorSel?.es_facturador_electronico
                     ? "Este proveedor está marcado como facturador electrónico."
                     : "Este proveedor no está marcado como facturador electrónico."}
+                </p>
+              )}
+              {facturaElectronica && (
+                <p className="text-xs text-warning">
+                  Valida que la factura esté a nombre de {fondoQ.data?.empresa || "la empresa"}.
                 </p>
               )}
             </div>
@@ -1181,6 +1322,7 @@ function Nuevo() {
                 item={it}
                 total={itemTotals[idx] ?? 0}
                 conceptos={consQ.data ?? []}
+                empresa={fondoQ.data?.empresa}
                 onChange={(patch) => setItem(idx, patch)}
                 onProveedorChange={(v) => onItemProveedorChange(idx, v)}
                 onConceptoChange={(v) => onItemConceptoChange(idx, v)}
@@ -1388,6 +1530,7 @@ function ItemRow({
   item,
   total,
   conceptos,
+  empresa,
   onChange,
   onProveedorChange,
   onConceptoChange,
@@ -1399,6 +1542,7 @@ function ItemRow({
   item: ItemDraft;
   total: number;
   conceptos: Concepto[];
+  empresa?: string;
   onChange: (patch: Partial<ItemDraft>) => void;
   onProveedorChange: (v: string) => void;
   onConceptoChange: (v: string) => void;
@@ -1453,6 +1597,11 @@ function ItemRow({
           >
             Factura electrónica
           </Label>
+          {item.factura_electronica && (
+            <p className="text-xs text-warning ml-2">
+              Valida que la factura esté a nombre de {empresa || "la empresa"}.
+            </p>
+          )}
         </div>
         <Field label="Detalle">
           <Input

@@ -683,6 +683,32 @@ function TarifasRetencionCard() {
       toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
   });
 
+  const actualizarCampo = useMutation({
+    mutationFn: async ({
+      id,
+      campo,
+      valor,
+    }: {
+      id: string;
+      campo: "porcentaje" | "minimo_uvt" | "cuenta";
+      valor: string | number;
+    }) => {
+      const patch =
+        campo === "porcentaje"
+          ? { porcentaje: Number(valor) || 0 }
+          : campo === "minimo_uvt"
+            ? { minimo_uvt: Number(valor) || 0 }
+            : { cuenta: String(valor).trim() || null };
+      const { error } = await supabase.from("tarifas_retencion_renta").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Actualizado");
+      qc.invalidateQueries({ queryKey: ["tarifas-retencion"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader>
@@ -731,24 +757,64 @@ function TarifasRetencionCard() {
                   checked={t.activo}
                   onCheckedChange={(v) => toggleActivo.mutate({ id: t.id, activo: v === true })}
                 />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {t.nombre} · {Number(t.porcentaje)}%
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Mín. {Number(t.minimo_uvt)} UVT · Cuenta {t.cuenta || "—"}
-                  </div>
-                </div>
+                <div className="text-sm font-medium truncate">{t.nombre}</div>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm(`¿Eliminar la tarifa "${t.nombre}"?`)) eliminar.mutate(t.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">%</span>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    defaultValue={t.porcentaje}
+                    className="w-16 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = Number(e.target.value) || 0;
+                      if (valor !== Number(t.porcentaje)) {
+                        actualizarCampo.mutate({ id: t.id, campo: "porcentaje", valor });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">UVT mín.</span>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    defaultValue={t.minimo_uvt}
+                    className="w-20 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = Number(e.target.value) || 0;
+                      if (valor !== Number(t.minimo_uvt)) {
+                        actualizarCampo.mutate({ id: t.id, campo: "minimo_uvt", valor });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">Cuenta</span>
+                  <Input
+                    defaultValue={t.cuenta ?? ""}
+                    className="w-28 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = e.target.value;
+                      if (valor !== (t.cuenta ?? "")) {
+                        actualizarCampo.mutate({ id: t.id, campo: "cuenta", valor });
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm(`¿Eliminar la tarifa "${t.nombre}"?`)) eliminar.mutate(t.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
           ))}
           {(q.data?.length ?? 0) === 0 && (
@@ -1093,6 +1159,33 @@ function TarifasReteicaCiudadCard() {
       toast.error("No se pudo eliminar (puede estar en uso en algún recibo). " + e.message),
   });
 
+  const actualizarTarifa = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
+      const { error } = await supabase.from("tarifas_reteica_ciudad").update({ tarifa: valor }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tarifa actualizada");
+      qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarCuentaTarifa = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
+      const { error } = await supabase
+        .from("tarifas_reteica_ciudad")
+        .update({ cuenta: valor.trim() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cuenta actualizada");
+      qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader>
@@ -1167,25 +1260,55 @@ function TarifasReteicaCiudadCard() {
                     {t.codigo_ciiu ? ` · CIIU ${t.codigo_ciiu}` : " · Tarifa general"}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {Number(t.tarifa)}‰ · Base{" "}
+                    Base{" "}
                     {fmtMoneyLocal(
                       basesQ.data?.find(
                         (b) => b.agencia_id === t.agencia_id && b.concepto_reteica_id === t.concepto_reteica_id,
                       )?.base ?? 0,
-                    )}{" "}
-                    · Cuenta {t.cuenta || "—"}
+                    )}
                   </div>
                 </div>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm("¿Eliminar esta tarifa?")) eliminar.mutate(t.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">Tarifa ‰</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    defaultValue={t.tarifa}
+                    className="w-20 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = Number(e.target.value) || 0;
+                      if (valor !== Number(t.tarifa)) {
+                        actualizarTarifa.mutate({ id: t.id, valor });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">Cuenta</span>
+                  <Input
+                    defaultValue={t.cuenta ?? ""}
+                    className="w-28 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = e.target.value;
+                      if (valor !== (t.cuenta ?? "")) {
+                        actualizarCuentaTarifa.mutate({ id: t.id, valor });
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm("¿Eliminar esta tarifa?")) eliminar.mutate(t.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
           ))}
           {(q.data?.length ?? 0) === 0 && (
