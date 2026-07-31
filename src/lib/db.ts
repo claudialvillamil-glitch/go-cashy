@@ -536,8 +536,12 @@ export function computeAsiento(
         const { cuenta } = cuentaReteicaPorConcepto(null, undefined, null, null, conceptosReteica, fondo, c.cuenta_reteica);
         if (cuenta) creditos.push({ cuenta, descripcion: `ReteICA · ${c.nombre}`, valor: Number(it.reteica) });
       }
-      if (Number(it.reteiva) > 0 && c.cuenta_reteiva)
-        creditos.push({ cuenta: c.cuenta_reteiva, descripcion: `ReteIVA · ${c.nombre}`, valor: Number(it.reteiva) });
+      if (Number(it.reteiva) > 0)
+        creditos.push({
+          cuenta: c.cuenta_reteiva || fondo?.cuenta_banco || "24109503",
+          descripcion: `ReteIVA · ${c.nombre}`,
+          valor: Number(it.reteiva),
+        });
     });
     creditos.push({ cuenta: contrapartida, descripcion: "Caja menor", valor: Number(mov.total) });
     return { debitos, creditos };
@@ -590,9 +594,9 @@ export function computeAsiento(
       });
     }
   }
-  if (mov.reteiva > 0 && c.cuenta_reteiva)
+  if (mov.reteiva > 0)
     creditos.push({
-      cuenta: c.cuenta_reteiva,
+      cuenta: c.cuenta_reteiva || fondo?.cuenta_banco || "24109503",
       descripcion: "ReteIVA",
       valor: mov.reteiva,
     });

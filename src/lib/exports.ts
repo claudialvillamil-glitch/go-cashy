@@ -205,7 +205,6 @@ export function exportContabilizacionExcel(
   ];
 
   const filas: (string | number)[][] = [];
-  let ultimaIdentificacion: string | null = null;
 
   movs.forEach((m) => {
     const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad, conceptosRetencionRenta);
@@ -215,12 +214,10 @@ export function exportContabilizacionExcel(
     const creditosSinCajaMenor = creditos.filter((c) => c.descripcion !== "Caja menor");
 
     const nit = m.proveedores?.nit ?? "";
-    const identificacionFila = nit === ultimaIdentificacion ? "" : nit;
-    ultimaIdentificacion = nit;
 
-    debitos.forEach((d, i) => {
+    debitos.forEach((d) => {
       filas.push([
-        i === 0 ? identificacionFila : "",
+        nit,
         m.agencias?.codigo ?? "",
         folioRecibo(m),
         m.detalle ?? "",
@@ -240,7 +237,7 @@ export function exportContabilizacionExcel(
     });
     creditosSinCajaMenor.forEach((c) => {
       filas.push([
-        "",
+        nit,
         m.agencias?.codigo ?? "",
         folioRecibo(m),
         m.detalle ?? "",

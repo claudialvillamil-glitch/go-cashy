@@ -609,7 +609,7 @@ function Nuevo() {
     const s = parseFloat(items[idx]?.subtotal ?? "") || 0;
     const cuantiaMinima = uvtValor > 0 ? CUANTIA_MINIMA_UVT_SERVICIOS * uvtValor : 0;
     const superaBase = cuantiaMinima === 0 || s >= cuantiaMinima;
-    const patch: Partial<ItemDraft> = { proveedor_id: proveedorId };
+    const patch: Partial<ItemDraft> = { proveedor_id: proveedorId, factura_electronica: !!p?.es_facturador_electronico };
     if (c && s > 0) {
       const ivaCalc = Math.round((s * Number(c.porcentaje_iva ?? 0)) / 100);
       patch.reteica =
@@ -1083,6 +1083,7 @@ function Nuevo() {
                 <Checkbox
                   id="factura-electronica"
                   checked={facturaElectronica}
+                  disabled={!!proveedorSel?.es_facturador_electronico}
                   onCheckedChange={(v) => setFacturaElectronica(v === true)}
                 />
                 <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
@@ -1092,7 +1093,7 @@ function Nuevo() {
               {proveedor && (
                 <p className="text-xs text-muted-foreground">
                   {proveedorSel?.es_facturador_electronico
-                    ? "Este proveedor está marcado como facturador electrónico."
+                    ? "Este proveedor está marcado como facturador electrónico — no se puede desactivar."
                     : "Este proveedor no está marcado como facturador electrónico."}
                 </p>
               )}
@@ -1327,6 +1328,7 @@ function Nuevo() {
                 item={it}
                 total={itemTotals[idx] ?? 0}
                 conceptos={consQ.data ?? []}
+                proveedores={provsQ.data ?? []}
                 empresa={fondoQ.data?.empresa}
                 onChange={(patch) => setItem(idx, patch)}
                 onProveedorChange={(v) => onItemProveedorChange(idx, v)}
@@ -1535,6 +1537,7 @@ function ItemRow({
   item,
   total,
   conceptos,
+  proveedores,
   empresa,
   onChange,
   onProveedorChange,
@@ -1547,6 +1550,7 @@ function ItemRow({
   item: ItemDraft;
   total: number;
   conceptos: Concepto[];
+  proveedores: Proveedor[];
   empresa?: string;
   onChange: (patch: Partial<ItemDraft>) => void;
   onProveedorChange: (v: string) => void;
@@ -1556,6 +1560,7 @@ function ItemRow({
   canRemove: boolean;
 }) {
   const c = conceptos.find((x) => x.id === item.concepto_id);
+  const p = proveedores.find((x) => x.id === item.proveedor_id);
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -1594,6 +1599,7 @@ function ItemRow({
           <Checkbox
             id={`fe-${item.key}`}
             checked={item.factura_electronica}
+            disabled={!!p?.es_facturador_electronico}
             onCheckedChange={(v) => onChange({ factura_electronica: v === true })}
           />
           <Label
