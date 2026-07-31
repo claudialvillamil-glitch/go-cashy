@@ -205,7 +205,7 @@ export function ProveedorPicker({
                 </div>
               </CommandEmpty>
               <CommandGroup>
-                {activos.map((p) => (
+                {coincidencias.map((p) => (
                   <CommandItem
                     key={p.id}
                     value={`${p.nombre} ${p.nit}`}

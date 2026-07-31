@@ -76,7 +76,7 @@ export function ConceptoPicker({
               </p>
             </CommandEmpty>
             <CommandGroup>
-              {activos.map((c) => (
+              {coincidencias.map((c) => (
                 <CommandItem
                   key={c.id}
                   value={c.nombre}

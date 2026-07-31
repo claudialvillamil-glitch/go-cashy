@@ -33,7 +33,7 @@ import { fmtMoney, pad } from "@/lib/format";
 import { ProveedorPicker } from "@/components/ProveedorPicker";
 import { ConceptoPicker } from "@/components/ConceptoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Concepto, Movimiento, MovimientoItem } from "@/lib/db";
+import type { Concepto, Movimiento, MovimientoItem, Proveedor } from "@/lib/db";
 import { exportReciboPDF } from "@/lib/exports";
 import { CUANTIA_MINIMA_UVT_SERVICIOS, REGIMENES_TRIBUTARIOS } from "@/lib/retenciones";
 
@@ -409,6 +409,24 @@ function Nuevo() {
   const setItem = (idx: number, patch: Partial<ItemDraft>) =>
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
+  // Retención en la fuente (renta) para un ítem de "varios soportes": mismo
+  // sistema que en modo simple (Compras/Servicios + declarante/no
+  // declarante), exceptuando Régimen Simple y autorretenedores de renta.
+  const calcularRetencionRentaItem = (
+    concepto: Concepto | undefined,
+    proveedor: Proveedor | undefined,
+    subtotal: number,
+  ): string => {
+    if (!concepto?.concepto_retencion_renta_id || !proveedor) return "0";
+    if (proveedor.pertenece_regimen_simple || proveedor.autorretenedor_renta) return "0";
+    const cr = conceptosRetencionRentaQ.data?.find((c) => c.id === concepto.concepto_retencion_renta_id);
+    if (!cr) return "0";
+    const minima = uvtValor > 0 ? Number(cr.minimo_uvt) * uvtValor : 0;
+    if (minima > 0 && subtotal < minima) return "0";
+    const tarifa = proveedor.es_declarante_renta ? Number(cr.tarifa_declarante) : Number(cr.tarifa_no_declarante);
+    return String(Math.round((subtotal * tarifa) / 100));
+  };
+
   const onItemSubtotalChange = (idx: number, v: string) => {
     const c = consQ.data?.find((x) => x.id === items[idx]?.concepto_id);
     const p = provsQ.data?.find((x) => x.id === items[idx]?.proveedor_id);
@@ -428,6 +446,7 @@ function Nuevo() {
       // concepto — sí aplica en Régimen Simple, siempre que supere la base.
       patch.reteiva =
         p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
+      patch.retencion = calcularRetencionRentaItem(c, p, s);
     }
     setItem(idx, patch);
   };
@@ -447,6 +466,7 @@ function Nuevo() {
           ? String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100))
           : "0";
       patch.reteiva = p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
+      patch.retencion = calcularRetencionRentaItem(c, p, s);
     }
     setItem(idx, patch);
   };
@@ -468,6 +488,7 @@ function Nuevo() {
           ? String(Math.round((s * Number(c.porcentaje_reteica ?? 0)) / 100))
           : "0";
       patch.reteiva = p?.aplica_reteiva && superaBase ? String(Math.round(ivaCalc * 0.15)) : "0";
+      patch.retencion = calcularRetencionRentaItem(c, p, s);
     }
     setItem(idx, patch);
   };
@@ -638,6 +659,7 @@ function Nuevo() {
         iva: number;
         impoconsumo: number;
         retencion: number;
+        concepto_retencion_renta_id: string | null;
         reteica: number;
         reteiva: number;
         total: number;
@@ -655,6 +677,8 @@ function Nuevo() {
           iva: parseFloat(it.iva) || 0,
           impoconsumo: parseFloat(it.impoconsumo) || 0,
           retencion: parseFloat(it.retencion) || 0,
+          concepto_retencion_renta_id:
+            consQ.data?.find((c) => c.id === it.concepto_id)?.concepto_retencion_renta_id ?? null,
           reteica: parseFloat(it.reteica) || 0,
           reteiva: parseFloat(it.reteiva) || 0,
           total: itemTotals[idx],
@@ -1445,6 +1469,14 @@ function ItemRow({
             min="0"
             value={item.impoconsumo}
             onChange={(e) => onChange({ impoconsumo: e.target.value })}
+          />
+        </Field>
+        <Field label="Rete Fuente">
+          <Input
+            type="number"
+            min="0"
+            value={item.retencion}
+            onChange={(e) => onChange({ retencion: e.target.value })}
           />
         </Field>
         <Field label="ReteICA">

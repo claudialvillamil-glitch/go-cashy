@@ -109,8 +109,28 @@ function Cons() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      const [{ count: countMovs }, { count: countItems }] = await Promise.all([
+        supabase.from("movimientos").select("id", { count: "exact", head: true }).eq("concepto_id", id),
+        supabase
+          .from("movimiento_items")
+          .select("id", { count: "exact", head: true })
+          .eq("concepto_id", id),
+      ]);
+      const total = (countMovs ?? 0) + (countItems ?? 0);
+      if (total > 0) {
+        throw new Error(
+          `No se puede eliminar: este concepto ya tiene ${total} recibo(s)/soporte(s) registrado(s). Puedes desactivarlo en su lugar.`,
+        );
+      }
       const { error } = await supabase.from("conceptos").delete().eq("id", id);
-      if (error) throw error;
+      if (error) {
+        if (error.code === "23503") {
+          throw new Error(
+            "No se puede eliminar: este concepto tiene recibos registrados. Puedes desactivarlo en su lugar.",
+          );
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Concepto eliminado");
