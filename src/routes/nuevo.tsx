@@ -23,6 +23,7 @@ import {
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
+  getBasesReteicaAgencia,
   getFondosAgencia,
   getMyProfile,
 } from "@/lib/db";
@@ -65,6 +66,7 @@ function Nuevo() {
   });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
+  const basesReteicaQ = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
   const fondosAgenciaQ = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const nextConsQ = useQuery({
@@ -273,11 +275,19 @@ function Nuevo() {
     }
   }, [tarifaReteicaCiudadSel]);
 
+  // La base mínima ahora vive por agencia + concepto (una sola, sin
+  // importar el CIIU), en vez de repetirse en cada fila de tarifa.
+  const baseReteicaSel = useMemo(() => {
+    if (!conceptoReteicaId) return null;
+    return (
+      basesReteicaQ.data?.find(
+        (b) => b.agencia_id === agencia && b.concepto_reteica_id === conceptoReteicaId,
+      ) ?? null
+    );
+  }, [basesReteicaQ.data, agencia, conceptoReteicaId]);
+
   const reteicaBloqueadaPorTope =
-    !!tarifaReteicaCiudadSel &&
-    Number(tarifaReteicaCiudadSel.tope) > 0 &&
-    subtotalNum > 0 &&
-    subtotalNum < Number(tarifaReteicaCiudadSel.tope);
+    !!baseReteicaSel && Number(baseReteicaSel.base) > 0 && subtotalNum > 0 && subtotalNum < Number(baseReteicaSel.base);
 
   useEffect(() => {
     if (reteicaBloqueadaPorTope && aplicaReteica) {
@@ -1119,7 +1129,7 @@ function Nuevo() {
                 )}
                 {reteicaBloqueadaPorTope && (
                   <p className="text-xs text-warning">
-                    El subtotal no supera el tope mínimo ({fmtMoney(Number(tarifaReteicaCiudadSel?.tope ?? 0))})
+                    El subtotal no supera el tope mínimo ({fmtMoney(Number(baseReteicaSel?.base ?? 0))})
                     configurado para esta agencia/
                     {reteicaConceptosQ.data?.find((c) => c.id === conceptoReteicaId)?.nombre.toLowerCase()},
                     así que el ReteICA queda bloqueado.

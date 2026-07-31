@@ -89,6 +89,19 @@ export async function getConceptosRetencionRenta() {
   return data as ConceptoRetencionRenta[];
 }
 
+export type BaseReteicaAgencia = {
+  id: string;
+  agencia_id: string;
+  concepto_reteica_id: string;
+  base: number;
+};
+
+export async function getBasesReteicaAgencia() {
+  const { data, error } = await supabase.from("bases_reteica_agencia").select("*");
+  if (error) throw error;
+  return data as BaseReteicaAgencia[];
+}
+
 export type ConceptoReteicaDB = {
   id: string;
   nombre: string;

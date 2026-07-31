@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      bases_reteica_agencia: {
+        Row: {
+          agencia_id: string
+          base: number
+          concepto_reteica_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          agencia_id: string
+          base?: number
+          concepto_reteica_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          agencia_id?: string
+          base?: number
+          concepto_reteica_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       agencias: {
         Row: {
           codigo: number | null

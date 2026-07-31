@@ -11,6 +11,7 @@ import {
   getTarifasRetencionRenta,
   getConceptosRetencionRenta,
   getConceptosReteica,
+  getBasesReteicaAgencia,
   getTarifasReteicaCiudad,
   getFondosAgencia,
 } from "@/lib/db";
@@ -312,6 +313,7 @@ function Conf() {
       <ConceptosRetencionRentaCard />
       <TarifasRetencionCard />
       <ConceptosReteicaCard />
+      <BasesReteicaAgenciaCard />
       <TarifasReteicaCiudadCard />
       <FondosAgenciaCard />
     </div>
@@ -862,16 +864,159 @@ function ConceptosReteicaCard() {
   );
 }
 
+function BasesReteicaAgenciaCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
+  const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
+  const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const [agenciaId, setAgenciaId] = useState("");
+  const [conceptoReteicaId, setConceptoReteicaId] = useState("");
+  const [base, setBase] = useState("");
+
+  const guardar = useMutation({
+    mutationFn: async () => {
+      if (!agenciaId) throw new Error("Selecciona la agencia");
+      if (!conceptoReteicaId) throw new Error("Selecciona el concepto (Compras o Servicios)");
+      const { error } = await supabase.from("bases_reteica_agencia").upsert(
+        {
+          agencia_id: agenciaId,
+          concepto_reteica_id: conceptoReteicaId,
+          base: Number(base) || 0,
+        },
+        { onConflict: "agencia_id,concepto_reteica_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Base guardada");
+      setBase("");
+      qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarBase = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
+      const { error } = await supabase.from("bases_reteica_agencia").update({ base: valor }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Base actualizada");
+      qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("bases_reteica_agencia").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Base eliminada");
+      qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Bases de ReteICA por agencia</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Cada agencia tiene una base general (mínimo para que aplique ReteICA) para Compras y
+          para Servicios — una sola por combinación, sin importar la actividad económica (CIIU)
+          del proveedor. Las tarifas específicas por CIIU (más abajo) usan esta misma base.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Select value={agenciaId} onValueChange={setAgenciaId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Agencia" />
+            </SelectTrigger>
+            <SelectContent>
+              {agsQ.data?.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.codigo != null ? `${a.codigo} - ${a.nombre}` : a.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={conceptoReteicaId} onValueChange={setConceptoReteicaId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Concepto" />
+            </SelectTrigger>
+            <SelectContent>
+              {conceptosQ.data?.filter((c) => c.activo).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            placeholder="Base mínima ($)"
+            value={base}
+            onChange={(e) => setBase(e.target.value)}
+          />
+          <Button onClick={() => guardar.mutate()} disabled={!agenciaId || !conceptoReteicaId || guardar.isPending}>
+            <Plus className="h-4 w-4 mr-2" /> Guardar base
+          </Button>
+        </div>
+
+        <div className="rounded-md border divide-y">
+          {q.data?.map((b) => {
+            const agencia = agsQ.data?.find((a) => a.id === b.agencia_id);
+            const concepto = conceptosQ.data?.find((c) => c.id === b.concepto_reteica_id);
+            return (
+              <div key={b.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                <div className="text-sm font-medium truncate">
+                  {agencia?.codigo != null ? `${agencia.codigo} - ${agencia?.nombre}` : agencia?.nombre}
+                  {" · "}
+                  {concepto?.nombre ?? "—"}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    defaultValue={b.base}
+                    className="w-40 h-8 text-sm"
+                    onBlur={(e) => {
+                      const valor = Number(e.target.value) || 0;
+                      if (valor !== Number(b.base)) {
+                        actualizarBase.mutate({ id: b.id, valor });
+                      }
+                    }}
+                  />
+                  <Button size="icon" variant="ghost" onClick={() => eliminar.mutate(b.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay bases configuradas.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TarifasReteicaCiudadCard() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const basesQ = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
   const [agenciaId, setAgenciaId] = useState("");
   const [conceptoReteicaId, setConceptoReteicaId] = useState("");
   const [codigoCiiu, setCodigoCiiu] = useState("");
   const [tarifa, setTarifa] = useState("");
-  const [tope, setTope] = useState("");
   const [cuenta, setCuenta] = useState("");
 
   const crear = useMutation({
@@ -883,7 +1028,6 @@ function TarifasReteicaCiudadCard() {
         concepto_reteica_id: conceptoReteicaId,
         codigo_ciiu: codigoCiiu.trim() || null,
         tarifa: Number(tarifa) || 0,
-        tope: Number(tope) || 0,
         cuenta: cuenta.trim() || null,
       });
       if (error) throw error;
@@ -892,7 +1036,6 @@ function TarifasReteicaCiudadCard() {
       toast.success("Tarifa creada");
       setCodigoCiiu("");
       setTarifa("");
-      setTope("");
       setCuenta("");
       qc.invalidateQueries({ queryKey: ["tarifas-reteica-ciudad"] });
     },
@@ -929,10 +1072,10 @@ function TarifasReteicaCiudadCard() {
       <CardHeader>
         <CardTitle className="text-base">Tarifas de ReteICA por agencia / concepto / actividad (CIIU)</CardTitle>
         <p className="text-sm text-muted-foreground">
-          El ICA varía por ciudad y por actividad económica — y el tope mínimo (base gravable)
-          suele ser distinto para Compras y para Servicios. Configura aquí cada combinación
-          agencia + concepto (+ CIIU opcional). Deja el CIIU en blanco para que sea la tarifa
-          general de esa agencia/concepto.
+          El ICA varía por ciudad y por actividad económica. Configura aquí la tarifa por mil de
+          cada combinación agencia + concepto (+ CIIU opcional). Deja el CIIU en blanco para que
+          sea la tarifa general de esa agencia/concepto. La base mínima se configura arriba, en
+          "Bases de ReteICA por agencia".
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -973,12 +1116,6 @@ function TarifasReteicaCiudadCard() {
             value={tarifa}
             onChange={(e) => setTarifa(e.target.value)}
           />
-          <Input
-            type="number"
-            placeholder="Tope mínimo ($)"
-            value={tope}
-            onChange={(e) => setTope(e.target.value)}
-          />
           <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
         </div>
         <Button
@@ -1004,7 +1141,13 @@ function TarifasReteicaCiudadCard() {
                     {t.codigo_ciiu ? ` · CIIU ${t.codigo_ciiu}` : " · Tarifa general"}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {Number(t.tarifa)}‰ · Tope {fmtMoneyLocal(t.tope)} · Cuenta {t.cuenta || "—"}
+                    {Number(t.tarifa)}‰ · Base{" "}
+                    {fmtMoneyLocal(
+                      basesQ.data?.find(
+                        (b) => b.agencia_id === t.agencia_id && b.concepto_reteica_id === t.concepto_reteica_id,
+                      )?.base ?? 0,
+                    )}{" "}
+                    · Cuenta {t.cuenta || "—"}
                   </div>
                 </div>
               </div>
