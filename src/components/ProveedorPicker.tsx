@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, PlusCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,9 +58,14 @@ const formVacio = {
 export function ProveedorPicker({
   value,
   onChange,
+  onAutoAdvance,
 }: {
   value: string;
   onChange: (id: string) => void;
+  // Se llama cuando se autoselecciona un proveedor por coincidencia exacta
+  // de NIT, para que la pantalla que lo use pueda mover el foco al
+  // siguiente campo (ej. Concepto).
+  onAutoAdvance?: () => void;
 }) {
   const qc = useQueryClient();
   const provsQ = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
@@ -76,6 +81,30 @@ export function ProveedorPicker({
         `${p.nombre} ${p.nit}`.toLowerCase().includes(busqueda.toLowerCase()),
       )
     : activos;
+
+  // Si lo que se escribió parece un número de identificación completo (solo
+  // dígitos/puntos/guiones, 5+ caracteres): si coincide EXACTO con el NIT de
+  // un proveedor ya creado, se selecciona solo y avanza; si no coincide con
+  // ninguno, se abre la pantalla de creación automáticamente.
+  useEffect(() => {
+    if (!open) return;
+    const texto = busqueda.trim();
+    const pareceIdentificacion = /^[\d.-]{5,}$/.test(texto);
+    if (!pareceIdentificacion) return;
+    const timeout = setTimeout(() => {
+      const exacto = activos.find((p) => p.nit === texto);
+      if (exacto) {
+        onChange(exacto.id);
+        setOpen(false);
+        setBusqueda("");
+        onAutoAdvance?.();
+      } else if (!activos.some((p) => p.nit.includes(texto))) {
+        openCreate(texto);
+      }
+    }, 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, open, activos.length]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [form, setForm] = useState<Record<string, any>>(formVacio);

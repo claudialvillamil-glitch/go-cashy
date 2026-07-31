@@ -1029,7 +1029,11 @@ function Nuevo() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <Field label="Proveedor *">
-              <ProveedorPicker value={proveedor} onChange={onProveedorChange} />
+              <ProveedorPicker
+                value={proveedor}
+                onChange={onProveedorChange}
+                onAutoAdvance={() => document.getElementById("concepto-picker-principal")?.focus()}
+              />
               {proveedorSel && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {REGIMENES_TRIBUTARIOS.find((r) => r.value === proveedorSel.regimen_tributario)?.label}
@@ -1062,7 +1066,7 @@ function Nuevo() {
               )}
             </Field>
             <Field label="Concepto del gasto *">
-              <ConceptoPicker value={concepto} onChange={onConceptoChange} />
+              <ConceptoPicker id="concepto-picker-principal" value={concepto} onChange={onConceptoChange} />
             </Field>
             <Field label={facturaElectronica ? "Número de factura *" : "Número de factura"}>
               <Input

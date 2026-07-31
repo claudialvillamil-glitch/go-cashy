@@ -17,9 +17,11 @@ import { getConceptos } from "@/lib/db";
 export function ConceptoPicker({
   value,
   onChange,
+  id,
 }: {
   value: string;
   onChange: (id: string) => void;
+  id?: string;
 }) {
   const consQ = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
   const [open, setOpen] = useState(false);
@@ -43,6 +45,7 @@ export function ConceptoPicker({
     >
       <PopoverTrigger asChild>
         <Button
+          id={id}
           type="button"
           variant="outline"
           role="combobox"
