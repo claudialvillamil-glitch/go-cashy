@@ -890,6 +890,7 @@ function BasesReteicaAgenciaCard() {
     onSuccess: () => {
       toast.success("Base guardada");
       setBase("");
+      setConceptoReteicaId("");
       qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
