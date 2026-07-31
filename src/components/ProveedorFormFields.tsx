@@ -268,6 +268,26 @@ export function ProveedorFormFields({
             Responsable de IVA (cobra IVA en sus facturas)
           </Label>
         </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="pff-declarante"
+            checked={form.es_declarante_renta ?? true}
+            onCheckedChange={(v) => setForm({ ...form, es_declarante_renta: v === true })}
+          />
+          <Label htmlFor="pff-declarante" className="text-sm font-normal cursor-pointer">
+            Declarante de renta (afecta la tarifa de retención en la fuente)
+          </Label>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="pff-facturador-elec"
+            checked={form.es_facturador_electronico ?? false}
+            onCheckedChange={(v) => setForm({ ...form, es_facturador_electronico: v === true })}
+          />
+          <Label htmlFor="pff-facturador-elec" className="text-sm font-normal cursor-pointer">
+            Facturador electrónico (al elegirlo en un recibo, activa y exige factura electrónica)
+          </Label>
+        </div>
         <F label="Impuesto que factura este proveedor">
           <Select
             value={form.tipo_impuesto ?? "iva"}

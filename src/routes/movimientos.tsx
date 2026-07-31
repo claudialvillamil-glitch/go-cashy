@@ -17,6 +17,7 @@ import {
   getFondo,
   getMovimientos,
   getTarifasRetencionRenta,
+  getConceptosRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getMyProfile,
@@ -64,6 +65,10 @@ function Movs() {
   const esAdmin = profileQ.data?.rol === "admin";
   const puedeEditar = esAdmin || profileQ.data?.rol === "analista_contable";
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const conceptosRetencionRentaQ = useQuery({
+    queryKey: ["conceptos-retencion-renta"],
+    queryFn: getConceptosRetencionRenta,
+  });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const [q, setQ] = useState("");
@@ -464,7 +469,7 @@ function Movs() {
                     </thead>
                     <tbody>
                       {(() => {
-                        const { debitos, creditos } = computeAsiento(detail, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data);
+                        const { debitos, creditos } = computeAsiento(detail, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data);
                         return [
                           ...debitos.map((d, i) => (
                             <tr key={"d" + i} className="border-t">

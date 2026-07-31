@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import * as XLSXStyled from "xlsx-js-style";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PDFDocument } from "pdf-lib";
@@ -8,6 +9,7 @@ import type {
   FondoConfig,
   Reembolso,
   TarifaRetencionRenta,
+  ConceptoRetencionRenta,
   ConceptoReteicaDB,
   TarifaReteicaCiudad,
 } from "./db";
@@ -193,6 +195,7 @@ export function exportContabilizacionExcel(
   tarifas?: TarifaRetencionRenta[],
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+  conceptosRetencionRenta?: ConceptoRetencionRenta[],
 ) {
   const ENCABEZADOS = [
     "Identificacion", "Agencia", "Documento referencia", "Descripcion transaccion",
@@ -205,7 +208,7 @@ export function exportContabilizacionExcel(
   let ultimaIdentificacion: string | null = null;
 
   movs.forEach((m) => {
-    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
+    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad, conceptosRetencionRenta);
     // La última "credito" que arma computeAsiento siempre es la de "Caja
     // menor" (contrapartida) por el total del gasto — esa NO va aquí,
     // porque la reemplazamos por la fila consolidada a 24109503 al final.
@@ -339,12 +342,23 @@ export function exportReembolsoExcel(
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
   totalGastosFondo?: number,
 ) {
-  const wb = XLSX.utils.book_new();
+  const wb = XLSXStyled.utils.book_new();
   const FORMATO_MONEDA = '"$"#,##0';
-  const marcarMoneda = (ws: XLSX.WorkSheet, celdas: string[]) => {
+  const AZUL = "1E3A5F";
+  const GRIS = "E8EAED";
+  const BLANCO = "FFFFFF";
+  const marcarMoneda = (ws: XLSXStyled.WorkSheet, celdas: string[]) => {
     celdas.forEach((addr) => {
       if (ws[addr]) ws[addr].z = FORMATO_MONEDA;
     });
+  };
+  const estiloTitulo = { font: { bold: true, sz: 13, color: { rgb: BLANCO } }, fill: { fgColor: { rgb: AZUL } }, alignment: { horizontal: "center" as const, vertical: "center" as const } };
+  const estiloEncabezado = { font: { bold: true, color: { rgb: AZUL } }, fill: { fgColor: { rgb: GRIS } } };
+  const aplicarEstiloFila = (ws: XLSXStyled.WorkSheet, fila: number, estilo: object, cols: number) => {
+    for (let c = 0; c < cols; c++) {
+      const addr = XLSXStyled.utils.encode_cell({ r: fila, c });
+      if (ws[addr]) ws[addr].s = estilo;
+    }
   };
 
   const gastosFondo = reembolso.total_gastos_momento ?? totalGastosFondo ?? reembolso.total;
@@ -370,11 +384,15 @@ export function exportReembolsoExcel(
     ["Elaborado por", fondo.responsable],
     ["Autorizado por", fondo.nombre_aprobador],
   ];
-  const wsR = XLSX.utils.aoa_to_sheet(resumen);
+  const wsR = XLSXStyled.utils.aoa_to_sheet(resumen);
   wsR["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
   wsR["!cols"] = [{ wch: 26 }, { wch: 28 }];
+  aplicarEstiloFila(wsR, 0, estiloTitulo, 2);
+  ["A3", "A4", "A5", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A15", "A16"].forEach((addr) => {
+    if (wsR[addr]) wsR[addr].s = { font: { bold: true } };
+  });
   marcarMoneda(wsR, ["B3", "B4", "B5", "B13"]);
-  XLSX.utils.book_append_sheet(wb, wsR, "Resumen");
+  XLSXStyled.utils.book_append_sheet(wb, wsR, "Resumen");
 
   // Hoja 2: Relación de gastos incluidos en esta solicitud (debe coincidir 1 a 1
   // con los movimientos que forman parte del reembolso).
@@ -397,16 +415,17 @@ export function exportReembolsoExcel(
     ReteIVA: Number(m.reteiva),
     Total: Number(m.total),
   }));
-  const wsG = XLSX.utils.json_to_sheet(rows);
+  const wsG = XLSXStyled.utils.json_to_sheet(rows);
   wsG["!cols"] = [
     { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 20 },
     { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 13 }, { wch: 11 },
     { wch: 13 }, { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 13 },
   ];
+  aplicarEstiloFila(wsG, 0, estiloEncabezado, 17);
   for (let i = 0; i < rows.length; i++) {
     marcarMoneda(wsG, ["K", "L", "M", "N", "O", "P", "Q"].map((c) => `${c}${i + 2}`));
   }
-  XLSX.utils.book_append_sheet(wb, wsG, "Relación de gastos");
+  XLSXStyled.utils.book_append_sheet(wb, wsG, "Relación de gastos");
 
   // Hoja 3: Arqueo de caja realizado al momento de la solicitud (si se registró).
   if (reembolso.arqueo) {
@@ -434,16 +453,18 @@ export function exportReembolsoExcel(
       "",
       Math.abs(reembolso.arqueo.diferencia),
     ]);
-    const wsQ = XLSX.utils.aoa_to_sheet(filas);
+    const wsQ = XLSXStyled.utils.aoa_to_sheet(filas);
     wsQ["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
     wsQ["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 16 }];
+    aplicarEstiloFila(wsQ, 0, estiloTitulo, 3);
+    aplicarEstiloFila(wsQ, 2, estiloEncabezado, 3);
     for (let i = 2; i < filas.length; i++) {
       marcarMoneda(wsQ, [`C${i + 1}`]);
     }
-    XLSX.utils.book_append_sheet(wb, wsQ, "Arqueo de caja");
+    XLSXStyled.utils.book_append_sheet(wb, wsQ, "Arqueo de caja");
   }
 
-  XLSX.writeFile(wb, `reporte-reembolso-caja-menor-${pad(reembolso.consecutivo)}.xlsx`);
+  XLSXStyled.writeFile(wb, `reporte-reembolso-caja-menor-${pad(reembolso.consecutivo)}.xlsx`);
 }
 
 export function exportExcel(
@@ -498,6 +519,7 @@ export function exportAsientosContablesExcel(
   tarifas?: TarifaRetencionRenta[],
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+  conceptosRetencionRenta?: ConceptoRetencionRenta[],
 ) {
   const asientos: (string | number)[][] = [
     ["Recibo", "Fecha", "Cuenta", "Descripción", "Débito", "Crédito"],
@@ -505,7 +527,7 @@ export function exportAsientosContablesExcel(
   [...movs]
     .sort((a, b) => a.consecutivo - b.consecutivo)
     .forEach((m) => {
-      const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
+      const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad, conceptosRetencionRenta);
       debitos.forEach((d) =>
         asientos.push([folioRecibo(m), fmtDate(m.fecha), d.cuenta, d.descripcion, d.valor, 0]),
       );
@@ -649,6 +671,7 @@ export function exportPDF(
   tarifas?: TarifaRetencionRenta[],
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+  conceptosRetencionRenta?: ConceptoRetencionRenta[],
 ) {
   const doc = new jsPDF({ orientation: "landscape" });
   const total = movs.reduce((s, m) => s + Number(m.total), 0);
@@ -726,7 +749,7 @@ export function exportPDF(
   // Asientos
   const asientosBody: (string | number)[][] = [];
   movs.forEach((m) => {
-    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad);
+    const { debitos, creditos } = computeAsiento(m, fondo, tarifas, conceptosReteica, tarifasReteicaCiudad, conceptosRetencionRenta);
     debitos.forEach((d) =>
       asientosBody.push([folioRecibo(m), d.cuenta, d.descripcion, fmtMoney(d.valor), ""]),
     );

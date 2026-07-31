@@ -20,6 +20,8 @@ export type Proveedor = {
   aplica_retencion: boolean;
   tipo_retencion_renta: string | null;
   tarifa_retencion_id: string | null;
+  es_declarante_renta: boolean;
+  es_facturador_electronico: boolean;
   aplica_reteica: boolean;
   concepto_reteica: string;
   concepto_reteica_id: string | null;
@@ -37,6 +39,7 @@ export type Concepto = {
   cuenta_iva: string | null;
   cuenta_impoconsumo: string | null;
   cuenta_retencion: string | null;
+  concepto_retencion_renta_id: string | null;
   cuenta_reteica: string | null;
   cuenta_reteiva: string | null;
   cuenta_contrapartida: string;
@@ -58,6 +61,28 @@ export type TarifaRetencionRenta = {
   cuenta: string | null;
   activo: boolean;
 };
+
+// Nuevo sistema de retención en la fuente: por concepto (Compras, Servicios),
+// con una tarifa para declarante de renta y otra para no declarante — el
+// proveedor solo marca si es declarante o no, y la tarifa se calcula sola.
+export type ConceptoRetencionRenta = {
+  id: string;
+  nombre: string;
+  tarifa_declarante: number;
+  tarifa_no_declarante: number;
+  minimo_uvt: number;
+  cuenta: string | null;
+  activo: boolean;
+};
+
+export async function getConceptosRetencionRenta() {
+  const { data, error } = await supabase
+    .from("conceptos_retencion_renta")
+    .select("*")
+    .order("nombre");
+  if (error) throw error;
+  return data as ConceptoRetencionRenta[];
+}
 
 export type ConceptoReteicaDB = {
   id: string;
@@ -116,6 +141,7 @@ export type Movimiento = {
   retencion: number;
   tipo_retencion_renta: string | null;
   tarifa_retencion_id: string | null;
+  concepto_retencion_renta_id: string | null;
   reteica: number;
   concepto_reteica_usado: string | null;
   concepto_reteica_id: string | null;
@@ -165,6 +191,7 @@ export type MovimientoItem = {
   iva: number;
   impoconsumo: number;
   retencion: number;
+  concepto_retencion_renta_id: string | null;
   reteica: number;
   reteiva: number;
   total: number;
@@ -383,7 +410,21 @@ function cuentaRetencionPorTipo(
   tarifas: TarifaRetencionRenta[] | undefined,
   fondo: FondoConfig | undefined,
   fallback: string | null,
+  conceptoRetencionId?: string | null,
+  esDeclarante?: boolean,
+  conceptosRetencionRenta?: ConceptoRetencionRenta[],
 ): { cuenta: string | null; nombre: string } {
+  // Nuevo sistema (por concepto Compras/Servicios + declarante/no declarante)
+  // tiene prioridad si el movimiento ya lo usa.
+  if (conceptoRetencionId && conceptosRetencionRenta) {
+    const cr = conceptosRetencionRenta.find((x) => x.id === conceptoRetencionId);
+    if (cr) {
+      return {
+        cuenta: cr.cuenta || fallback,
+        nombre: `${cr.nombre} (${esDeclarante ? "declarante" : "no declarante"})`,
+      };
+    }
+  }
   if (tarifaId && tarifas) {
     const t = tarifas.find((x) => x.id === tarifaId);
     if (t) return { cuenta: t.cuenta || fallback, nombre: t.nombre };
@@ -434,6 +475,7 @@ export function computeAsiento(
   tarifas?: TarifaRetencionRenta[],
   conceptosReteica?: ConceptoReteicaDB[],
   tarifasReteicaCiudad?: TarifaReteicaCiudad[],
+  conceptosRetencionRenta?: ConceptoRetencionRenta[],
 ) {
   const debitos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
   const creditos: Array<{ cuenta: string; descripcion: string; valor: number }> = [];
@@ -458,7 +500,16 @@ export function computeAsiento(
           valor: Number(it.impoconsumo),
         });
       if (Number(it.retencion) > 0) {
-        const { cuenta } = cuentaRetencionPorTipo(null, null, tarifas, fondo, c.cuenta_retencion);
+        const { cuenta } = cuentaRetencionPorTipo(
+          null,
+          null,
+          tarifas,
+          fondo,
+          c.cuenta_retencion,
+          it.concepto_retencion_renta_id,
+          it.proveedores?.es_declarante_renta,
+          conceptosRetencionRenta,
+        );
         if (cuenta) creditos.push({ cuenta, descripcion: `Rete Fuente · ${c.nombre}`, valor: Number(it.retencion) });
       }
       if (Number(it.reteica) > 0) {
@@ -489,6 +540,9 @@ export function computeAsiento(
       tarifas,
       fondo,
       c.cuenta_retencion,
+      mov.concepto_retencion_renta_id,
+      mov.proveedores?.es_declarante_renta,
+      conceptosRetencionRenta,
     );
     if (cuenta) {
       creditos.push({

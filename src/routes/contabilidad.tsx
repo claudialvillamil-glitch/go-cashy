@@ -28,6 +28,7 @@ import {
   getProveedores,
   getFondo,
   getTarifasRetencionRenta,
+  getConceptosRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
   folioRecibo,
@@ -62,6 +63,10 @@ function Contabilidad() {
   const movsQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const conceptosRetencionRentaQ = useQuery({
+    queryKey: ["conceptos-retencion-renta"],
+    queryFn: getConceptosRetencionRenta,
+  });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
@@ -204,6 +209,7 @@ function Contabilidad() {
                 tarifasQ.data,
                 reteicaConceptosQ.data,
                 reteicaCiudadQ.data,
+                conceptosRetencionRentaQ.data,
               )
             }
           >
@@ -221,7 +227,7 @@ function Contabilidad() {
             disabled={!fondoQ.data || noReembolsados.length === 0}
             onClick={() =>
               fondoQ.data &&
-              exportPDF(noReembolsados, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)
+              exportPDF(noReembolsados, fondoQ.data, undefined, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data)
             }
           >
             <FileText className="h-4 w-4 mr-2" /> Reporte gastos y saldos (PDF)
@@ -231,7 +237,7 @@ function Contabilidad() {
             disabled={!fondoQ.data || noReembolsados.length === 0}
             onClick={() =>
               fondoQ.data &&
-              exportPDF(noReembolsados, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)
+              exportPDF(noReembolsados, fondoQ.data, "imprimir", tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data)
             }
           >
             <Printer className="h-4 w-4 mr-2" /> Imprimir reporte

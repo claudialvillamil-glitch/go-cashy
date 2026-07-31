@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -14,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useState } from "react";
-import { getConceptos, type Concepto } from "@/lib/db";
+import { getConceptos, getConceptosRetencionRenta, type Concepto } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -43,6 +50,7 @@ const empty: Partial<Concepto> = {
   cuenta_iva: "24080101",
   cuenta_impoconsumo: "",
   cuenta_retencion: "24109503",
+  concepto_retencion_renta_id: null,
   cuenta_reteica: "",
   cuenta_reteiva: "",
   cuenta_contrapartida: "11050501",
@@ -57,6 +65,7 @@ const empty: Partial<Concepto> = {
 function Cons() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["conceptos"], queryFn: getConceptos });
+  const retencionQ = useQuery({ queryKey: ["conceptos-retencion-renta"], queryFn: getConceptosRetencionRenta });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Concepto>>(empty);
 
@@ -68,6 +77,7 @@ function Cons() {
         cuenta_iva: form.cuenta_iva || null,
         cuenta_impoconsumo: form.cuenta_impoconsumo || null,
         cuenta_retencion: form.cuenta_retencion || null,
+        concepto_retencion_renta_id: form.concepto_retencion_renta_id || null,
         cuenta_reteica: form.cuenta_reteica || null,
         cuenta_reteiva: form.cuenta_reteiva || null,
         cuenta_contrapartida: form.cuenta_contrapartida || "11050501",
@@ -184,14 +194,38 @@ function Cons() {
 
               <div className="rounded-md border p-3 space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground">Retención en la fuente</p>
+                <F label="Concepto de retención (Compras/Servicios)">
+                  <Select
+                    value={form.concepto_retencion_renta_id ?? "ninguno"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, concepto_retencion_renta_id: v === "ninguno" ? null : v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ninguno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ninguno">Ninguno (no aplica retención)</SelectItem>
+                      {retencionQ.data?.filter((r) => r.activo).map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Al elegir este gasto en un recibo, la retención se calculará sola según este
+                    concepto y si el proveedor es declarante de renta o no.
+                  </p>
+                </F>
                 <div className="grid grid-cols-2 gap-3">
-                  <F label="Cuenta retención">
+                  <F label="Cuenta retención (respaldo)">
                     <Input
                       value={form.cuenta_retencion ?? ""}
                       onChange={(e) => setForm({ ...form, cuenta_retencion: e.target.value })}
                     />
                   </F>
-                  <F label="% Retención">
+                  <F label="% Retención (respaldo, sistema antiguo)">
                     <Input
                       type="number"
                       step="0.1"

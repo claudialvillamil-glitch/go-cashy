@@ -9,6 +9,7 @@ import {
   getAgencias,
   getFondo,
   getTarifasRetencionRenta,
+  getConceptosRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getFondosAgencia,
@@ -308,6 +309,7 @@ function Conf() {
       </Card>
 
       <AgenciasCard />
+      <ConceptosRetencionRentaCard />
       <TarifasRetencionCard />
       <ConceptosReteicaCard />
       <TarifasReteicaCiudadCard />
@@ -485,6 +487,141 @@ function AgenciasCard() {
             </div>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConceptosRetencionRentaCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["conceptos-retencion-renta"], queryFn: getConceptosRetencionRenta });
+
+  const actualizar = useMutation({
+    mutationFn: async ({
+      id,
+      campo,
+      valor,
+    }: {
+      id: string;
+      campo: "tarifa_declarante" | "tarifa_no_declarante" | "minimo_uvt" | "cuenta";
+      valor: string | number;
+    }) => {
+      const patch =
+        campo === "tarifa_declarante"
+          ? { tarifa_declarante: Number(valor) }
+          : campo === "tarifa_no_declarante"
+            ? { tarifa_no_declarante: Number(valor) }
+            : campo === "minimo_uvt"
+              ? { minimo_uvt: Number(valor) }
+              : { cuenta: String(valor) || null };
+      const { error } = await supabase.from("conceptos_retencion_renta").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Actualizado");
+      qc.invalidateQueries({ queryKey: ["conceptos-retencion-renta"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase.from("conceptos_retencion_renta").update({ activo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["conceptos-retencion-renta"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Retención en la fuente por concepto</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Cada concepto tiene una tarifa para proveedores declarantes de renta y otra para no
+          declarantes — el sistema elige la correcta según lo que marques en cada proveedor.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {q.data?.map((c) => (
+          <div key={c.id} className="rounded-md border p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={c.activo}
+                onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
+              />
+              <span className="text-sm font-medium">{c.nombre}</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pl-6">
+              <div>
+                <Label className="text-xs text-muted-foreground">% Declarante</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  defaultValue={c.tarifa_declarante}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = Number(e.target.value) || 0;
+                    if (valor !== Number(c.tarifa_declarante)) {
+                      actualizar.mutate({ id: c.id, campo: "tarifa_declarante", valor });
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">% No declarante</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  defaultValue={c.tarifa_no_declarante}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = Number(e.target.value) || 0;
+                    if (valor !== Number(c.tarifa_no_declarante)) {
+                      actualizar.mutate({ id: c.id, campo: "tarifa_no_declarante", valor });
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Base mínima (UVT)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  defaultValue={c.minimo_uvt}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = Number(e.target.value) || 0;
+                    if (valor !== Number(c.minimo_uvt)) {
+                      actualizar.mutate({ id: c.id, campo: "minimo_uvt", valor });
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Cuenta contable</Label>
+                <Input
+                  defaultValue={c.cuenta ?? ""}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor !== (c.cuenta ?? "")) {
+                      actualizar.mutate({ id: c.id, campo: "cuenta", valor });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        {(q.data?.length ?? 0) === 0 && (
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Aún no hay conceptos de retención configurados.
+          </div>
+        )}
       </CardContent>
     </Card>
   );

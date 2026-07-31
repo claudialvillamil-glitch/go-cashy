@@ -26,6 +26,7 @@ import { useMemo, useState } from "react";
 import {
   getFondo,
   getTarifasRetencionRenta,
+  getConceptosRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getMyProfile,
@@ -930,6 +931,10 @@ function DetalleReembolso({
 }) {
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const conceptosRetencionRentaQ = useQuery({
+    queryKey: ["conceptos-retencion-renta"],
+    queryFn: getConceptosRetencionRenta,
+  });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const pendQ = useQuery({ queryKey: ["movimientos"], queryFn: getMovimientos });
@@ -1138,7 +1143,7 @@ function DetalleReembolso({
                 onClick={() =>
                   fondoQ.data &&
                   movsQ.data &&
-                  exportContabilizacionExcel(reembolso, movsQ.data, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data)
+                  exportContabilizacionExcel(reembolso, movsQ.data, fondoQ.data, tarifasQ.data, reteicaConceptosQ.data, reteicaCiudadQ.data, conceptosRetencionRentaQ.data)
                 }
               >
                 <Download className="h-4 w-4 mr-2" /> Contabilización (plantilla)

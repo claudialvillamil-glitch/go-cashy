@@ -19,6 +19,7 @@ import {
   getConceptos,
   getFondo,
   getProveedores,
+  getConceptosRetencionRenta,
   getTarifasRetencionRenta,
   getConceptosReteica,
   getTarifasReteicaCiudad,
@@ -58,6 +59,10 @@ function Nuevo() {
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
+  const conceptosRetencionRentaQ = useQuery({
+    queryKey: ["conceptos-retencion-renta"],
+    queryFn: getConceptosRetencionRenta,
+  });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const reteicaCiudadQ = useQuery({ queryKey: ["tarifas-reteica-ciudad"], queryFn: getTarifasReteicaCiudad });
   const fondosAgenciaQ = useQuery({ queryKey: ["fondos-agencia"], queryFn: getFondosAgencia });
@@ -92,6 +97,7 @@ function Nuevo() {
   const [reteiva, setReteiva] = useState<string>("0");
   const [aplicaRetencion, setAplicaRetencion] = useState(false);
   const [tarifaRetencionId, setTarifaRetencionId] = useState<string>("");
+  const [conceptoRetencionRentaId, setConceptoRetencionRentaId] = useState<string>("");
   const [aplicaReteica, setAplicaReteica] = useState(false);
   const [conceptoReteicaId, setConceptoReteicaId] = useState<string>("");
   const [tarifaReteica, setTarifaReteica] = useState<string>("");
@@ -120,6 +126,29 @@ function Nuevo() {
     () => provsQ.data?.find((p) => p.id === proveedor),
     [provsQ.data, proveedor],
   );
+
+  // Si el proveedor está marcado como facturador electrónico, se activa solo
+  // "El proveedor emite factura electrónica" (y se exige el número); si no
+  // lo es, se desactiva y el campo de número de factura queda deshabilitado.
+  useEffect(() => {
+    if (!proveedor) return;
+    setFacturaElectronica(!!proveedorSel?.es_facturador_electronico);
+    if (!proveedorSel?.es_facturador_electronico) setNumeroFactura("");
+  }, [proveedor]);
+
+  // Si el gasto elegido (concepto) ya tiene un concepto de retención asignado
+  // en Configuración (Compras/Servicios), lo aplicamos solos — el usuario no
+  // tiene que acordarse de elegirlo cada vez. Sigue pudiendo desmarcarlo o
+  // cambiarlo manualmente si hace falta.
+  useEffect(() => {
+    if (conceptoSel?.concepto_retencion_renta_id) {
+      setConceptoRetencionRentaId(conceptoSel.concepto_retencion_renta_id);
+      setAplicaRetencion(true);
+    } else {
+      setConceptoRetencionRentaId("");
+      setAplicaRetencion(false);
+    }
+  }, [concepto]);
 
   // Auto-calcular IVA sugerido según el concepto (modo simple)
   const onSubtotalChange = (v: string) => {
@@ -181,12 +210,16 @@ function Nuevo() {
   const subtotalNum = parseFloat(subtotal) || 0;
   const uvtValor = Number(fondoQ.data?.valor_uvt ?? 0);
 
-  // Retención en la fuente (renta): base * % / 100, redondeado, según el tipo de servicio elegido.
-  // Solo se aplica si el subtotal supera la cuantía mínima (en UVT) de ese tipo de retención;
-  // si no la supera, la casilla se bloquea y desmarca automáticamente.
-  const tipoRentaSel = tarifasQ.data?.find((t) => t.id === tarifaRetencionId);
+  // Retención en la fuente (renta): base * % / 100, redondeado. La tarifa
+  // depende del CONCEPTO elegido (Compras/Servicios) y de si el proveedor es
+  // o no declarante de renta (dato propio del proveedor, ya no de la tarifa).
+  const esDeclarante = proveedorSel?.es_declarante_renta ?? true;
+  const conceptoRetencionSel = conceptosRetencionRentaQ.data?.find((c) => c.id === conceptoRetencionRentaId);
+  const tarifaAplicable = conceptoRetencionSel
+    ? Number(esDeclarante ? conceptoRetencionSel.tarifa_declarante : conceptoRetencionSel.tarifa_no_declarante)
+    : 0;
   const cuantiaMinimaRetencion =
-    tipoRentaSel && uvtValor > 0 ? Number(tipoRentaSel.minimo_uvt) * uvtValor : 0;
+    conceptoRetencionSel && uvtValor > 0 ? Number(conceptoRetencionSel.minimo_uvt) * uvtValor : 0;
   const retencionBloqueada =
     cuantiaMinimaRetencion > 0 && subtotalNum > 0 && subtotalNum < cuantiaMinimaRetencion;
 
@@ -202,8 +235,8 @@ function Nuevo() {
       return;
     }
     const s = parseFloat(subtotal) || 0;
-    setRetencion(tipoRentaSel ? String(Math.round((s * Number(tipoRentaSel.porcentaje)) / 100)) : "0");
-  }, [aplicaRetencion, tarifaRetencionId, subtotal, tarifasQ.data]);
+    setRetencion(conceptoRetencionSel ? String(Math.round((s * tarifaAplicable) / 100)) : "0");
+  }, [aplicaRetencion, conceptoRetencionRentaId, esDeclarante, subtotal, conceptosRetencionRentaQ.data]);
 
   // ReteICA: busca la tarifa configurada para esta agencia + el CIIU del
   // proveedor (o la tarifa general de la agencia si no hay una específica
@@ -415,6 +448,9 @@ function Nuevo() {
   const guardar = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Adjunta la factura");
+      if (!multiSoporte && facturaElectronica && !numeroFactura.trim()) {
+        throw new Error("Este proveedor es facturador electrónico: ingresa el número de factura.");
+      }
       const archivoFinal = await comprimirImagen(file);
       if (archivoFinal.size > 5 * 1024 * 1024) {
         throw new Error("El archivo (incluso comprimido) supera 5 MB. Intenta con otra foto o un PDF más liviano.");
@@ -495,6 +531,8 @@ function Nuevo() {
           impoconsumo: sumImp,
           retencion: sumRet,
           tarifa_retencion_id: !multiSoporte && aplicaRetencion ? tarifaRetencionId || null : null,
+          concepto_retencion_renta_id:
+            !multiSoporte && aplicaRetencion ? conceptoRetencionRentaId || null : null,
           concepto_reteica_id: !multiSoporte && aplicaReteica ? conceptoReteicaId || null : null,
           tarifa_reteica_ciudad_id:
             !multiSoporte && aplicaReteica ? tarifaReteicaCiudadSel?.id || null : null,
@@ -782,22 +820,33 @@ function Nuevo() {
             <Field label="Concepto del gasto *">
               <ConceptoPicker value={concepto} onChange={onConceptoChange} />
             </Field>
-            <Field label="Número de factura">
+            <Field label={facturaElectronica ? "Número de factura *" : "Número de factura"}>
               <Input
                 value={numeroFactura}
                 onChange={(e) => setNumeroFactura(e.target.value)}
                 placeholder="FV-001"
+                disabled={!facturaElectronica}
+                className={!facturaElectronica ? "bg-muted" : ""}
               />
             </Field>
-            <div className="flex items-center gap-2 md:pt-6">
-              <Checkbox
-                id="factura-electronica"
-                checked={facturaElectronica}
-                onCheckedChange={(v) => setFacturaElectronica(v === true)}
-              />
-              <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
-                El proveedor emite factura electrónica
-              </Label>
+            <div className="flex flex-col gap-1 md:pt-6">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="factura-electronica"
+                  checked={facturaElectronica}
+                  onCheckedChange={(v) => setFacturaElectronica(v === true)}
+                />
+                <Label htmlFor="factura-electronica" className="text-sm font-normal cursor-pointer">
+                  El proveedor emite factura electrónica
+                </Label>
+              </div>
+              {proveedor && (
+                <p className="text-xs text-muted-foreground">
+                  {proveedorSel?.es_facturador_electronico
+                    ? "Este proveedor está marcado como facturador electrónico."
+                    : "Este proveedor no está marcado como facturador electrónico."}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2 grid gap-4 md:grid-cols-3">
@@ -859,19 +908,26 @@ function Nuevo() {
                 </div>
                 {aplicaRetencion && (
                   <div className="grid gap-3 md:grid-cols-2 pt-1">
-                    <Field label="Tipo de servicio">
-                      <Select value={tarifaRetencionId} onValueChange={setTarifaRetencionId}>
+                    <Field label="Concepto">
+                      <Select value={conceptoRetencionRentaId} onValueChange={setConceptoRetencionRentaId}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona el tipo" />
+                          <SelectValue placeholder="Compras o Servicios" />
                         </SelectTrigger>
                         <SelectContent>
-                          {tarifasQ.data?.filter((t) => t.activo).map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.nombre} ({Number(t.porcentaje)}%)
+                          {conceptosRetencionRentaQ.data?.filter((c) => c.activo).map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nombre} ({Number(esDeclarante ? c.tarifa_declarante : c.tarifa_no_declarante)}%
+                              {" "}· {esDeclarante ? "declarante" : "no declarante"})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {proveedor && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          El proveedor está marcado como{" "}
+                          <b>{esDeclarante ? "declarante" : "no declarante"}</b> de renta.
+                        </p>
+                      )}
                     </Field>
                     <Field label="Retención calculada (automática)">
                       <Input
@@ -887,9 +943,9 @@ function Nuevo() {
                 )}
                 {retencionBloqueada && (
                   <p className="text-xs text-warning">
-                    El monto no supera la cuantía mínima ({Number(tipoRentaSel?.minimo_uvt ?? 4)} UVT ={" "}
-                    {fmtMoney(Number(tipoRentaSel?.minimo_uvt ?? 4) * uvtValor)}), así que la retención en
-                    la fuente queda bloqueada para este gasto.
+                    El monto no supera la cuantía mínima ({Number(conceptoRetencionSel?.minimo_uvt ?? 4)} UVT ={" "}
+                    {fmtMoney(Number(conceptoRetencionSel?.minimo_uvt ?? 4) * uvtValor)}), así que la retención
+                    en la fuente queda bloqueada para este gasto.
                   </p>
                 )}
               </div>

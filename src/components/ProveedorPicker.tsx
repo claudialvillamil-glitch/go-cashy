@@ -45,6 +45,8 @@ const formVacio = {
   tarifa_reteica: 0,
   aplica_reteiva: false,
   responsable_iva: true,
+  es_declarante_renta: true,
+  es_facturador_electronico: false,
   regimen_tributario: "comun",
   tipo_impuesto: "iva",
 };

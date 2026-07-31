@@ -51,6 +51,7 @@ export type Database = {
           cuenta_iva: string | null
           cuenta_reteica: string | null
           cuenta_reteiva: string | null
+          concepto_retencion_renta_id: string | null
           cuenta_retencion: string | null
           id: string
           nombre: string
@@ -69,6 +70,7 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
           nombre: string
@@ -87,6 +89,7 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
+          concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
           nombre?: string
@@ -95,6 +98,39 @@ export type Database = {
           porcentaje_reteica?: number
           porcentaje_reteiva?: number
           porcentaje_retencion?: number | null
+        }
+        Relationships: []
+      }
+      conceptos_retencion_renta: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          minimo_uvt: number
+          nombre: string
+          tarifa_declarante: number
+          tarifa_no_declarante: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre: string
+          tarifa_declarante?: number
+          tarifa_no_declarante?: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          minimo_uvt?: number
+          nombre?: string
+          tarifa_declarante?: number
+          tarifa_no_declarante?: number
         }
         Relationships: []
       }
@@ -247,6 +283,7 @@ export type Database = {
       movimiento_items: {
         Row: {
           concepto_id: string
+          concepto_retencion_renta_id: string | null
           created_at: string
           detalle: string | null
           factura_electronica: boolean
@@ -274,6 +311,7 @@ export type Database = {
         }
         Insert: {
           concepto_id: string
+          concepto_retencion_renta_id?: string | null
           created_at?: string
           detalle?: string | null
           factura_electronica?: boolean
@@ -301,6 +339,7 @@ export type Database = {
         }
         Update: {
           concepto_id?: string
+          concepto_retencion_renta_id?: string | null
           created_at?: string
           detalle?: string | null
           factura_electronica?: boolean
@@ -388,6 +427,7 @@ export type Database = {
           concepto_id: string
           concepto_reteica_id: string | null
           concepto_reteica_usado: string | null
+          concepto_retencion_renta_id: string | null
           consecutivo: number
           created_at: string
           detalle: string | null
@@ -432,6 +472,7 @@ export type Database = {
           concepto_id: string
           concepto_reteica_id?: string | null
           concepto_reteica_usado?: string | null
+          concepto_retencion_renta_id?: string | null
           consecutivo?: number
           created_at?: string
           detalle?: string | null
@@ -476,6 +517,7 @@ export type Database = {
           concepto_id?: string
           concepto_reteica_id?: string | null
           concepto_reteica_usado?: string | null
+          concepto_retencion_renta_id?: string | null
           consecutivo?: number
           created_at?: string
           detalle?: string | null
@@ -630,6 +672,8 @@ export type Database = {
           digito_verificacion: string | null
           direccion: string | null
           email: string | null
+          es_declarante_renta: boolean
+          es_facturador_electronico: boolean
           estado_validacion: string
           id: string
           nit: string
@@ -660,6 +704,8 @@ export type Database = {
           digito_verificacion?: string | null
           direccion?: string | null
           email?: string | null
+          es_declarante_renta?: boolean
+          es_facturador_electronico?: boolean
           estado_validacion?: string
           id?: string
           nit: string
@@ -690,6 +736,8 @@ export type Database = {
           digito_verificacion?: string | null
           direccion?: string | null
           email?: string | null
+          es_declarante_renta?: boolean
+          es_facturador_electronico?: boolean
           estado_validacion?: string
           id?: string
           nit?: string
