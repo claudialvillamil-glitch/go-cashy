@@ -94,6 +94,14 @@ function Page() {
   const hoy = new Date().toISOString().slice(0, 10);
   const coincideFiltro = (m: Movimiento) =>
     !agenciaFiltro || (m.agencia_id === agenciaFiltro && (!fondoFiltro || m.fondo_agencia_id === fondoFiltro));
+  // La lista de solicitudes también respeta la agencia/fondo seleccionado
+  // (o fijo del usuario) — antes solo se filtraban las cifras de resumen,
+  // pero se veían solicitudes de otras agencias en la tabla.
+  const reembolsosFiltrados = (listQ.data ?? []).filter(
+    (r) =>
+      !agenciaFiltro ||
+      (r.agencia_id === agenciaFiltro && (!fondoFiltro || r.fondo_agencia_id === fondoFiltro)),
+  );
   // Valor a reembolsar: solo lo que aún NO está incluido en ninguna solicitud
   // (para no volver a pedir plata ya solicitada anteriormente).
   const valorGastos = (pendQ.data ?? []).filter(coincideFiltro).reduce((s, m) => s + Number(m.total), 0);
@@ -223,7 +231,7 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {(listQ.data ?? []).map((r) => (
+              {reembolsosFiltrados.map((r) => (
                 <tr key={r.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-xs">{pad(r.consecutivo)}</td>
                   <td className="px-4 py-3">{fmtDate(r.fecha)}</td>
@@ -287,7 +295,7 @@ function Page() {
                   </td>
                 </tr>
               ))}
-              {(listQ.data?.length ?? 0) === 0 && (
+              {reembolsosFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
                     Aún no hay solicitudes de reembolso.
@@ -632,6 +640,8 @@ function NuevaSolicitud({
           arqueo,
           monto_fondo_momento: montoTotalFondo,
           total_gastos_momento: totalPendienteFondo,
+          agencia_id: agenciaFiltro,
+          fondo_agencia_id: fondoFiltro,
         })
         .select("*")
         .single();

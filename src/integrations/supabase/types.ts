@@ -815,6 +815,7 @@ export type Database = {
       }
       reembolsos: {
         Row: {
+          agencia_id: string | null
           aprobado_por: string | null
           arqueo: Json | null
           consecutivo: number
@@ -822,6 +823,7 @@ export type Database = {
           estado: string
           fecha: string
           fecha_aprobacion: string | null
+          fondo_agencia_id: string | null
           id: string
           monto_fondo_momento: number | null
           observaciones: string | null
@@ -832,6 +834,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          agencia_id?: string | null
           aprobado_por?: string | null
           arqueo?: Json | null
           consecutivo?: number
@@ -839,6 +842,7 @@ export type Database = {
           estado?: string
           fecha?: string
           fecha_aprobacion?: string | null
+          fondo_agencia_id?: string | null
           id?: string
           monto_fondo_momento?: number | null
           observaciones?: string | null
@@ -849,6 +853,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          agencia_id?: string | null
           aprobado_por?: string | null
           arqueo?: Json | null
           consecutivo?: number
@@ -856,6 +861,7 @@ export type Database = {
           estado?: string
           fecha?: string
           fecha_aprobacion?: string | null
+          fondo_agencia_id?: string | null
           id?: string
           monto_fondo_momento?: number | null
           observaciones?: string | null

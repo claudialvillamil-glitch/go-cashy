@@ -250,6 +250,8 @@ export type Reembolso = {
   aprobado_por_perfil?: { nombre: string; email: string } | null;
   monto_fondo_momento: number | null;
   total_gastos_momento: number | null;
+  agencia_id: string | null;
+  fondo_agencia_id: string | null;
 };
 
 export type FondoConfig = {

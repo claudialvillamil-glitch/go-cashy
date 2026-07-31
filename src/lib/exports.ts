@@ -828,7 +828,7 @@ function buildReciboDoc(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
-    `Empresa: ${fondo.empresa}${fondo.nit_empresa ? " · NIT " + fondo.nit_empresa : ""}`,
+    `${fondo.empresa}${fondo.nit_empresa ? " · NIT " + fondo.nit_empresa : ""}`,
     x0 + w - 6,
     y0 + 32,
     { align: "right" },
@@ -884,12 +884,6 @@ function buildReciboDoc(
   doc.text("ELABORADO", x0 + colW + colW / 2, yF + 15, { align: "center" });
   doc.text("Firma de recibido", x0 + colW * 2 + colW / 2, yF + 15, { align: "center" });
   doc.setTextColor(0, 0, 0);
-  doc.text(
-    `C.C. o NIT: ${mov.proveedores?.nit ?? ""}`,
-    x0 + colW * 2 + colW / 2,
-    yF + 20,
-    { align: "center" },
-  );
 
   // Pie: código / vigencia / versión del formato
   if (fondo.codigo_recibo || fondo.vigencia_recibo || fondo.version_recibo) {
