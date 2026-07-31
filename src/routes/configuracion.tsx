@@ -794,6 +794,21 @@ function ConceptosReteicaCard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const actualizarCuenta = useMutation({
+    mutationFn: async ({ id, cuenta: valor }: { id: string; cuenta: string }) => {
+      const { error } = await supabase
+        .from("conceptos_reteica")
+        .update({ cuenta: valor.trim() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cuenta actualizada");
+      qc.invalidateQueries({ queryKey: ["conceptos-reteica"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const eliminar = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("conceptos_reteica").delete().eq("id", id);
@@ -831,26 +846,36 @@ function ConceptosReteicaCard() {
 
         <div className="rounded-md border divide-y">
           {q.data?.map((c) => (
-            <div key={c.id} className="flex items-center justify-between px-4 py-2.5">
-              <div className="flex items-center gap-2">
+            <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
                 <Checkbox
                   checked={c.activo}
                   onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
                 />
-                <div>
-                  <div className="text-sm font-medium">{c.nombre}</div>
-                  <div className="text-xs text-muted-foreground">Cuenta {c.cuenta || "—"}</div>
-                </div>
+                <div className="text-sm font-medium truncate">{c.nombre}</div>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm(`¿Eliminar el concepto "${c.nombre}"?`)) eliminar.mutate(c.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Cuenta"
+                  defaultValue={c.cuenta ?? ""}
+                  className="w-40 h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor !== (c.cuenta ?? "")) {
+                      actualizarCuenta.mutate({ id: c.id, cuenta: valor });
+                    }
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm(`¿Eliminar el concepto "${c.nombre}"?`)) eliminar.mutate(c.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
           ))}
           {(q.data?.length ?? 0) === 0 && (
