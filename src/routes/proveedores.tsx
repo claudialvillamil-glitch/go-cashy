@@ -24,7 +24,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getMyProfile, type Proveedor } from "@/lib/db";
-import { calcularDV } from "@/lib/format";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   REGIMENES_TRIBUTARIOS,
@@ -492,18 +491,11 @@ function Provs() {
                   <Input
                     autoFocus
                     value={form.nit ?? ""}
-                    onChange={(e) => {
-                      const nit = e.target.value;
-                      if (form.tipo_proveedor === "natural") {
-                        setForm({ ...form, nit });
-                      } else {
-                        setForm({ ...form, nit, digito_verificacion: calcularDV(nit) });
-                      }
-                    }}
+                    onChange={(e) => setForm({ ...form, nit: e.target.value })}
                   />
                 </F>
                 {form.tipo_proveedor !== "natural" && (
-                  <F label="Dígito de verificación (automático)">
+                  <F label="Dígito de verificación">
                     <Input
                       maxLength={1}
                       value={form.digito_verificacion ?? ""}
@@ -526,7 +518,7 @@ function Provs() {
                     <Input
                       value={primerNombre}
                       onChange={(e) => {
-                        const v = e.target.value;
+                        const v = e.target.value.toUpperCase();
                         setPrimerNombre(v);
                         setForm({
                           ...form,
@@ -541,7 +533,7 @@ function Provs() {
                     <Input
                       value={segundoNombre}
                       onChange={(e) => {
-                        const v = e.target.value;
+                        const v = e.target.value.toUpperCase();
                         setSegundoNombre(v);
                         setForm({
                           ...form,
@@ -556,7 +548,7 @@ function Provs() {
                     <Input
                       value={primerApellido}
                       onChange={(e) => {
-                        const v = e.target.value;
+                        const v = e.target.value.toUpperCase();
                         setPrimerApellido(v);
                         setForm({
                           ...form,
@@ -571,7 +563,7 @@ function Provs() {
                     <Input
                       value={segundoApellido}
                       onChange={(e) => {
-                        const v = e.target.value;
+                        const v = e.target.value.toUpperCase();
                         setSegundoApellido(v);
                         setForm({
                           ...form,
@@ -593,7 +585,7 @@ function Provs() {
                 >
                   <Input
                     value={form.nombre ?? ""}
-                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
                   />
                 </F>
               )}
@@ -611,7 +603,7 @@ function Provs() {
               <F label="Dirección">
                 <Input
                   value={form.direccion ?? ""}
-                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                  onChange={(e) => setForm({ ...form, direccion: e.target.value.toUpperCase() })}
                 />
               </F>
               <div className="grid grid-cols-3 gap-3">
@@ -649,7 +641,7 @@ function Provs() {
                   <Input
                     placeholder="Escribe el municipio"
                     value={form.ciudad ?? ""}
-                    onChange={(e) => setForm({ ...form, ciudad: e.target.value })}
+                    onChange={(e) => setForm({ ...form, ciudad: e.target.value.toUpperCase() })}
                   />
                 </F>
               )}
@@ -792,6 +784,8 @@ function Provs() {
                       <SelectItem value="iva">IVA</SelectItem>
                       <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
                       <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
+                      <SelectItem value="excluido">Excluido de IVA (ej. combustible)</SelectItem>
+                      <SelectItem value="exento">Exento de IVA (tarifa 0%)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">

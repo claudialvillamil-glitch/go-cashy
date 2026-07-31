@@ -1,16 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +48,11 @@ const formVacio = {
   tipo_impuesto: "iva",
 };
 
+// Campo de texto directo: escribes el NIT o el nombre y aparecen sugerencias
+// abajo (sin necesitar hacer clic en nada más primero). Si escribes un
+// número de identificación completo y coincide exacto con un proveedor ya
+// creado, se selecciona solo; si no coincide con ninguno, se abre la
+// creación automáticamente.
 export function ProveedorPicker({
   value,
   onChange,
@@ -73,6 +71,7 @@ export function ProveedorPicker({
   const [dialog, setDialog] = useState(false);
   const [prefill, setPrefill] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = provsQ.data?.find((p) => p.id === value);
   const activos = (provsQ.data ?? []).filter((p) => p.activo);
@@ -81,6 +80,14 @@ export function ProveedorPicker({
         `${p.nombre} ${p.nit}`.toLowerCase().includes(busqueda.toLowerCase()),
       )
     : activos;
+
+  // Mientras no se esté editando, el campo muestra "Nombre — NIT" del
+  // proveedor ya seleccionado.
+  useEffect(() => {
+    if (open) return;
+    setBusqueda(selected ? `${selected.nombre} — ${selected.nit}` : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, open]);
 
   // Si lo que se escribió parece un número de identificación completo (solo
   // dígitos/puntos/guiones, 5+ caracteres): si coincide EXACTO con el NIT de
@@ -96,7 +103,6 @@ export function ProveedorPicker({
       if (exacto) {
         onChange(exacto.id);
         setOpen(false);
-        setBusqueda("");
         onAutoAdvance?.();
       } else if (!activos.some((p) => p.nit.includes(texto))) {
         openCreate(texto);
@@ -176,98 +182,84 @@ export function ProveedorPicker({
 
   return (
     <>
-      <Popover
-        open={open}
-        onOpenChange={(o) => {
-          setOpen(o);
-          if (!o) setBusqueda("");
-        }}
-      >
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between font-normal"
-          >
-            <span className={cn("truncate", !selected && "text-muted-foreground")}>
-              {selected ? `${selected.nombre} — ${selected.nit}` : "Buscar por nombre o NIT..."}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command
-            filter={(val, search) => {
-              return val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
-            }}
-          >
-            <CommandInput
-              placeholder="Buscar por nombre o NIT..."
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref={inputRef}
               value={busqueda}
-              onValueChange={setBusqueda}
+              onFocus={(e) => {
+                setOpen(true);
+                e.target.select();
+              }}
+              onChange={(e) => {
+                setBusqueda(e.target.value);
+                setOpen(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && coincidencias.length > 0) {
                   e.preventDefault();
                   onChange(coincidencias[0].id);
                   setOpen(false);
+                  inputRef.current?.blur();
+                }
+                if (e.key === "Escape") {
+                  setOpen(false);
+                  inputRef.current?.blur();
                 }
               }}
+              placeholder="Escribe el NIT o el nombre..."
+              className="pl-8"
+              autoComplete="off"
             />
-            <CommandList>
-              <CommandEmpty>
-                <div className="py-4 text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">No se encontró el proveedor.</p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      const input = document.querySelector<HTMLInputElement>(
-                        "[cmdk-input]",
-                      );
-                      openCreate(input?.value);
-                    }}
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" /> Crear proveedor
-                  </Button>
-                </div>
-              </CommandEmpty>
-              <CommandGroup>
-                {coincidencias.map((p) => (
-                  <CommandItem
-                    key={p.id}
-                    value={`${p.nombre} ${p.nit}`}
-                    onSelect={() => {
-                      onChange(p.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "h-4 w-4 mr-2",
-                        value === p.id ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <div className="flex flex-col">
-                      <span>{p.nombre}</span>
-                      <span className="text-xs text-muted-foreground">NIT {p.nit}</span>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <div className="border-t p-1">
-                <Button
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] p-0 max-h-72 overflow-y-auto"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={() => setOpen(false)}
+        >
+          {coincidencias.length === 0 ? (
+            <div className="py-4 text-center space-y-2 px-2">
+              <p className="text-sm text-muted-foreground">No se encontró el proveedor.</p>
+              <Button size="sm" variant="secondary" onClick={() => openCreate(busqueda)}>
+                <PlusCircle className="h-4 w-4 mr-2" /> Crear proveedor
+              </Button>
+            </div>
+          ) : (
+            <div className="py-1">
+              {coincidencias.slice(0, 30).map((p) => (
+                <button
+                  key={p.id}
                   type="button"
-                  variant="ghost"
-                  className="w-full justify-start"
-                  onClick={() => openCreate()}
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-sm hover:bg-accent flex flex-col",
+                    value === p.id && "bg-accent",
+                  )}
+                  onClick={() => {
+                    onChange(p.id);
+                    setOpen(false);
+                    inputRef.current?.blur();
+                  }}
                 >
-                  <PlusCircle className="h-4 w-4 mr-2" /> Crear nuevo proveedor
-                </Button>
-              </div>
-            </CommandList>
-          </Command>
+                  <span>{p.nombre}</span>
+                  <span className="text-xs text-muted-foreground">NIT {p.nit}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="border-t p-1">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => openCreate(busqueda)}
+            >
+              <PlusCircle className="h-4 w-4 mr-2" /> Crear nuevo proveedor
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
 

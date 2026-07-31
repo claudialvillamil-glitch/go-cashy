@@ -13,7 +13,6 @@ import {
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { getTarifasRetencionRenta, getConceptosReteica } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
-import { calcularDV } from "@/lib/format";
 import {
   REGIMENES_TRIBUTARIOS,
   TIPOS_IDENTIFICACION,
@@ -115,13 +114,13 @@ export function ProveedorFormFields({
               if (form.tipo_proveedor === "natural") {
                 setForm({ ...form, nit });
               } else {
-                setForm({ ...form, nit, digito_verificacion: calcularDV(nit) });
+                setForm({ ...form, nit });
               }
             }}
           />
         </F>
         {form.tipo_proveedor !== "natural" && (
-          <F label="Dígito de verificación (automático)">
+          <F label="Dígito de verificación">
             <Input
               maxLength={1}
               value={form.digito_verificacion ?? ""}
@@ -143,7 +142,7 @@ export function ProveedorFormFields({
             <Input
               value={primerNombre}
               onChange={(e) => {
-                const v = e.target.value;
+                const v = e.target.value.toUpperCase();
                 setPrimerNombre(v);
                 setForm({
                   ...form,
@@ -156,7 +155,7 @@ export function ProveedorFormFields({
             <Input
               value={segundoNombre}
               onChange={(e) => {
-                const v = e.target.value;
+                const v = e.target.value.toUpperCase();
                 setSegundoNombre(v);
                 setForm({
                   ...form,
@@ -169,7 +168,7 @@ export function ProveedorFormFields({
             <Input
               value={primerApellido}
               onChange={(e) => {
-                const v = e.target.value;
+                const v = e.target.value.toUpperCase();
                 setPrimerApellido(v);
                 setForm({
                   ...form,
@@ -182,7 +181,7 @@ export function ProveedorFormFields({
             <Input
               value={segundoApellido}
               onChange={(e) => {
-                const v = e.target.value;
+                const v = e.target.value.toUpperCase();
                 setSegundoApellido(v);
                 setForm({
                   ...form,
@@ -194,7 +193,10 @@ export function ProveedorFormFields({
         </div>
       ) : (
         <F label={form.tipo_proveedor === "natural" ? "Nombres y apellidos *" : "Razón social *"}>
-          <Input value={form.nombre ?? ""} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+          <Input
+            value={form.nombre ?? ""}
+            onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })}
+          />
         </F>
       )}
 
@@ -210,7 +212,10 @@ export function ProveedorFormFields({
       </div>
 
       <F label="Dirección">
-        <Input value={form.direccion ?? ""} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+        <Input
+          value={form.direccion ?? ""}
+          onChange={(e) => setForm({ ...form, direccion: e.target.value.toUpperCase() })}
+        />
       </F>
       <div className="grid grid-cols-3 gap-3">
         <F label="País">
@@ -247,7 +252,7 @@ export function ProveedorFormFields({
           <Input
             placeholder="Escribe el municipio"
             value={form.ciudad ?? ""}
-            onChange={(e) => setForm({ ...form, ciudad: e.target.value })}
+            onChange={(e) => setForm({ ...form, ciudad: e.target.value.toUpperCase() })}
           />
         </F>
       )}
@@ -383,6 +388,8 @@ export function ProveedorFormFields({
               <SelectItem value="iva">IVA</SelectItem>
               <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
               <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
+              <SelectItem value="excluido">Excluido de IVA (ej. combustible)</SelectItem>
+              <SelectItem value="exento">Exento de IVA (tarifa 0%)</SelectItem>
             </SelectContent>
           </Select>
         </F>

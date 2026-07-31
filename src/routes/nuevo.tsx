@@ -256,7 +256,7 @@ function Nuevo() {
     if (!proveedor) return;
     setFacturaElectronica(!!proveedorSel?.es_facturador_electronico);
     if (!proveedorSel?.es_facturador_electronico) setNumeroFactura("");
-  }, [proveedor]);
+  }, [proveedor, provsQ.data]);
 
   // Si el gasto elegido (concepto) ya tiene un concepto de retención asignado
   // en Configuración (Compras/Servicios), lo aplicamos solos — el usuario no
@@ -272,7 +272,7 @@ function Nuevo() {
       setConceptoRetencionRentaId("");
       setAplicaRetencion(false);
     }
-  }, [concepto, proveedor]);
+  }, [concepto, proveedor, provsQ.data, consQ.data]);
 
   // Lo mismo para ReteICA: el gasto ya indica si es "Compras" o "Servicios",
   // y de ahí sale la tarifa/tope de la agencia (Configuración). No aplica si
@@ -284,7 +284,7 @@ function Nuevo() {
     } else {
       setConceptoReteicaId("");
     }
-  }, [concepto, proveedor]);
+  }, [concepto, proveedor, provsQ.data, consQ.data]);
 
   // Auto-calcular IVA sugerido según el concepto (modo simple)
   const onSubtotalChange = (v: string) => {
@@ -1002,9 +1002,10 @@ function Nuevo() {
             <Input
               value={detalle}
               onChange={(e) => {
-                setDetalle(e.target.value);
+                const v = e.target.value.toUpperCase();
+                setDetalle(v);
                 if (multiSoporte) {
-                  setItems((prev) => prev.map((it) => ({ ...it, detalle: e.target.value })));
+                  setItems((prev) => prev.map((it) => ({ ...it, detalle: v })));
                 }
               }}
               placeholder="Ej. Legalización de viáticos, viaje a..."
@@ -1071,7 +1072,7 @@ function Nuevo() {
             <Field label={facturaElectronica ? "Número de factura *" : "Número de factura"}>
               <Input
                 value={numeroFactura}
-                onChange={(e) => setNumeroFactura(e.target.value)}
+                onChange={(e) => setNumeroFactura(e.target.value.toUpperCase())}
                 placeholder="FV-001"
                 disabled={!facturaElectronica}
                 className={!facturaElectronica ? "bg-muted" : ""}
@@ -1097,7 +1098,7 @@ function Nuevo() {
               )}
               {facturaElectronica && (
                 <p className="text-xs text-warning">
-                  Valida que la factura esté a nombre de {fondoQ.data?.empresa || "la empresa"}.
+                  Valida que la factura esté a nombre y con Nit. de Cofincafe.
                 </p>
               )}
             </div>
@@ -1466,7 +1467,7 @@ function Nuevo() {
             className="mt-4"
             placeholder="Observaciones (opcional)"
             value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
+            onChange={(e) => setObservaciones(e.target.value.toUpperCase())}
           />
         </CardContent>
       </Card>
@@ -1585,7 +1586,7 @@ function ItemRow({
         <Field label="N° factura">
           <Input
             value={item.numero_factura}
-            onChange={(e) => onChange({ numero_factura: e.target.value })}
+            onChange={(e) => onChange({ numero_factura: e.target.value.toUpperCase() })}
             placeholder="FV-001"
           />
         </Field>
@@ -1603,14 +1604,14 @@ function ItemRow({
           </Label>
           {item.factura_electronica && (
             <p className="text-xs text-warning ml-2">
-              Valida que la factura esté a nombre de {empresa || "la empresa"}.
+              Valida que la factura esté a nombre y con Nit. de Cofincafe.
             </p>
           )}
         </div>
         <Field label="Detalle">
           <Input
             value={item.detalle}
-            onChange={(e) => onChange({ detalle: e.target.value })}
+            onChange={(e) => onChange({ detalle: e.target.value.toUpperCase() })}
             placeholder="Descripción del soporte"
           />
         </Field>
