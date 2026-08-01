@@ -161,6 +161,30 @@ export type Database = {
         }
         Relationships: []
       }
+      codigos_ciiu: {
+        Row: {
+          activo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       conceptos_reteica: {
         Row: {
           activo: boolean

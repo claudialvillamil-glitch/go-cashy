@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getMyProfile, type Proveedor } from "@/lib/db";
+import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getCodigosCiiu, getMyProfile, type Proveedor } from "@/lib/db";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   REGIMENES_TRIBUTARIOS,
@@ -34,7 +34,7 @@ import {
 import { DEPARTAMENTOS_COLOMBIA, CIUDADES_POR_DEPARTAMENTO } from "@/lib/colombia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, Upload, Download } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Download, Search } from "lucide-react";
 
 export const Route = createFileRoute("/proveedores")({
   head: () => ({
@@ -89,12 +89,18 @@ function Provs() {
   const q = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
   const profileQ = useQuery({ queryKey: ["my-profile"], queryFn: getMyProfile });
   const [filtroValidacion, setFiltroValidacion] = useState<"todos" | "pendiente" | "validado">("todos");
+  const [busqueda, setBusqueda] = useState("");
   const proveedoresFiltrados = (q.data ?? []).filter(
-    (p) => filtroValidacion === "todos" || p.estado_validacion === filtroValidacion,
+    (p) =>
+      (filtroValidacion === "todos" || p.estado_validacion === filtroValidacion) &&
+      (!busqueda.trim() ||
+        p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+        p.nit.toLowerCase().includes(busqueda.toLowerCase())),
   );
   const pendientesCount = (q.data ?? []).filter((p) => p.estado_validacion === "pendiente").length;
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const ciiuQ = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Proveedor>>(empty);
   const [ciudadManual, setCiudadManual] = useState(false);
@@ -410,6 +416,15 @@ function Provs() {
           </p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar por identificación o nombre..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="pl-8 w-64"
+            />
+          </div>
           <Select value={filtroValidacion} onValueChange={(v) => setFiltroValidacion(v as typeof filtroValidacion)}>
             <SelectTrigger className="w-52">
               <SelectValue />
@@ -696,6 +711,23 @@ function Provs() {
                     </SelectContent>
                   </Select>
                 </F>
+                <F label="Tipo de declarante de renta">
+                  <Select
+                    value={form.tipo_declarante_renta ?? "contribuyente"}
+                    onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_DECLARANTE_RENTA.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </F>
                 <div className="flex items-center gap-2 pt-1">
                   <Checkbox
                     id="prov-regimen-simple"
@@ -716,23 +748,6 @@ function Provs() {
                     Pertenece al Régimen Simple de Tributación (RST)
                   </Label>
                 </div>
-                <F label="Tipo de declarante de renta">
-                  <Select
-                    value={form.tipo_declarante_renta ?? "contribuyente"}
-                    onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_DECLARANTE_RENTA.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </F>
                 <div className="flex items-center gap-2 pt-1">
                   <Checkbox
                     id="prov-gran-contribuyente"
@@ -796,11 +811,22 @@ function Provs() {
                   </Label>
                 </div>
                 <F label="Código CIIU (actividad económica)">
-                  <Input
-                    value={form.codigo_ciiu ?? ""}
-                    onChange={(e) => setForm({ ...form, codigo_ciiu: e.target.value })}
-                    placeholder="Ej. 4711"
-                  />
+                  <Select
+                    value={form.codigo_ciiu || "ninguno"}
+                    onValueChange={(v) => setForm({ ...form, codigo_ciiu: v === "ninguno" ? "" : v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona la actividad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ninguno">Ninguno</SelectItem>
+                      {ciiuQ.data?.filter((c) => c.activo).map((c) => (
+                        <SelectItem key={c.id} value={c.codigo}>
+                          {c.codigo} - {c.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </F>
                 {form.pertenece_regimen_simple && (
                   <p className="text-xs text-warning">

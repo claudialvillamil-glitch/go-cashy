@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { getTarifasRetencionRenta, getConceptosReteica } from "@/lib/db";
+import { getTarifasRetencionRenta, getConceptosReteica, getCodigosCiiu } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import {
   REGIMENES_TRIBUTARIOS,
@@ -44,6 +44,7 @@ export function ProveedorFormFields({
 }) {
   const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const ciiuQ = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
   const [ciudadManual, setCiudadManual] = useState(
     !!form.ciudad && !(CIUDADES_POR_DEPARTAMENTO[form.departamento ?? ""] ?? []).includes(form.ciudad),
   );
@@ -292,6 +293,23 @@ export function ProveedorFormFields({
             </SelectContent>
           </Select>
         </F>
+        <F label="Tipo de declarante de renta">
+          <Select
+            value={form.tipo_declarante_renta ?? "contribuyente"}
+            onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_DECLARANTE_RENTA.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </F>
         <div className="flex items-center gap-2 pt-1">
           <Checkbox
             id="pff-regimen-simple"
@@ -310,23 +328,6 @@ export function ProveedorFormFields({
             Pertenece al Régimen Simple de Tributación (RST)
           </Label>
         </div>
-        <F label="Tipo de declarante de renta">
-          <Select
-            value={form.tipo_declarante_renta ?? "contribuyente"}
-            onValueChange={(v) => setForm({ ...form, tipo_declarante_renta: v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIPOS_DECLARANTE_RENTA.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </F>
         <div className="flex items-center gap-2 pt-1">
           <Checkbox
             id="pff-gran-contribuyente"
@@ -390,11 +391,22 @@ export function ProveedorFormFields({
           </Label>
         </div>
         <F label="Código CIIU (actividad económica)">
-          <Input
-            value={form.codigo_ciiu ?? ""}
-            onChange={(e) => setForm({ ...form, codigo_ciiu: e.target.value })}
-            placeholder="Ej. 4711"
-          />
+          <Select
+            value={form.codigo_ciiu || "ninguno"}
+            onValueChange={(v) => setForm({ ...form, codigo_ciiu: v === "ninguno" ? "" : v })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona la actividad" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ninguno">Ninguno</SelectItem>
+              {ciiuQ.data?.filter((c) => c.activo).map((c) => (
+                <SelectItem key={c.id} value={c.codigo}>
+                  {c.codigo} - {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </F>
         {form.pertenece_regimen_simple && (
           <p className="text-xs text-warning">

@@ -103,6 +103,19 @@ export async function getBasesReteicaAgencia() {
   return data as BaseReteicaAgencia[];
 }
 
+export type CodigoCiiu = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+};
+
+export async function getCodigosCiiu() {
+  const { data, error } = await supabase.from("codigos_ciiu").select("*").order("codigo");
+  if (error) throw error;
+  return data as CodigoCiiu[];
+}
+
 export type ConceptoReteicaDB = {
   id: string;
   nombre: string;

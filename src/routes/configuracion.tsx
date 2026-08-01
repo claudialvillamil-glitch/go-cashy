@@ -11,6 +11,7 @@ import {
   getTarifasRetencionRenta,
   getConceptosRetencionRenta,
   getConceptosReteica,
+  getCodigosCiiu,
   getBasesReteicaAgencia,
   getTarifasReteicaCiudad,
   getFondosAgencia,
@@ -313,6 +314,7 @@ function Conf() {
       <ConceptosRetencionRentaCard />
       <TarifasRetencionCard />
       <ConceptosReteicaCard />
+      <CodigosCiiuCard />
       <BasesReteicaAgenciaCard />
       <TarifasReteicaCiudadCard />
       <FondosAgenciaCard />
@@ -947,6 +949,114 @@ function ConceptosReteicaCard() {
           {(q.data?.length ?? 0) === 0 && (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               Aún no hay conceptos registrados.
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CodigosCiiuCard() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
+  const [codigo, setCodigo] = useState("");
+  const [nombre, setNombre] = useState("");
+
+  const crear = useMutation({
+    mutationFn: async () => {
+      if (!codigo.trim() || !nombre.trim()) throw new Error("Completa el código y el nombre");
+      const { error } = await supabase.from("codigos_ciiu").insert({
+        codigo: codigo.trim(),
+        nombre: nombre.trim(),
+      });
+      if (error) {
+        if (error.code === "23505") throw new Error("Ya existe ese código CIIU.");
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Código agregado");
+      setCodigo("");
+      setNombre("");
+      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivo = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase.from("codigos_ciiu").update({ activo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["codigos-ciiu"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("codigos_ciiu").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Código eliminado");
+      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
+    },
+    onError: (e: Error) =>
+      toast.error("No se pudo eliminar (puede estar en uso en algún proveedor). " + e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Códigos CIIU (actividad económica)</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Lista de actividades económicas para elegir en cada proveedor (código - nombre). Agrega
+          las que necesites según los proveedores que manejes.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <Input placeholder="Código (ej. 4711)" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+          <Input
+            placeholder="Nombre de la actividad"
+            className="md:col-span-2"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && codigo.trim() && nombre.trim()) crear.mutate();
+            }}
+          />
+          <Button onClick={() => crear.mutate()} disabled={!codigo.trim() || !nombre.trim() || crear.isPending}>
+            <Plus className="h-4 w-4 mr-2" /> Agregar
+          </Button>
+        </div>
+
+        <div className="rounded-md border divide-y max-h-96 overflow-y-auto">
+          {q.data?.map((c) => (
+            <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Checkbox
+                  checked={c.activo}
+                  onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
+                />
+                <span className="text-sm font-mono text-muted-foreground shrink-0">{c.codigo}</span>
+                <span className="text-sm truncate">{c.nombre}</span>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate(c.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+          {(q.data?.length ?? 0) === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              Aún no hay códigos CIIU configurados.
             </div>
           )}
         </div>
