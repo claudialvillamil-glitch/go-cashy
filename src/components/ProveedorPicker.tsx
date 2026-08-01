@@ -90,6 +90,20 @@ export function ProveedorPicker({
     }
   };
 
+  // Busca automáticamente unos milisegundos después de dejar de escribir,
+  // sin depender de que el usuario presione Enter o salga del campo — así
+  // funciona igual si borra el número y escribe uno nuevo.
+  useEffect(() => {
+    const nitBuscado = texto.trim();
+    const displaySeleccionado = selected ? `${selected.nombre} — ${selected.nit}` : "";
+    if (!nitBuscado || nitBuscado === displaySeleccionado) return;
+    const pareceIdentificacion = /^[\d.-]{5,}$/.test(nitBuscado);
+    if (!pareceIdentificacion) return;
+    const timeout = setTimeout(() => buscarPorNit(nitBuscado), 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [texto, activos.length]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [form, setForm] = useState<Record<string, any>>(formVacio);
 

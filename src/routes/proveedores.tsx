@@ -792,8 +792,7 @@ function Provs() {
                     onCheckedChange={(v) => setForm({ ...form, es_facturador_electronico: v === true })}
                   />
                   <Label htmlFor="prov-facturador-elec" className="text-sm font-normal cursor-pointer">
-                    Facturador electrónico (al elegirlo en un recibo, activa y exige factura
-                    electrónica)
+                    Obligatorio factura electrónica como soporte de pago
                   </Label>
                 </div>
                 <F label="Código CIIU (actividad económica)">
