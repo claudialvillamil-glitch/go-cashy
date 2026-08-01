@@ -241,13 +241,14 @@ function Nuevo() {
   );
 
   // El IVA y el Impoconsumo ya no se eligen manualmente: se activan solos
-  // según cómo esté configurado el proveedor (si es responsable de IVA, y
-  // qué impuesto factura). El valor calculado sigue siendo editable.
+  // según la responsabilidad de IVA/Impoconsumo elegida en el proveedor. El
+  // valor calculado sigue siendo editable.
   const aplicaIva =
-    !!proveedorSel?.responsable_iva &&
-    (proveedorSel?.tipo_impuesto === "iva" || proveedorSel?.tipo_impuesto === "ambos");
+    proveedorSel?.regimen_tributario === "responsable_iva" ||
+    proveedorSel?.regimen_tributario === "responsable_ambos";
   const aplicaImpoconsumo =
-    proveedorSel?.tipo_impuesto === "impoconsumo" || proveedorSel?.tipo_impuesto === "ambos";
+    proveedorSel?.regimen_tributario === "responsable_impoconsumo" ||
+    proveedorSel?.regimen_tributario === "responsable_ambos";
 
   // Si el proveedor está marcado como facturador electrónico, se activa solo
   // "El proveedor emite factura electrónica" (y se exige el número); si no

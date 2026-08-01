@@ -129,6 +129,14 @@ export function ProveedorPicker({
           codigo_ciiu: form.codigo_ciiu || null,
           tarifa_retencion_id: form.tarifa_retencion_id || null,
           concepto_reteica_id: form.concepto_reteica_id || null,
+          tipo_impuesto:
+            form.regimen_tributario === "responsable_impoconsumo"
+              ? "impoconsumo"
+              : form.regimen_tributario === "responsable_ambos"
+                ? "ambos"
+                : form.regimen_tributario === "no_responsable_iva" || form.regimen_tributario === "sin_iva"
+                  ? "sin_iva"
+                  : "iva",
           estado_validacion: perfil?.rol === "responsable" ? "pendiente" : "validado",
         })
         .select("*")

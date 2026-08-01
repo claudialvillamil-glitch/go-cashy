@@ -145,29 +145,31 @@ function Resumen() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(montoTotalFondo)} tone="primary" />
-        <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(totalPendiente)} tone="warning" />
-        <StatCard icon={Wallet} label="Saldo disponible" value={fmtMoney(saldo)} tone="success" />
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Utilización del fondo</CardTitle>
-          {hayPendientes && (
-            <Link to="/reembolsos" className="text-sm text-primary hover:underline">
-              Ir a reembolsos →
-            </Link>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-muted-foreground">
-              {fmtMoney(totalPendiente)} de {fmtMoney(montoTotalFondo)}
-            </span>
-            <span className="font-medium">{pct.toFixed(1)}%</span>
+      {agenciaFiltro ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatCard icon={Wallet} label="Monto asignado" value={fmtMoney(montoTotalFondo)} tone="primary" />
+            <StatCard icon={TrendingDown} label="Gastos ejecutados" value={fmtMoney(totalPendiente)} tone="warning" />
+            <StatCard icon={Wallet} label="Saldo disponible" value={fmtMoney(saldo)} tone="success" />
           </div>
-          <Progress value={pct} className="h-3" />
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Utilización del fondo</CardTitle>
+              {hayPendientes && (
+                <Link to="/reembolsos" className="text-sm text-primary hover:underline">
+                  Ir a reembolsos →
+                </Link>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-muted-foreground">
+                  {fmtMoney(totalPendiente)} de {fmtMoney(montoTotalFondo)}
+                </span>
+                <span className="font-medium">{pct.toFixed(1)}%</span>
+              </div>
+              <Progress value={pct} className="h-3" />
           {hayPendientes ? (
             <div className="text-xs text-muted-foreground mt-2 space-y-1">
               <p>
@@ -186,6 +188,14 @@ function Resumen() {
           )}
         </CardContent>
       </Card>
+        </>
+      ) : (
+        <div className="px-4 py-6 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
+          Selecciona una agencia en el desplegable de arriba para ver el monto asignado, los
+          gastos ejecutados y el saldo disponible de su fondo.
+        </div>
+      )}
+
 
       <Card>
         <CardHeader>

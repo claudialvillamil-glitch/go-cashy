@@ -217,7 +217,7 @@ function Provs() {
         // Contribuyente aparte.
         const esGranContribuyenteImportado = ["gran_contribuyente", "autorretenedor"].includes(regimenRaw);
         const regimenNormalizado = regimenRaw === "comun" || regimenRaw === "simple" ? "responsable_iva" : regimenRaw;
-        const regimen_tributario = ["no_responsable_iva", "responsable_iva"].includes(regimenNormalizado)
+        const regimen_tributario = ["no_responsable_iva", "responsable_iva", "responsable_impoconsumo", "responsable_ambos", "sin_iva"].includes(regimenNormalizado)
           ? regimenNormalizado
           : "responsable_iva";
         const respIvaRaw = String(
@@ -299,7 +299,14 @@ function Provs() {
         es_gran_contribuyente: form.es_gran_contribuyente ?? false,
         autorretenedor_ica: form.autorretenedor_ica ?? false,
         regimen_tributario: form.regimen_tributario || "responsable_iva",
-        tipo_impuesto: form.tipo_impuesto || "iva",
+        tipo_impuesto:
+          form.regimen_tributario === "responsable_impoconsumo"
+            ? "impoconsumo"
+            : form.regimen_tributario === "responsable_ambos"
+              ? "ambos"
+              : form.regimen_tributario === "no_responsable_iva" || form.regimen_tributario === "sin_iva"
+                ? "sin_iva"
+                : "iva",
       };
       if (form.id) {
         const { error } = await supabase.from("proveedores").update(payload).eq("id", form.id);
@@ -666,7 +673,7 @@ function Provs() {
 
               <div className="rounded-md border p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground">Información tributaria</p>
-                <F label="Régimen / responsabilidad de IVA">
+                <F label="Responsabilidades de IVA e impoconsumo">
                   <Select
                     value={form.regimen_tributario ?? "responsable_iva"}
                     onValueChange={(v) =>
@@ -789,26 +796,6 @@ function Provs() {
                     electrónica)
                   </Label>
                 </div>
-                <F label="Impuesto que factura este proveedor">
-                  <Select
-                    value={form.tipo_impuesto ?? "iva"}
-                    onValueChange={(v) => setForm({ ...form, tipo_impuesto: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="iva">IVA</SelectItem>
-                      <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
-                      <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
-                      <SelectItem value="sin_iva">Productos/servicios sin IVA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Se usa para preseleccionar el tipo de impuesto en el recibo al elegir este
-                    proveedor (ej. restaurantes y bares suelen cobrar Impoconsumo, no IVA).
-                  </p>
-                </F>
                 <F label="Código CIIU (actividad económica)">
                   <Input
                     value={form.codigo_ciiu ?? ""}
@@ -1029,7 +1016,7 @@ function Provs() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          const regimenValidos = ["no_responsable_iva", "responsable_iva"];
+                          const regimenValidos = ["no_responsable_iva", "responsable_iva", "responsable_impoconsumo", "responsable_ambos", "sin_iva"];
                           const regimenNormalizado = regimenValidos.includes(p.regimen_tributario)
                             ? p.regimen_tributario
                             : "responsable_iva";

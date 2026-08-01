@@ -269,7 +269,7 @@ export function ProveedorFormFields({
 
       <div className="rounded-md border p-3 space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Información tributaria</p>
-        <F label="Régimen / responsabilidad de IVA">
+        <F label="Responsabilidades de IVA e impoconsumo">
           <Select
             value={form.regimen_tributario ?? "responsable_iva"}
             onValueChange={(v) =>
@@ -389,22 +389,6 @@ export function ProveedorFormFields({
             Facturador electrónico (al elegirlo en un recibo, activa y exige factura electrónica)
           </Label>
         </div>
-        <F label="Impuesto que factura este proveedor">
-          <Select
-            value={form.tipo_impuesto ?? "iva"}
-            onValueChange={(v) => setForm({ ...form, tipo_impuesto: v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="iva">IVA</SelectItem>
-              <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
-              <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
-              <SelectItem value="sin_iva">Productos/servicios sin IVA</SelectItem>
-            </SelectContent>
-          </Select>
-        </F>
         <F label="Código CIIU (actividad económica)">
           <Input
             value={form.codigo_ciiu ?? ""}
