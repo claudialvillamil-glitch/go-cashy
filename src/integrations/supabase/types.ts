@@ -302,6 +302,7 @@ export type Database = {
           monto_maximo_gasto: number
           nombre: string
           nombre_aprobador: string | null
+          porcentaje_alerta_gasto: number
           prefijo: string | null
           responsable: string | null
         }
@@ -316,6 +317,7 @@ export type Database = {
           monto_maximo_gasto?: number
           nombre?: string
           nombre_aprobador?: string | null
+          porcentaje_alerta_gasto?: number
           prefijo?: string | null
           responsable?: string | null
         }
@@ -332,6 +334,7 @@ export type Database = {
           responsable?: string | null
           nombre?: string
           nombre_aprobador?: string | null
+          porcentaje_alerta_gasto?: number
         }
         Relationships: [
           {

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -307,14 +308,12 @@ function AgenciasCard() {
   const q = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
-  const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("agencias").insert({
         nombre: nombre.trim(),
         codigo: codigo ? Number(codigo) : null,
-        prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
     },
@@ -322,22 +321,6 @@ function AgenciasCard() {
       toast.success("Agencia creada");
       setNombre("");
       setCodigo("");
-      setPrefijo("");
-      qc.invalidateQueries({ queryKey: ["agencias"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const actualizarPrefijo = useMutation({
-    mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
-      const { error } = await supabase
-        .from("agencias")
-        .update({ prefijo: valor.trim().toUpperCase() || null })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Prefijo actualizado");
       qc.invalidateQueries({ queryKey: ["agencias"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -365,8 +348,8 @@ function AgenciasCard() {
           <Building2 className="h-4 w-4" /> Agencias
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Crea las agencias o sucursales del fondo de caja menor. El prefijo se usa para el N° de
-          recibo (ej. "AR-0001"); si lo dejas vacío, se sigue usando el consecutivo normal.
+          Crea las agencias o sucursales del fondo de caja menor. El prefijo del N° de recibo
+          (ej. "AR-0001") se configura por cada fondo, en "Fondos de caja menor por agencia".
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -386,12 +369,6 @@ function AgenciasCard() {
               if (e.key === "Enter" && nombre.trim()) crear.mutate();
             }}
           />
-          <Input
-            placeholder="Prefijo (ej. AR)"
-            className="w-28"
-            value={prefijo}
-            onChange={(e) => setPrefijo(e.target.value)}
-          />
           <Button onClick={() => crear.mutate()} disabled={!nombre.trim() || crear.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Agregar
           </Button>
@@ -406,28 +383,15 @@ function AgenciasCard() {
                 )}
                 {a.nombre}
               </span>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Prefijo"
-                  defaultValue={a.prefijo ?? ""}
-                  className="w-24 h-8 text-sm"
-                  onBlur={(e) => {
-                    const valor = e.target.value;
-                    if (valor.toUpperCase() !== (a.prefijo ?? "")) {
-                      actualizarPrefijo.mutate({ id: a.id, valor });
-                    }
-                  }}
-                />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    if (confirm(`¿Eliminar la agencia "${a.nombre}"?`)) eliminar.mutate(a.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm(`¿Eliminar la agencia "${a.nombre}"?`)) eliminar.mutate(a.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
             </div>
           ))}
           {(q.data?.length ?? 0) === 0 && (
@@ -977,33 +941,46 @@ function CodigosCiiuCard() {
           </Button>
         </div>
 
-        <div className="rounded-md border divide-y max-h-96 overflow-y-auto">
-          {q.data?.map((c) => (
-            <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Checkbox
-                  checked={c.activo}
-                  onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
-                />
-                <span className="text-sm font-mono text-muted-foreground shrink-0">{c.codigo}</span>
-                <span className="text-sm truncate">{c.nombre}</span>
-              </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate(c.id);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-          {(q.data?.length ?? 0) === 0 && (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Aún no hay códigos CIIU configurados.
-            </div>
-          )}
+        <div className="rounded-md border divide-y">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="lista-ciiu" className="border-b-0">
+              <AccordionTrigger className="px-4 py-2.5 hover:no-underline">
+                <span className="text-sm text-muted-foreground">
+                  Ver lista completa ({q.data?.length ?? 0} código{(q.data?.length ?? 0) === 1 ? "" : "s"})
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="divide-y border-t max-h-96 overflow-y-auto">
+                  {q.data?.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Checkbox
+                          checked={c.activo}
+                          onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
+                        />
+                        <span className="text-sm font-mono text-muted-foreground shrink-0">{c.codigo}</span>
+                        <span className="text-sm truncate">{c.nombre}</span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate(c.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(q.data?.length ?? 0) === 0 && (
+                    <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                      Aún no hay códigos CIIU configurados.
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       </CardContent>
     </Card>
@@ -1412,6 +1389,7 @@ function FondosAgenciaCard() {
   const [responsable, setResponsable] = useState("");
   const [identificacionResponsable, setIdentificacionResponsable] = useState("");
   const [nombreAprobador, setNombreAprobador] = useState("");
+  const [porcentajeAlerta, setPorcentajeAlerta] = useState("15");
   const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
@@ -1426,6 +1404,7 @@ function FondosAgenciaCard() {
         responsable: responsable.trim() || null,
         identificacion_responsable: identificacionResponsable.trim() || null,
         nombre_aprobador: nombreAprobador.trim() || null,
+        porcentaje_alerta_gasto: Number(porcentajeAlerta) || 15,
         prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
@@ -1439,6 +1418,7 @@ function FondosAgenciaCard() {
       setResponsable("");
       setIdentificacionResponsable("");
       setNombreAprobador("");
+      setPorcentajeAlerta("15");
       setPrefijo("");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
@@ -1507,6 +1487,21 @@ function FondosAgenciaCard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const actualizarPorcentajeAlerta = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
+      const { error } = await supabase
+        .from("fondos_agencia")
+        .update({ porcentaje_alerta_gasto: valor })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("% de alerta actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const actualizarPrefijo = useMutation({
     mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
       const { error } = await supabase
@@ -1555,7 +1550,8 @@ function FondosAgenciaCard() {
         <CardTitle className="text-base">Fondos de caja menor por agencia</CardTitle>
         <p className="text-sm text-muted-foreground">
           Una agencia puede tener más de un fondo (ej. "Secretaría de Gerencia" y "Agencia" en el
-          mismo lugar). El máximo permitido por pago es el 15% del monto de cada fondo.
+          mismo lugar). El aviso de que un gasto supera el fondo se activa según el "% alerta
+          gasto" configurado abajo para cada fondo (15% por defecto).
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1607,6 +1603,14 @@ function FondosAgenciaCard() {
             onChange={(e) => setNombreAprobador(e.target.value)}
           />
           <Input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="% alerta gasto (ej. 15)"
+            value={porcentajeAlerta}
+            onChange={(e) => setPorcentajeAlerta(e.target.value)}
+          />
+          <Input
             placeholder="Prefijo (ej. ARG)"
             value={prefijo}
             onChange={(e) => setPrefijo(e.target.value)}
@@ -1627,12 +1631,12 @@ function FondosAgenciaCard() {
                       {f.nombre} · {agenciaNombre(f.agencia_id)}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Cuenta {f.cuenta_contable || "—"} · Máx. 15%:{" "}
+                      Cuenta {f.cuenta_contable || "—"} · Máx. {Number(f.porcentaje_alerta_gasto ?? 15)}%:{" "}
                       {new Intl.NumberFormat("es-CO", {
                         style: "currency",
                         currency: "COP",
                         maximumFractionDigits: 0,
-                      }).format(Number(f.monto_asignado) * 0.15)}
+                      }).format(Number(f.monto_asignado) * (Number(f.porcentaje_alerta_gasto ?? 15) / 100))}
                     </div>
                   </div>
                 </div>
@@ -1678,7 +1682,7 @@ function FondosAgenciaCard() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 pl-6">
+              <div className="grid grid-cols-5 gap-2 pl-6">
                 <Input
                   placeholder="Responsable del fondo"
                   defaultValue={f.responsable ?? ""}
@@ -1717,6 +1721,20 @@ function FondosAgenciaCard() {
                     const valor = e.target.value;
                     if (valor !== (f.nombre_aprobador ?? "")) {
                       actualizarAprobador.mutate({ id: f.id, valor });
+                    }
+                  }}
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="% alerta"
+                  defaultValue={f.porcentaje_alerta_gasto}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = Number(e.target.value) || 15;
+                    if (valor !== Number(f.porcentaje_alerta_gasto)) {
+                      actualizarPorcentajeAlerta.mutate({ id: f.id, valor });
                     }
                   }}
                 />

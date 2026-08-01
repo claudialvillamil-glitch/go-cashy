@@ -338,6 +338,7 @@ export type FondoAgencia = {
   responsable: string | null;
   identificacion_responsable: string | null;
   nombre_aprobador: string | null;
+  porcentaje_alerta_gasto: number;
   prefijo: string | null;
 };
 

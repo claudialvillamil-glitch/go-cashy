@@ -490,9 +490,11 @@ function Nuevo() {
   const totalMulti = itemTotals.reduce((a, b) => a + b, 0);
   const total = multiSoporte ? totalMulti : totalSimple;
 
-  // Alerta (no bloquea el guardado): el pago no debe superar el 15% del
-  // fondo de caja menor elegido para esta agencia (una agencia puede tener
-  // más de un fondo, ej. "Secretaría de Gerencia" y "Agencia").
+  // Alerta (no bloquea el guardado): el pago no debe superar el % del fondo
+  // configurado para esa agencia/fondo (por defecto 15%, pero es
+  // configurable por fondo en Configuración → Fondos de caja menor por
+  // agencia). Una agencia puede tener más de un fondo (ej. "Secretaría de
+  // Gerencia" y "Agencia").
   const fondosDeAgencia = (fondosAgenciaQ.data ?? []).filter(
     (f) => f.activo && f.agencia_id === agencia,
   );
@@ -504,9 +506,13 @@ function Nuevo() {
   const fondoAgenciaSel = fondoFijoValido
     ? fondosDeAgencia.find((f) => f.id === fondoFijoUsuario)
     : fondosDeAgencia.find((f) => f.id === fondoAgenciaId) ?? fondosDeAgencia[0];
+  const porcentajeAlertaFondo =
+    fondoAgenciaSel && Number(fondoAgenciaSel.porcentaje_alerta_gasto) > 0
+      ? Number(fondoAgenciaSel.porcentaje_alerta_gasto)
+      : 15;
   const maxPorAgencia =
     fondoAgenciaSel && Number(fondoAgenciaSel.monto_asignado) > 0
-      ? Number(fondoAgenciaSel.monto_asignado) * 0.15
+      ? Number(fondoAgenciaSel.monto_asignado) * (porcentajeAlertaFondo / 100)
       : null;
   const excedeTopeAgencia = maxPorAgencia !== null && total > maxPorAgencia;
 
@@ -1377,7 +1383,7 @@ function Nuevo() {
           )}
           {excedeTopeAgencia && (
             <div className="mt-3 text-sm p-3 rounded-md bg-warning/10 text-warning">
-              ⚠ El monto supera el 15% del fondo "{fondoAgenciaSel?.nombre}" (máximo:{" "}
+              ⚠ El monto supera el {porcentajeAlertaFondo}% del fondo "{fondoAgenciaSel?.nombre}" (máximo:{" "}
               {fmtMoney(maxPorAgencia ?? 0)}). Verifica antes de continuar.
             </div>
           )}
