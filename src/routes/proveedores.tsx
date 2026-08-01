@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { getProveedores, getTarifasRetencionRenta, getConceptosReteica, getCodigosCiiu, getMyProfile, type Proveedor } from "@/lib/db";
+import { getProveedores, getConceptosReteica, getCodigosCiiu, getMyProfile, type Proveedor } from "@/lib/db";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import {
   REGIMENES_TRIBUTARIOS,
@@ -98,7 +98,6 @@ function Provs() {
         p.nit.toLowerCase().includes(busqueda.toLowerCase())),
   );
   const pendientesCount = (q.data ?? []).filter((p) => p.estado_validacion === "pendiente").length;
-  const tarifasQ = useQuery({ queryKey: ["tarifas-retencion"], queryFn: getTarifasRetencionRenta });
   const reteicaConceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const ciiuQ = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
   const [open, setOpen] = useState(false);
@@ -130,15 +129,26 @@ function Provs() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet([
       {
+        NIT: "900123456",
+        "Dígito de Verificación": "1",
         Nombre: "ALFOMBRANDO S.A.S",
-        NIT: "900123456-1",
+        "Tipo de proveedor (natural/juridica)": "juridica",
+        "Tipo de identificación (solo natural: CC/CE/PAS/TI/NIT/PEP/PPT)": "",
         Teléfono: "3001234567",
         Email: "contacto@alfombrando.com",
         Dirección: "Cra 10 # 20-30",
-        "Responsable de IVA (Sí/No)": "Sí",
-        "Régimen (no_responsable_iva/responsable_iva)": "responsable_iva",
+        Departamento: "Quindío",
+        Ciudad: "Armenia",
+        "Código CIIU": "4711",
+        "Régimen (no_responsable_iva/responsable_iva/responsable_impoconsumo/responsable_ambos/sin_iva)":
+          "responsable_iva",
         "Régimen Simple (Sí/No)": "No",
         "Gran Contribuyente (Sí/No)": "No",
+        "Tipo declarante de renta (ninguno/contribuyente/no_contribuyente/regimen_especial)": "contribuyente",
+        "Autorretenedor de renta (Sí/No)": "No",
+        "Autorretenedor de ICA (Sí/No)": "No",
+        "Facturador electrónico (Sí/No)": "No",
+        "Aplica ReteIVA (Sí/No)": "No",
       },
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
@@ -162,10 +172,14 @@ function Provs() {
       "Régimen Simple": p.pertenece_regimen_simple ? "Sí" : "No",
       "Gran Contribuyente": p.es_gran_contribuyente ? "Sí" : "No",
       "Responsable de IVA": p.responsable_iva ? "Sí" : "No",
-      "Impuesto que factura": p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA",
-      "Aplica Rte. Fuente": p.aplica_retencion ? "Sí" : "No",
-      "Tipo Rte. Fuente": tarifasQ.data?.find((t) => t.id === p.tarifa_retencion_id)?.nombre ?? "",
-      "Aplica ReteICA": p.aplica_reteica ? "Sí" : "No",
+      "Impuesto que factura":
+        p.tipo_impuesto === "impoconsumo"
+          ? "Impoconsumo"
+          : p.tipo_impuesto === "ambos"
+            ? "IVA + Impoconsumo"
+            : p.tipo_impuesto === "sin_iva"
+              ? "Sin IVA"
+              : "IVA",
       "Aplica ReteIVA": p.aplica_reteiva ? "Sí" : "No",
     }));
     const wb = XLSX.utils.book_new();
@@ -185,16 +199,29 @@ function Provs() {
       const payload: Array<{
         nombre: string;
         nit: string;
+        digito_verificacion: string | null;
+        tipo_proveedor: string;
+        tipo_identificacion: string;
         telefono: string | null;
         email: string | null;
         direccion: string | null;
+        departamento: string | null;
+        ciudad: string | null;
         codigo_ciiu: string | null;
         responsable_iva: boolean;
         regimen_tributario: string;
         pertenece_regimen_simple: boolean;
         es_gran_contribuyente: boolean;
+        tipo_declarante_renta: string;
+        autorretenedor_renta: boolean;
+        autorretenedor_ica: boolean;
+        es_facturador_electronico: boolean;
+        aplica_reteiva: boolean;
+        tipo_impuesto: string;
       }> = [];
       let omitidos = 0;
+
+      const esSi = (valor: string) => ["si", "sí", "s", "true", "yes", "x"].includes(valor.trim().toLowerCase());
 
       for (const row of rows) {
         const nombre = String(row["Nombre"] ?? row["nombre"] ?? "").trim();
@@ -211,9 +238,11 @@ function Provs() {
         const regimenSimpleRaw = String(row["Régimen Simple (Sí/No)"] ?? row["Régimen Simple"] ?? "no")
           .trim()
           .toLowerCase();
-        const pertenece_regimen_simple = ["si", "sí", "s", "true", "yes"].includes(regimenSimpleRaw);
+        const pertenece_regimen_simple = esSi(regimenSimpleRaw);
         const regimenRaw = String(
-          row["Régimen (no_responsable_iva/responsable_iva)"] ?? row["Régimen"] ?? "responsable_iva",
+          row["Régimen (no_responsable_iva/responsable_iva/responsable_impoconsumo/responsable_ambos/sin_iva)"] ??
+            row["Régimen"] ??
+            "responsable_iva",
         )
           .trim()
           .toLowerCase();
@@ -223,25 +252,62 @@ function Provs() {
         // Contribuyente aparte.
         const esGranContribuyenteImportado = ["gran_contribuyente", "autorretenedor"].includes(regimenRaw);
         const regimenNormalizado = regimenRaw === "comun" || regimenRaw === "simple" ? "responsable_iva" : regimenRaw;
-        const regimen_tributario = ["no_responsable_iva", "responsable_iva", "responsable_impoconsumo", "responsable_ambos", "sin_iva"].includes(regimenNormalizado)
+        const regimen_tributario = [
+          "no_responsable_iva",
+          "responsable_iva",
+          "responsable_impoconsumo",
+          "responsable_ambos",
+          "sin_iva",
+        ].includes(regimenNormalizado)
           ? regimenNormalizado
           : "responsable_iva";
-        const respIvaRaw = String(
-          row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "",
+        const respIvaRaw = String(row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "")
+          .trim()
+          .toLowerCase();
+        const granContribuyenteRaw = String(row["Gran Contribuyente (Sí/No)"] ?? row["Gran Contribuyente"] ?? "");
+        const tipoProveedorRaw = String(row["Tipo de proveedor (natural/juridica)"] ?? row["Tipo de proveedor"] ?? "juridica")
+          .trim()
+          .toLowerCase();
+        const tipo_proveedor = tipoProveedorRaw === "natural" ? "natural" : "juridica";
+        const tipoIdentRaw = String(
+          row["Tipo de identificación (solo natural: CC/CE/PAS/TI/NIT/PEP/PPT)"] ??
+            row["Tipo de identificación"] ??
+            "CC",
+        )
+          .trim()
+          .toUpperCase();
+        const tipoDeclaranteRaw = String(
+          row[
+            "Tipo declarante de renta (ninguno/contribuyente/no_contribuyente/regimen_especial)"
+          ] ??
+            row["Tipo declarante de renta"] ??
+            "contribuyente",
         )
           .trim()
           .toLowerCase();
-        const granContribuyenteRaw = String(
-          row["Gran Contribuyente (Sí/No)"] ?? row["Gran Contribuyente"] ?? "",
-        )
-          .trim()
-          .toLowerCase();
+        const tipo_declarante_renta = [
+          "ninguno",
+          "contribuyente",
+          "no_contribuyente",
+          "regimen_especial",
+        ].includes(tipoDeclaranteRaw)
+          ? tipoDeclaranteRaw
+          : "contribuyente";
         payload.push({
           nombre,
           nit,
+          digito_verificacion:
+            tipo_proveedor === "juridica"
+              ? String(row["Dígito de Verificación"] ?? row["Digito de Verificacion"] ?? row["DV"] ?? "").trim() ||
+                null
+              : null,
+          tipo_proveedor,
+          tipo_identificacion: tipo_proveedor === "natural" ? tipoIdentRaw || "CC" : "CC",
           telefono: String(row["Teléfono"] ?? row["Telefono"] ?? "").trim() || null,
           email: String(row["Email"] ?? "").trim() || null,
           direccion: String(row["Dirección"] ?? row["Direccion"] ?? "").trim() || null,
+          departamento: String(row["Departamento"] ?? "").trim() || null,
+          ciudad: String(row["Ciudad"] ?? "").trim() || null,
           codigo_ciiu: String(row["Código CIIU"] ?? row["Codigo CIIU"] ?? "").trim() || null,
           // Si el archivo trae explícitamente "Responsable de IVA", respeta
           // ese valor; si no, se deriva del régimen elegido.
@@ -250,9 +316,30 @@ function Provs() {
             : responsableIvaSegunRegimen(regimen_tributario),
           regimen_tributario,
           pertenece_regimen_simple,
-          es_gran_contribuyente: granContribuyenteRaw
-            ? ["si", "sí", "s", "true", "yes"].includes(granContribuyenteRaw)
-            : esGranContribuyenteImportado,
+          es_gran_contribuyente: granContribuyenteRaw ? esSi(granContribuyenteRaw) : esGranContribuyenteImportado,
+          tipo_declarante_renta,
+          autorretenedor_renta: esSi(
+            String(row["Autorretenedor de renta (Sí/No)"] ?? row["Autorretenedor de renta"] ?? "no"),
+          ),
+          autorretenedor_ica: esSi(
+            String(row["Autorretenedor de ICA (Sí/No)"] ?? row["Autorretenedor de ICA"] ?? "no"),
+          ),
+          es_facturador_electronico: esSi(
+            String(row["Facturador electrónico (Sí/No)"] ?? row["Facturador electronico (Si/No)"] ?? "no"),
+          ),
+          aplica_reteiva:
+            pertenece_regimen_simple ||
+            esSi(String(row["Aplica ReteIVA (Sí/No)"] ?? row["Aplica ReteIVA"] ?? "no")),
+          // tipo_impuesto se mantiene en sincronía con el régimen elegido
+          // (columna heredada que todavía leen algunos reportes).
+          tipo_impuesto:
+            regimen_tributario === "responsable_impoconsumo"
+              ? "impoconsumo"
+              : regimen_tributario === "responsable_ambos"
+                ? "ambos"
+                : regimen_tributario === "no_responsable_iva" || regimen_tributario === "sin_iva"
+                  ? "sin_iva"
+                  : "iva",
         });
       }
 
@@ -943,22 +1030,11 @@ function Provs() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 flex-wrap">
-                      {p.aplica_retencion && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          Rte.Fuente
-                        </span>
-                      )}
-                      {p.aplica_reteica && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          ReteICA
-                        </span>
-                      )}
-                      {p.aplica_reteiva && (
+                      {p.aplica_reteiva ? (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                           ReteIVA
                         </span>
-                      )}
-                      {!p.aplica_retencion && !p.aplica_reteica && !p.aplica_reteiva && (
+                      ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>

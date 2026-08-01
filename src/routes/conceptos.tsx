@@ -53,14 +53,10 @@ const empty: Partial<Concepto> = {
   concepto_retencion_renta_id: null,
   concepto_reteica_id: null,
   orden: null,
-  cuenta_reteica: "",
-  cuenta_reteiva: "",
   cuenta_contrapartida: "11050501",
   porcentaje_retencion: 0,
   porcentaje_iva: 19,
   porcentaje_impoconsumo: 8,
-  porcentaje_reteica: 0,
-  porcentaje_reteiva: 0,
   activo: true,
 };
 
@@ -83,13 +79,9 @@ function Cons() {
         concepto_retencion_renta_id: form.concepto_retencion_renta_id || null,
         concepto_reteica_id: form.concepto_reteica_id || null,
         orden: form.orden ? Number(form.orden) : null,
-        cuenta_reteica: form.cuenta_reteica || null,
-        cuenta_reteiva: form.cuenta_reteiva || null,
         cuenta_contrapartida: form.cuenta_contrapartida || "11050501",
         porcentaje_retencion: Number(form.porcentaje_retencion) || 0,
         porcentaje_iva: Number(form.porcentaje_iva) || 0,
-        porcentaje_reteica: Number(form.porcentaje_reteica) || 0,
-        porcentaje_reteiva: Number(form.porcentaje_reteiva) || 0,
         activo: form.activo ?? true,
       };
       if (form.id) {

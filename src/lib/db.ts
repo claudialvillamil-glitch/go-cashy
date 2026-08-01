@@ -483,14 +483,6 @@ function cuentaRetencionPorTipo(
     const t = tarifas.find((x) => x.id === tarifaId);
     if (t) return { cuenta: t.cuenta || fallback, nombre: t.nombre };
   }
-  if (fondo && tipoTexto) {
-    if (tipoTexto === "hotel") return { cuenta: fondo.cuenta_retencion_hotel, nombre: "Serv. hotel y restaurante" };
-    if (tipoTexto === "servicios_declarante")
-      return { cuenta: fondo.cuenta_retencion_servicios_declarante, nombre: "Servicios generales (declarante)" };
-    if (tipoTexto === "servicios_no_declarante")
-      return { cuenta: fondo.cuenta_retencion_servicios_no_declarante, nombre: "Servicios generales (no declarante)" };
-    if (tipoTexto === "fletes") return { cuenta: fondo.cuenta_retencion_fletes, nombre: "Fletes" };
-  }
   return { cuenta: fallback, nombre: "" };
 }
 

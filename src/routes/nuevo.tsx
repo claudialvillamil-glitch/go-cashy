@@ -303,13 +303,17 @@ function Nuevo() {
     setProveedor(id);
     const p = provsQ.data?.find((x) => x.id === id);
     if (!p) return;
-    const esRegimenSimple = p.pertenece_regimen_simple;
-    // Un autorretenedor (de renta o de ICA) no lleva retención en ese
-    // impuesto específico, porque se la practica él mismo.
-    setAplicaRetencion(exentoRetencionRenta(p) ? false : p.aplica_retencion);
-    setTarifaRetencionId(p.tarifa_retencion_id ?? "");
-    setAplicaReteica(esRegimenSimple || p.autorretenedor_ica ? false : p.aplica_reteica);
-    setTarifaReteica(p.aplica_reteica ? String(p.tarifa_reteica) : "");
+    // aplica_retencion/tarifa_retencion_id del proveedor ya no se pueden
+    // marcar desde ningún formulario — la retención en la fuente se activa
+    // sola según el concepto del gasto (efecto más abajo, que tiene la
+    // última palabra).
+    setAplicaRetencion(false);
+    setTarifaRetencionId("");
+    // aplica_reteica/tarifa_reteica del proveedor ya no se pueden marcar
+    // desde ningún formulario — ReteICA se activa solo según la tarifa
+    // configurada por agencia + concepto (más abajo).
+    setAplicaReteica(false);
+    setTarifaReteica("");
     setAplicaReteiva(p.aplica_reteiva);
   };
 
