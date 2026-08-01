@@ -418,70 +418,10 @@ export function ProveedorFormFields({
 
       <div className="rounded-md border p-3 space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Retenciones automáticas</p>
-        <div className="flex items-center gap-2 pt-1">
-          <Checkbox
-            id="pff-retencion"
-            checked={form.aplica_retencion ?? false}
-            onCheckedChange={(v) => setForm({ ...form, aplica_retencion: v === true })}
-          />
-          <Label htmlFor="pff-retencion" className="text-sm font-normal cursor-pointer">
-            Aplica retención en la fuente (renta)
-          </Label>
-        </div>
-        {form.aplica_retencion && (
-          <Select
-            value={form.tarifa_retencion_id ?? ""}
-            onValueChange={(v) => setForm({ ...form, tarifa_retencion_id: v })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona el tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              {tarifasQ.data?.filter((t) => t.activo).map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.nombre} ({Number(t.porcentaje)}%)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <div className="flex items-center gap-2 pt-2">
-          <Checkbox
-            id="pff-reteica"
-            checked={form.aplica_reteica ?? false}
-            onCheckedChange={(v) => setForm({ ...form, aplica_reteica: v === true })}
-          />
-          <Label htmlFor="pff-reteica" className="text-sm font-normal cursor-pointer">
-            Aplica ReteICA
-          </Label>
-        </div>
-        {form.aplica_reteica && (
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={form.concepto_reteica_id ?? ""}
-              onValueChange={(v) => setForm({ ...form, concepto_reteica_id: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Servicios o compras" />
-              </SelectTrigger>
-              <SelectContent>
-                {reteicaConceptosQ.data?.filter((t) => t.activo).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Tarifa por mil, ej. 9.66"
-              value={form.tarifa_reteica ?? 0}
-              onChange={(e) => setForm({ ...form, tarifa_reteica: Number(e.target.value) })}
-            />
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">
+          La retención en la fuente y el ReteICA ya se calculan solos según el concepto del gasto
+          elegido en el recibo y la agencia — no dependen de este proveedor.
+        </p>
         <div className="flex items-center gap-2 pt-2">
           <Checkbox
             id="pff-reteiva"
