@@ -328,6 +328,17 @@ function AgenciasCard() {
 
   const eliminar = useMutation({
     mutationFn: async (id: string) => {
+      const [{ count: countMovs }, { count: countReembolsos }, { count: countFondos }] = await Promise.all([
+        supabase.from("movimientos").select("id", { count: "exact", head: true }).eq("agencia_id", id),
+        supabase.from("reembolsos").select("id", { count: "exact", head: true }).eq("agencia_id", id),
+        supabase.from("fondos_agencia").select("id", { count: "exact", head: true }).eq("agencia_id", id),
+      ]);
+      const total = (countMovs ?? 0) + (countReembolsos ?? 0) + (countFondos ?? 0);
+      if (total > 0) {
+        throw new Error(
+          "No se puede eliminar: esta agencia ya tiene recibos, reembolsos o fondos registrados.",
+        );
+      }
       const { error } = await supabase.from("agencias").delete().eq("id", id);
       if (error) throw error;
     },
@@ -583,6 +594,16 @@ function TarifasRetencionCard() {
 
   const eliminar = useMutation({
     mutationFn: async (id: string) => {
+      const [{ count: countMovs }, { count: countProvs }] = await Promise.all([
+        supabase.from("movimientos").select("id", { count: "exact", head: true }).eq("tarifa_retencion_id", id),
+        supabase.from("proveedores").select("id", { count: "exact", head: true }).eq("tarifa_retencion_id", id),
+      ]);
+      const total = (countMovs ?? 0) + (countProvs ?? 0);
+      if (total > 0) {
+        throw new Error(
+          "No se puede eliminar: esta tarifa ya está en uso en recibos o proveedores registrados.",
+        );
+      }
       const { error } = await supabase.from("tarifas_retencion_renta").delete().eq("id", id);
       if (error) throw error;
     },
@@ -903,7 +924,20 @@ function CodigosCiiuCard() {
   });
 
   const eliminar = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, codigo: valorCodigo }: { id: string; codigo: string }) => {
+      const [{ count: countProvs }, { count: countTarifas }] = await Promise.all([
+        supabase.from("proveedores").select("id", { count: "exact", head: true }).eq("codigo_ciiu", valorCodigo),
+        supabase
+          .from("tarifas_reteica_ciudad")
+          .select("id", { count: "exact", head: true })
+          .eq("codigo_ciiu", valorCodigo),
+      ]);
+      const total = (countProvs ?? 0) + (countTarifas ?? 0);
+      if (total > 0) {
+        throw new Error(
+          "No se puede eliminar: este código ya está en uso en proveedores o tarifas de ReteICA.",
+        );
+      }
       const { error } = await supabase.from("codigos_ciiu").delete().eq("id", id);
       if (error) throw error;
     },
@@ -965,7 +999,7 @@ function CodigosCiiuCard() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate(c.id);
+                          if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate({ id: c.id, codigo: c.codigo });
                         }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
