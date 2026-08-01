@@ -149,34 +149,45 @@ function Conf() {
             <Input value={nitEmpresa} onChange={(e) => setNitEmpresa(e.target.value)} placeholder="900.123.456-1" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Responsable del fondo</Label>
-            <Input value={responsable} onChange={(e) => setResponsable(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">C.C./NIT del responsable</Label>
-            <Input
-              value={identificacionResponsable}
-              onChange={(e) => setIdentificacionResponsable(e.target.value)}
-              placeholder="Ej. 1094900000"
-            />
-            <p className="text-xs text-muted-foreground">
-              Se usa para contabilizar la cuenta de reposición (24109503) a nombre de esta persona.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Monto asignado al fondo (COP)</Label>
-            <Input type="number" value={monto} onChange={(e) => setMonto(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Monto máximo por gasto (COP)</Label>
-            <Input type="number" value={maximo} onChange={(e) => setMaximo(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
             <Label className="text-xs">Cuenta banco (reposición del fondo)</Label>
             <Input value={cuentaBanco} onChange={(e) => setCuentaBanco(e.target.value)} />
             <p className="text-xs text-muted-foreground">
               Se usa como contrapartida al generar el asiento cuando se paga un reembolso.
             </p>
+          </div>
+
+          <div className="md:col-span-2 rounded-md border p-3 space-y-3">
+            <p className="text-sm font-medium">Configuración de respaldo</p>
+            <p className="text-xs text-muted-foreground">
+              Aplica solo en caso de no presentar información detallada del fondo por agencia
+              (Configuración → Fondos de caja menor por agencia).
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Responsable del fondo</Label>
+                <Input value={responsable} onChange={(e) => setResponsable(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">C.C./NIT del responsable</Label>
+                <Input
+                  value={identificacionResponsable}
+                  onChange={(e) => setIdentificacionResponsable(e.target.value)}
+                  placeholder="Ej. 1094900000"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se usa para contabilizar la cuenta de reposición (24109503) a nombre de esta
+                  persona.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Monto asignado al fondo (COP)</Label>
+                <Input type="number" value={monto} onChange={(e) => setMonto(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Monto máximo por gasto (COP)</Label>
+                <Input type="number" value={maximo} onChange={(e) => setMaximo(e.target.value)} />
+              </div>
+            </div>
           </div>
 
           <div className="md:col-span-2 rounded-md border p-3 space-y-3">

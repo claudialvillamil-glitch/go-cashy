@@ -883,7 +883,7 @@ function buildReciboDoc(
   doc.setFontSize(9);
   doc.setTextColor(20, 20, 20);
   doc.text(fondo.nombre_aprobador || "", x0 + colW / 2, yF + 8, { align: "center" });
-  doc.text(fondo.responsable || "", x0 + colW + colW / 2, yF + 8, { align: "center" });
+  doc.text(mov.fondos_agencia?.responsable || fondo.responsable || "", x0 + colW + colW / 2, yF + 8, { align: "center" });
   doc.setFontSize(8);
   doc.setTextColor(...AZUL);
   doc.text("APROBADO", x0 + colW / 2, yF + 15, { align: "center" });
