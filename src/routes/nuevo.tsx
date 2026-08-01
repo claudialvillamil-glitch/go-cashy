@@ -401,7 +401,11 @@ function Nuevo() {
   }, [basesReteicaQ.data, agencia, conceptoReteicaId]);
 
   const reteicaBloqueadaPorTope =
-    !!baseReteicaSel && Number(baseReteicaSel.base) > 0 && subtotalNum > 0 && subtotalNum < Number(baseReteicaSel.base);
+    !!baseReteicaSel &&
+    Number(baseReteicaSel.base_uvt) > 0 &&
+    uvtValor > 0 &&
+    subtotalNum > 0 &&
+    subtotalNum < Number(baseReteicaSel.base_uvt) * uvtValor;
 
   useEffect(() => {
     if (reteicaBloqueadaPorTope && aplicaReteica) {
@@ -1276,7 +1280,8 @@ function Nuevo() {
                 )}
                 {reteicaBloqueadaPorTope && (
                   <p className="text-xs text-warning">
-                    El subtotal no supera el tope mínimo ({fmtMoney(Number(baseReteicaSel?.base ?? 0))})
+                    El subtotal no supera el tope mínimo ({Number(baseReteicaSel?.base_uvt ?? 0)} UVT ={" "}
+                    {fmtMoney(Number(baseReteicaSel?.base_uvt ?? 0) * uvtValor)})
                     configurado para esta agencia/
                     {reteicaConceptosQ.data?.find((c) => c.id === conceptoReteicaId)?.nombre.toLowerCase()},
                     así que el ReteICA queda bloqueado.

@@ -97,9 +97,9 @@ export function ProveedorPicker({
     const nitBuscado = texto.trim();
     const displaySeleccionado = selected ? `${selected.nombre} — ${selected.nit}` : "";
     if (!nitBuscado || nitBuscado === displaySeleccionado) return;
-    const pareceIdentificacion = /^[\d.-]{5,}$/.test(nitBuscado);
+    const pareceIdentificacion = /^[\d.-]{7,}$/.test(nitBuscado);
     if (!pareceIdentificacion) return;
-    const timeout = setTimeout(() => buscarPorNit(nitBuscado), 500);
+    const timeout = setTimeout(() => buscarPorNit(nitBuscado), 900);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texto, activos.length]);

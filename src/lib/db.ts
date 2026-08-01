@@ -96,6 +96,7 @@ export type BaseReteicaAgencia = {
   agencia_id: string;
   concepto_reteica_id: string;
   base: number;
+  base_uvt: number;
 };
 
 export async function getBasesReteicaAgencia() {

@@ -130,8 +130,11 @@ function Conf() {
       </header>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Datos generales</CardTitle>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            Guardar cambios
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -283,11 +286,6 @@ function Conf() {
             <p className="text-xs text-muted-foreground md:col-span-3">
               Datos de control documental que se imprimen al pie del recibo individual en PDF.
             </p>
-          </div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button onClick={() => save.mutate()} disabled={save.isPending}>
-              Guardar cambios
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1017,9 +1015,11 @@ function BasesReteicaAgenciaCard() {
   const q = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
+  const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const uvtValor = Number(fondoQ.data?.valor_uvt ?? 0);
   const [agenciaId, setAgenciaId] = useState("");
   const [conceptoReteicaId, setConceptoReteicaId] = useState("");
-  const [base, setBase] = useState("");
+  const [baseUvt, setBaseUvt] = useState("");
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -1029,7 +1029,7 @@ function BasesReteicaAgenciaCard() {
         {
           agencia_id: agenciaId,
           concepto_reteica_id: conceptoReteicaId,
-          base: Number(base) || 0,
+          base_uvt: Number(baseUvt) || 0,
         },
         { onConflict: "agencia_id,concepto_reteica_id" },
       );
@@ -1037,7 +1037,7 @@ function BasesReteicaAgenciaCard() {
     },
     onSuccess: () => {
       toast.success("Base guardada");
-      setBase("");
+      setBaseUvt("");
       setConceptoReteicaId("");
       qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
     },
@@ -1046,7 +1046,7 @@ function BasesReteicaAgenciaCard() {
 
   const actualizarBase = useMutation({
     mutationFn: async ({ id, valor }: { id: string; valor: number }) => {
-      const { error } = await supabase.from("bases_reteica_agencia").update({ base: valor }).eq("id", id);
+      const { error } = await supabase.from("bases_reteica_agencia").update({ base_uvt: valor }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1073,9 +1073,10 @@ function BasesReteicaAgenciaCard() {
       <CardHeader>
         <CardTitle className="text-base">Bases de ReteICA por agencia</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Cada agencia tiene una base general (mínimo para que aplique ReteICA) para Compras y
-          para Servicios — una sola por combinación, sin importar la actividad económica (CIIU)
-          del proveedor. Las tarifas específicas por CIIU (más abajo) usan esta misma base.
+          Cada agencia tiene una base general en UVT (mínimo para que aplique ReteICA) para
+          Compras y para Servicios — se convierte a pesos sola según la UVT vigente
+          ({fmtMoneyLocal(uvtValor)}), igual que la retención en la fuente. Las tarifas específicas
+          por CIIU (más abajo) usan esta misma base.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1106,9 +1107,10 @@ function BasesReteicaAgenciaCard() {
           </Select>
           <Input
             type="number"
-            placeholder="Base mínima ($)"
-            value={base}
-            onChange={(e) => setBase(e.target.value)}
+            step="0.01"
+            placeholder="Base (UVT)"
+            value={baseUvt}
+            onChange={(e) => setBaseUvt(e.target.value)}
           />
           <Button onClick={() => guardar.mutate()} disabled={!agenciaId || !conceptoReteicaId || guardar.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Guardar base
@@ -1121,23 +1123,30 @@ function BasesReteicaAgenciaCard() {
             const concepto = conceptosQ.data?.find((c) => c.id === b.concepto_reteica_id);
             return (
               <div key={b.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
-                <div className="text-sm font-medium truncate">
-                  {agencia?.codigo != null ? `${agencia.codigo} - ${agencia?.nombre}` : agencia?.nombre}
-                  {" · "}
-                  {concepto?.nombre ?? "—"}
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {agencia?.codigo != null ? `${agencia.codigo} - ${agencia?.nombre}` : agencia?.nombre}
+                    {" · "}
+                    {concepto?.nombre ?? "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    ≈ {fmtMoneyLocal(Number(b.base_uvt) * uvtValor)}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
-                    defaultValue={b.base}
-                    className="w-40 h-8 text-sm"
+                    step="0.01"
+                    defaultValue={b.base_uvt}
+                    className="w-32 h-8 text-sm"
                     onBlur={(e) => {
                       const valor = Number(e.target.value) || 0;
-                      if (valor !== Number(b.base)) {
+                      if (valor !== Number(b.base_uvt)) {
                         actualizarBase.mutate({ id: b.id, valor });
                       }
                     }}
                   />
+                  <span className="text-xs text-muted-foreground">UVT</span>
                   <Button size="icon" variant="ghost" onClick={() => eliminar.mutate(b.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -1162,6 +1171,8 @@ function TarifasReteicaCiudadCard() {
   const agsQ = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const basesQ = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
+  const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const uvtValor = Number(fondoQ.data?.valor_uvt ?? 0);
   const [agenciaId, setAgenciaId] = useState("");
   const [conceptoReteicaId, setConceptoReteicaId] = useState("");
   const [codigoCiiu, setCodigoCiiu] = useState("");
@@ -1318,11 +1329,13 @@ function TarifasReteicaCiudadCard() {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Base{" "}
-                    {fmtMoneyLocal(
-                      basesQ.data?.find(
-                        (b) => b.agencia_id === t.agencia_id && b.concepto_reteica_id === t.concepto_reteica_id,
-                      )?.base ?? 0,
-                    )}
+                    {(() => {
+                      const baseUvt =
+                        basesQ.data?.find(
+                          (b) => b.agencia_id === t.agencia_id && b.concepto_reteica_id === t.concepto_reteica_id,
+                        )?.base_uvt ?? 0;
+                      return `${Number(baseUvt)} UVT ≈ ${fmtMoneyLocal(Number(baseUvt) * uvtValor)}`;
+                    })()}
                   </div>
                 </div>
               </div>

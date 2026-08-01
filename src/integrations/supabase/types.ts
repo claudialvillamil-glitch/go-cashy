@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           agencia_id: string
           base: number
+          base_uvt: number
           concepto_reteica_id: string
           created_at: string
           id: string
@@ -25,6 +26,7 @@ export type Database = {
         Insert: {
           agencia_id: string
           base?: number
+          base_uvt?: number
           concepto_reteica_id: string
           created_at?: string
           id?: string
@@ -32,6 +34,7 @@ export type Database = {
         Update: {
           agencia_id?: string
           base?: number
+          base_uvt?: number
           concepto_reteica_id?: string
           created_at?: string
           id?: string
