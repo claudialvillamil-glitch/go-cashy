@@ -771,66 +771,81 @@ function buildReciboDoc(
   const anio = String(fecha.getFullYear()).slice(-2);
   const cancelado = mov.reembolsos?.estado === "pagado";
 
+  // Paleta: azul oscuro para acentos/títulos, grises para texto secundario
+  // y líneas — reemplaza los tonos verde-azulado/rojo que tenía antes.
+  const AZUL: [number, number, number] = [26, 54, 93];
+  const AZUL_CLARO: [number, number, number] = [235, 240, 247];
+  const GRIS: [number, number, number] = [95, 103, 115];
+  const GRIS_CLARO: [number, number, number] = [242, 243, 245];
+  const GRIS_LINEA: [number, number, number] = [190, 195, 202];
+
   // Marco general del recibo (imita el formato físico) — ajustado a media carta.
   const x0 = 8, y0 = 8, w = 199.9, h = 123.7;
-  const TEAL: [number, number, number] = [0, 105, 92];
-  doc.setDrawColor(...TEAL);
-  doc.setLineWidth(0.4);
+  doc.setDrawColor(...AZUL);
+  doc.setLineWidth(0.5);
   doc.roundedRect(x0, y0, w, h, 3, 3);
 
-  // Casillas Día / Mes / Año
-  doc.setFontSize(7);
-  doc.text("DÍA", x0 + 8, y0 + 8, { align: "center" });
-  doc.text("MES", x0 + 20, y0 + 8, { align: "center" });
-  doc.text("AÑO", x0 + 32, y0 + 8, { align: "center" });
-  doc.rect(x0 + 4, y0 + 10, 10, 8);
-  doc.rect(x0 + 16, y0 + 10, 10, 8);
-  doc.rect(x0 + 28, y0 + 10, 10, 8);
+  // Banda superior de encabezado, en azul oscuro con el título en blanco.
+  doc.setFillColor(...AZUL);
+  doc.roundedRect(x0, y0, w, 22, 3, 3, "F");
+  doc.rect(x0, y0 + 11, w, 11, "F"); // cuadra las esquinas redondeadas de abajo
+
+  // Casillas Día / Mes / Año (dentro de la banda azul, en blanco/gris claro)
+  doc.setFontSize(6.5);
+  doc.setTextColor(...AZUL_CLARO);
+  doc.text("DÍA", x0 + 8, y0 + 5.5, { align: "center" });
+  doc.text("MES", x0 + 20, y0 + 5.5, { align: "center" });
+  doc.text("AÑO", x0 + 32, y0 + 5.5, { align: "center" });
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(x0 + 4, y0 + 7, 10, 8, 0.8, 0.8, "F");
+  doc.roundedRect(x0 + 16, y0 + 7, 10, 8, 0.8, 0.8, "F");
+  doc.roundedRect(x0 + 28, y0 + 7, 10, 8, 0.8, 0.8, "F");
   doc.setFontSize(10);
-  doc.text(dia, x0 + 9, y0 + 15.5, { align: "center" });
-  doc.text(mes, x0 + 21, y0 + 15.5, { align: "center" });
-  doc.text(anio, x0 + 33, y0 + 15.5, { align: "center" });
-
-  // Título y número de recibo
-  doc.setFontSize(13);
+  doc.setTextColor(...AZUL);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(...TEAL);
-  doc.text("RECIBO DE CAJA MENOR", x0 + w / 2 + 10, y0 + 12, { align: "center" });
-  doc.setTextColor(200, 0, 0);
-  doc.setFontSize(14);
-  doc.text(`N° ${folioRecibo(mov)}`, x0 + w - 6, y0 + 20, { align: "right" });
-  doc.setTextColor(0, 0, 0);
+  doc.text(dia, x0 + 9, y0 + 12.7, { align: "center" });
+  doc.text(mes, x0 + 21, y0 + 12.7, { align: "center" });
+  doc.text(anio, x0 + 33, y0 + 12.7, { align: "center" });
+
+  // Título y número de recibo (dentro de la banda azul)
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text("RECIBO DE CAJA MENOR", x0 + w / 2 + 10, y0 + 10, { align: "center" });
+  doc.setFontSize(12);
+  doc.text(`N° ${folioRecibo(mov)}`, x0 + w - 6, y0 + 17, { align: "right" });
   doc.setFont("helvetica", "normal");
+  doc.setTextColor(0, 0, 0);
 
-  doc.line(x0 + 2, y0 + 24, x0 + w - 2, y0 + 24);
-
-  // Monto principal
+  // Monto principal, resaltado con una franja gris clara de fondo.
+  doc.setFillColor(...GRIS_CLARO);
+  doc.rect(x0 + 2, y0 + 24, w - 4, 18, "F");
   doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...TEAL);
+  doc.setTextColor(...AZUL);
   doc.text("Valor pagado", x0 + 8, y0 + 30);
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(20, 20, 20);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(fmtMoney(mov.total), x0 + 8, y0 + 38);
+  doc.text(fmtMoney(mov.total), x0 + 8, y0 + 39);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+  doc.setTextColor(...GRIS);
   doc.text(
     `${fondo.empresa}${fondo.nit_empresa ? " · NIT " + fondo.nit_empresa : ""}`,
     x0 + w - 6,
-    y0 + 32,
+    y0 + 30,
     { align: "right" },
   );
-  doc.text(`Agencia: ${mov.agencias?.nombre ?? "—"}`, x0 + w - 6, y0 + 37, { align: "right" });
+  doc.text(`Agencia: ${mov.agencias?.nombre ?? "—"}`, x0 + w - 6, y0 + 35, { align: "right" });
   doc.setFontSize(8);
-  doc.text("Forma de pago: Efectivo (Caja menor)", x0 + w - 6, y0 + 41, { align: "right" });
+  doc.text("Forma de pago: Efectivo (Caja menor)", x0 + w - 6, y0 + 39.5, { align: "right" });
+  doc.setTextColor(0, 0, 0);
 
   // Pagado a / Por concepto de / Valor en letras
-  let y = y0 + 46;
+  let y = y0 + 48;
   doc.setFontSize(10);
-  doc.setTextColor(...TEAL);
+  doc.setTextColor(...AZUL);
   doc.text("Pagado a:", x0 + 6, y);
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
   doc.text(
     `${mov.proveedores?.nombre ?? ""}  ·  NIT ${mov.proveedores?.nit ?? ""}`,
@@ -838,21 +853,22 @@ function buildReciboDoc(
     y,
   );
   doc.setFont("helvetica", "normal");
+  doc.setDrawColor(...GRIS_LINEA);
   doc.line(x0 + 2, y + 2, x0 + w - 2, y + 2);
 
   y += 12;
-  doc.setTextColor(...TEAL);
+  doc.setTextColor(...AZUL);
   doc.text("Por concepto de:", x0 + 6, y);
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(20, 20, 20);
   const conceptoTexto = `${mov.conceptos?.nombre ?? ""}${mov.detalle ? " — " + mov.detalle : ""}`;
   const lineasConcepto = doc.splitTextToSize(conceptoTexto, w - 42);
   doc.text(lineasConcepto, x0 + 40, y);
   doc.line(x0 + 2, y + 8, x0 + w - 2, y + 8);
 
   y += 18;
-  doc.setTextColor(...TEAL);
+  doc.setTextColor(...AZUL);
   doc.text("Valor (en letras):", x0 + 6, y);
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(20, 20, 20);
   const enLetras = doc.splitTextToSize(numeroALetras(mov.total), w - 46);
   doc.text(enLetras, x0 + 42, y);
   doc.line(x0 + 2, y + 10, x0 + w - 2, y + 10);
@@ -860,14 +876,16 @@ function buildReciboDoc(
   // Firmas: Aprobado / Elaborado / Firma de recibido
   const yF = y0 + h - 32;
   const colW = w / 3;
+  doc.setDrawColor(...GRIS);
   doc.line(x0 + 4, yF + 10, x0 + colW - 4, yF + 10);
   doc.line(x0 + colW + 4, yF + 10, x0 + colW * 2 - 4, yF + 10);
   doc.line(x0 + colW * 2 + 4, yF + 10, x0 + w - 4, yF + 10);
   doc.setFontSize(9);
+  doc.setTextColor(20, 20, 20);
   doc.text(fondo.nombre_aprobador || "", x0 + colW / 2, yF + 8, { align: "center" });
   doc.text(fondo.responsable || "", x0 + colW + colW / 2, yF + 8, { align: "center" });
   doc.setFontSize(8);
-  doc.setTextColor(...TEAL);
+  doc.setTextColor(...AZUL);
   doc.text("APROBADO", x0 + colW / 2, yF + 15, { align: "center" });
   doc.text("ELABORADO", x0 + colW + colW / 2, yF + 15, { align: "center" });
   doc.text("Firma de recibido", x0 + colW * 2 + colW / 2, yF + 15, { align: "center" });
@@ -876,7 +894,7 @@ function buildReciboDoc(
   // Pie: código / vigencia / versión del formato
   if (fondo.codigo_recibo || fondo.vigencia_recibo || fondo.version_recibo) {
     doc.setFontSize(7);
-    doc.setTextColor(120, 120, 120);
+    doc.setTextColor(...GRIS);
     let yPie = y0 + h - 12;
     if (fondo.codigo_recibo) {
       doc.text(`CÓDIGO: ${fondo.codigo_recibo}`, x0 + 4, yPie);
@@ -895,7 +913,7 @@ function buildReciboDoc(
   // Sello de "CANCELADO" si el gasto ya fue reembolsado (pagado)
   if (cancelado) {
     doc.setFontSize(22);
-    doc.setTextColor(200, 0, 0);
+    doc.setTextColor(...AZUL);
     doc.text("CANCELADO", x0 + w / 2, y0 + h / 2, {
       align: "center",
       angle: 18,
@@ -907,7 +925,7 @@ function buildReciboDoc(
   // imprimible (con su mismo N° consecutivo) para no romper la numeración.
   if (mov.estado === "anulado") {
     doc.setFontSize(26);
-    doc.setTextColor(200, 0, 0);
+    doc.setTextColor(...GRIS);
     doc.text("ANULADO", x0 + w / 2, y0 + h / 2 + (cancelado ? 14 : 0), {
       align: "center",
       angle: 18,

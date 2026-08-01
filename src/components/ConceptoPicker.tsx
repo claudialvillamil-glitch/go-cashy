@@ -29,7 +29,12 @@ export function ConceptoPicker({
 
   const activos = (consQ.data ?? [])
     .filter((c) => c.activo)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    .sort((a, b) => {
+      const oa = a.orden ?? Infinity;
+      const ob = b.orden ?? Infinity;
+      if (oa !== ob) return oa - ob;
+      return a.nombre.localeCompare(b.nombre, "es");
+    });
   const selected = activos.find((c) => c.id === value);
   const coincidencias = busqueda.trim()
     ? activos.filter((c) => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))

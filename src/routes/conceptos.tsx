@@ -52,6 +52,7 @@ const empty: Partial<Concepto> = {
   cuenta_retencion: "24109503",
   concepto_retencion_renta_id: null,
   concepto_reteica_id: null,
+  orden: null,
   cuenta_reteica: "",
   cuenta_reteiva: "",
   cuenta_contrapartida: "11050501",
@@ -81,6 +82,7 @@ function Cons() {
         cuenta_retencion: form.cuenta_retencion || null,
         concepto_retencion_renta_id: form.concepto_retencion_renta_id || null,
         concepto_reteica_id: form.concepto_reteica_id || null,
+        orden: form.orden ? Number(form.orden) : null,
         cuenta_reteica: form.cuenta_reteica || null,
         cuenta_reteiva: form.cuenta_reteiva || null,
         cuenta_contrapartida: form.cuenta_contrapartida || "11050501",
@@ -159,12 +161,30 @@ function Cons() {
               <DialogTitle>{form.id ? "Editar concepto" : "Nuevo concepto"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <F label="Nombre *">
-                <Input
-                  value={form.nombre ?? ""}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                />
-              </F>
+              <div className="grid grid-cols-3 gap-3">
+                <F label="Nombre *">
+                  <Input
+                    value={form.nombre ?? ""}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  />
+                </F>
+                <F label="Orden (opcional)">
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Ej. 1"
+                    value={form.orden ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, orden: e.target.value ? Number(e.target.value) : null })
+                    }
+                  />
+                </F>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Los conceptos con número más bajo aparecen primero en el desplegable de "Nuevo
+                recibo" (útil para los más usados). Los que no tengan número quedan después,
+                ordenados alfabéticamente.
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <F label="Cuenta gasto *">
                   <Input
@@ -307,6 +327,7 @@ function Cons() {
             <thead className="bg-muted/50">
               <tr className="text-left">
                 <th className="px-4 py-3 font-medium">Concepto</th>
+                <th className="px-4 py-3 font-medium">Orden</th>
                 <th className="px-4 py-3 font-medium">Cuenta gasto</th>
                 <th className="px-4 py-3 font-medium">IVA</th>
                 <th className="px-4 py-3 font-medium">% IVA</th>
@@ -322,6 +343,7 @@ function Cons() {
               {q.data?.map((c) => (
                 <tr key={c.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{c.nombre}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.orden ?? "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs">{c.cuenta_gasto}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {c.cuenta_iva ?? "—"}

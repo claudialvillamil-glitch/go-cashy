@@ -80,6 +80,7 @@ export type Database = {
           cuenta_retencion: string | null
           id: string
           nombre: string
+          orden: number | null
           porcentaje_impoconsumo: number
           porcentaje_iva: number
           porcentaje_reteica: number
@@ -100,6 +101,7 @@ export type Database = {
           cuenta_retencion?: string | null
           id?: string
           nombre: string
+          orden?: number | null
           porcentaje_impoconsumo?: number
           porcentaje_iva?: number
           porcentaje_reteica?: number
@@ -120,6 +122,7 @@ export type Database = {
           cuenta_retencion?: string | null
           id?: string
           nombre?: string
+          orden?: number | null
           porcentaje_impoconsumo?: number
           porcentaje_iva?: number
           porcentaje_reteica?: number

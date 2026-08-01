@@ -54,6 +54,7 @@ export type Concepto = {
   porcentaje_impoconsumo: number;
   porcentaje_reteica: number;
   porcentaje_reteiva: number;
+  orden: number | null;
   activo: boolean;
 };
 
