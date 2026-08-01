@@ -24,6 +24,7 @@ import {
   getConceptosReteica,
   getTarifasReteicaCiudad,
   getBasesReteicaAgencia,
+  exentoRetencionRenta,
   getFondosAgencia,
   getMyProfile,
 } from "@/lib/db";
@@ -265,7 +266,7 @@ function Nuevo() {
   // cambiarlo manualmente si hace falta. No aplica si el proveedor es
   // Régimen Simple o autorretenedor de renta.
   useEffect(() => {
-    const exentoRenta = proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_renta;
+    const exentoRenta = exentoRetencionRenta(proveedorSel);
     if (conceptoSel?.concepto_retencion_renta_id && !exentoRenta) {
       setConceptoRetencionRentaId(conceptoSel.concepto_retencion_renta_id);
       setAplicaRetencion(true);
@@ -305,7 +306,7 @@ function Nuevo() {
     const esRegimenSimple = p.pertenece_regimen_simple;
     // Un autorretenedor (de renta o de ICA) no lleva retención en ese
     // impuesto específico, porque se la practica él mismo.
-    setAplicaRetencion(esRegimenSimple || p.autorretenedor_renta ? false : p.aplica_retencion);
+    setAplicaRetencion(exentoRetencionRenta(p) ? false : p.aplica_retencion);
     setTarifaRetencionId(p.tarifa_retencion_id ?? "");
     setAplicaReteica(esRegimenSimple || p.autorretenedor_ica ? false : p.aplica_reteica);
     setTarifaReteica(p.aplica_reteica ? String(p.tarifa_reteica) : "");
@@ -552,7 +553,7 @@ function Nuevo() {
     subtotal: number,
   ): string => {
     if (!concepto?.concepto_retencion_renta_id || !proveedor) return "0";
-    if (proveedor.pertenece_regimen_simple || proveedor.autorretenedor_renta) return "0";
+    if (exentoRetencionRenta(proveedor)) return "0";
     const cr = conceptosRetencionRentaQ.data?.find((c) => c.id === concepto.concepto_retencion_renta_id);
     if (!cr) return "0";
     const minima = uvtValor > 0 ? Number(cr.minimo_uvt) * uvtValor : 0;
@@ -902,6 +903,10 @@ function Nuevo() {
                 : ""}
               Recuerda que tendrás que volver a adjuntar la factura.
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Esta opción te permite terminar de diligenciar el recibo — no se
+              tendrá en cuenta en ningún reporte ni conteo hasta que el recibo quede guardado.
+            </p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button size="sm" variant="outline" onClick={descartarBorrador}>
@@ -1046,6 +1051,8 @@ function Nuevo() {
                   {proveedorSel.pertenece_regimen_simple && " · Régimen Simple"}
                   {proveedorSel.autorretenedor_renta && " · Autorretenedor renta"}
                   {proveedorSel.autorretenedor_ica && " · Autorretenedor ICA"}
+                  {proveedorSel.tipo_declarante_renta === "no_contribuyente" && " · Entidad no contribuyente"}
+                  {proveedorSel.tipo_declarante_renta === "regimen_especial" && " · Régimen especial"}
                 </p>
               )}
               {proveedorSel && !proveedorSel.pertenece_regimen_simple && proveedorSel.autorretenedor_renta && (
@@ -1053,6 +1060,18 @@ function Nuevo() {
                   Autorretenedor de renta: no aplica retención en la fuente (quedó deshabilitada).
                 </p>
               )}
+              {proveedorSel &&
+                !proveedorSel.pertenece_regimen_simple &&
+                !proveedorSel.autorretenedor_renta &&
+                (proveedorSel.tipo_declarante_renta === "no_contribuyente" ||
+                  proveedorSel.tipo_declarante_renta === "regimen_especial") && (
+                  <p className="text-xs text-warning mt-0.5">
+                    {proveedorSel.tipo_declarante_renta === "no_contribuyente"
+                      ? "Entidad no contribuyente"
+                      : "Régimen especial"}
+                    : no aplica retención en la fuente (quedó deshabilitada).
+                  </p>
+                )}
               {proveedorSel && !proveedorSel.pertenece_regimen_simple && proveedorSel.autorretenedor_ica && (
                 <p className="text-xs text-warning mt-0.5">
                   Autorretenedor de ICA: no aplica ReteICA (quedó deshabilitada).
@@ -1134,7 +1153,7 @@ function Nuevo() {
                   <Checkbox
                     id="aplica-retencion"
                     checked={aplicaRetencion}
-                    disabled={proveedorSel?.pertenece_regimen_simple || proveedorSel?.autorretenedor_renta || retencionBloqueada}
+                    disabled={exentoRetencionRenta(proveedorSel) || retencionBloqueada}
                     onCheckedChange={(v) => setAplicaRetencion(v === true)}
                   />
                   <Label htmlFor="aplica-retencion" className="text-sm font-normal cursor-pointer">

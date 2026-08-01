@@ -443,6 +443,20 @@ export async function getMovimientosDeReembolso(reembolsoId: string) {
 // usada en el recibo. Prioriza la tabla editable (por id); si el recibo es
 // viejo y solo tiene la clave de texto, cae al catálogo fijo en fondo_config;
 // si no hay nada, usa la cuenta del concepto contable (comportamiento previo).
+// Un proveedor no lleva retención en la fuente si es Régimen Simple,
+// autorretenedor de renta, entidad no contribuyente, o régimen especial.
+export function exentoRetencionRenta(
+  p: { pertenece_regimen_simple?: boolean; autorretenedor_renta?: boolean; tipo_declarante_renta?: string } | null | undefined,
+): boolean {
+  if (!p) return false;
+  return (
+    !!p.pertenece_regimen_simple ||
+    !!p.autorretenedor_renta ||
+    p.tipo_declarante_renta === "no_contribuyente" ||
+    p.tipo_declarante_renta === "regimen_especial"
+  );
+}
+
 function cuentaRetencionPorTipo(
   tarifaId: string | null | undefined,
   tipoTexto: string | null | undefined,
