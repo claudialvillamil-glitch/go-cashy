@@ -1084,13 +1084,6 @@ function Nuevo() {
                   El proveedor emite factura electrónica
                 </Label>
               </div>
-              {proveedor && (
-                <p className="text-xs text-muted-foreground">
-                  {proveedorSel?.es_facturador_electronico
-                    ? "Este proveedor está marcado como facturador electrónico — no se puede desactivar."
-                    : "Este proveedor no está marcado como facturador electrónico."}
-                </p>
-              )}
               {facturaElectronica && (
                 <p className="text-xs text-warning">
                   Valida que la factura esté a nombre y con Nit. de Cofincafe.

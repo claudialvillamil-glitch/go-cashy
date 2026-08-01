@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Search } from "lucide-react";
+import { PlusCircle, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { getProveedores } from "@/lib/db";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -41,19 +39,20 @@ const formVacio = {
   es_declarante_renta: false,
   tipo_declarante_renta: "contribuyente",
   autorretenedor_renta: false,
-  es_gran_contribuyente: false,
   autorretenedor_ica: false,
+  es_gran_contribuyente: false,
   es_facturador_electronico: false,
   regimen_tributario: "responsable_iva",
   pertenece_regimen_simple: false,
   tipo_impuesto: "iva",
 };
 
-// Campo de texto directo: escribes el NIT o el nombre y aparecen sugerencias
-// abajo (sin necesitar hacer clic en nada más primero). Si escribes un
-// número de identificación completo y coincide exacto con un proveedor ya
-// creado, se selecciona solo; si no coincide con ninguno, se abre la
-// creación automáticamente.
+// Campo de texto directo por NIT: no muestra ninguna lista mientras se
+// escribe (con muchos proveedores cargados sería una lista enorme). Se
+// escribe el número de identificación completo y, cuando coincide exacto
+// con uno ya creado, se trae el nombre solo y avanza al siguiente campo; si
+// no existe ningún proveedor con ese número, se abre la creación con el
+// aviso "El tercero no existe".
 export function ProveedorPicker({
   value,
   onChange,
@@ -68,61 +67,35 @@ export function ProveedorPicker({
 }) {
   const qc = useQueryClient();
   const provsQ = useQuery({ queryKey: ["proveedores"], queryFn: getProveedores });
-  const [open, setOpen] = useState(false);
+  const [texto, setTexto] = useState("");
   const [dialog, setDialog] = useState(false);
-  const [prefill, setPrefill] = useState("");
-  const [busqueda, setBusqueda] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = provsQ.data?.find((p) => p.id === value);
   const activos = (provsQ.data ?? []).filter((p) => p.activo);
-  const coincidencias = busqueda.trim()
-    ? activos.filter((p) =>
-        `${p.nombre} ${p.nit}`.toLowerCase().includes(busqueda.toLowerCase()),
-      )
-    : activos;
 
   // Mientras no se esté editando, el campo muestra "Nombre — NIT" del
   // proveedor ya seleccionado.
   useEffect(() => {
-    if (open) return;
-    setBusqueda(selected ? `${selected.nombre} — ${selected.nit}` : "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id, open]);
+    setTexto(selected ? `${selected.nombre} — ${selected.nit}` : "");
+  }, [selected?.id]);
 
-  // Si lo que se escribió parece un número de identificación completo (solo
-  // dígitos/puntos/guiones, 5+ caracteres): si coincide EXACTO con el NIT de
-  // un proveedor ya creado, se selecciona solo y avanza; si no coincide con
-  // ninguno, se abre la pantalla de creación automáticamente.
-  useEffect(() => {
-    if (!open) return;
-    const texto = busqueda.trim();
-    const pareceIdentificacion = /^[\d.-]{5,}$/.test(texto);
-    if (!pareceIdentificacion) return;
-    const timeout = setTimeout(() => {
-      const exacto = activos.find((p) => p.nit === texto);
-      if (exacto) {
-        onChange(exacto.id);
-        setOpen(false);
-        onAutoAdvance?.();
-      } else if (!activos.some((p) => p.nit.includes(texto))) {
-        openCreate(texto);
-      }
-    }, 500);
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, open, activos.length]);
+  const buscarPorNit = (nitBuscado: string) => {
+    const exacto = activos.find((p) => p.nit === nitBuscado);
+    if (exacto) {
+      onChange(exacto.id);
+      onAutoAdvance?.();
+    } else {
+      openCreate(nitBuscado);
+    }
+  };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [form, setForm] = useState<Record<string, any>>(formVacio);
 
-  const openCreate = (q?: string) => {
-    const query = (q ?? "").trim();
-    const looksLikeNit = /^[\d.-]+$/.test(query);
-    setForm({ ...formVacio, nombre: looksLikeNit ? "" : query, nit: looksLikeNit ? query : "" });
-    setPrefill(query);
+  const openCreate = (nitBuscado: string) => {
+    setForm({ ...formVacio, nit: nitBuscado });
     setDialog(true);
-    setOpen(false);
   };
 
   const crear = useMutation({
@@ -135,7 +108,7 @@ export function ProveedorPicker({
         .maybeSingle();
       if (existente) {
         throw new Error(
-          `Ya existe un proveedor con ese NIT/identificación: "${existente.nombre}". Búscalo arriba en vez de crear uno nuevo.`,
+          `Ya existe un proveedor con ese NIT/identificación: "${existente.nombre}".`,
         );
       }
       const { data: auth } = await supabase.auth.getUser();
@@ -177,106 +150,78 @@ export function ProveedorPicker({
       qc.invalidateQueries({ queryKey: ["proveedores"] });
       onChange(p.id);
       setDialog(false);
+      onAutoAdvance?.();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor asChild>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              ref={inputRef}
-              value={busqueda}
-              onFocus={(e) => {
-                setOpen(true);
-                e.target.select();
-              }}
-              onChange={(e) => {
-                setBusqueda(e.target.value);
-                setOpen(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && coincidencias.length > 0) {
-                  e.preventDefault();
-                  onChange(coincidencias[0].id);
-                  setOpen(false);
-                  inputRef.current?.blur();
-                }
-                if (e.key === "Escape") {
-                  setOpen(false);
-                  inputRef.current?.blur();
-                }
-              }}
-              placeholder="Escribe el NIT o el nombre..."
-              className="pl-8"
-              autoComplete="off"
-            />
-          </div>
-        </PopoverAnchor>
-        <PopoverContent
-          className="w-[--radix-popover-trigger-width] p-0 max-h-72 overflow-y-auto"
-          align="start"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={() => setOpen(false)}
-        >
-          {coincidencias.length === 0 ? (
-            <div className="py-4 text-center space-y-2 px-2">
-              <p className="text-sm text-muted-foreground">No se encontró el proveedor.</p>
-              <Button size="sm" variant="secondary" onClick={() => openCreate(busqueda)}>
-                <PlusCircle className="h-4 w-4 mr-2" /> Crear proveedor
-              </Button>
-            </div>
-          ) : (
-            <div className="py-1">
-              {coincidencias.slice(0, 30).map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={cn(
-                    "w-full text-left px-3 py-2 text-sm hover:bg-accent flex flex-col",
-                    value === p.id && "bg-accent",
-                  )}
-                  onClick={() => {
-                    onChange(p.id);
-                    setOpen(false);
-                    inputRef.current?.blur();
-                  }}
-                >
-                  <span>{p.nombre}</span>
-                  <span className="text-xs text-muted-foreground">NIT {p.nit}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="border-t p-1">
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start"
-              onClick={() => openCreate(busqueda)}
-            >
-              <PlusCircle className="h-4 w-4 mr-2" /> Crear nuevo proveedor
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input
+          ref={inputRef}
+          value={texto}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            setTexto(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const nitBuscado = texto.trim();
+              if (nitBuscado) buscarPorNit(nitBuscado);
+            }
+          }}
+          onBlur={() => {
+            const nitBuscado = texto.trim();
+            // Si lo que quedó no corresponde al proveedor ya seleccionado
+            // (o está vacío), buscamos por ese número al salir del campo.
+            if (nitBuscado && nitBuscado !== `${selected?.nombre} — ${selected?.nit}`) {
+              buscarPorNit(nitBuscado);
+            } else if (!nitBuscado) {
+              onChange("");
+            }
+          }}
+          placeholder="Escribe el número de identificación completo..."
+          className="pl-8"
+          autoComplete="off"
+        />
+        {selected && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+            onClick={() => {
+              onChange("");
+              setTexto("");
+              inputRef.current?.focus();
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
 
       <Dialog open={dialog} onOpenChange={setDialog}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nuevo proveedor</DialogTitle>
+            <DialogTitle>El tercero no existe</DialogTitle>
           </DialogHeader>
-          {prefill && (
-            <p className="text-xs text-muted-foreground -mt-2">
-              Prellenado desde la búsqueda: "{prefill}"
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground -mt-2">
+            No hay ningún proveedor con el número <b>{form.nit}</b>. Completa los datos para
+            crearlo.
+          </p>
           <ProveedorFormFields form={form} setForm={setForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialog(false);
+                setTexto(selected ? `${selected.nombre} — ${selected.nit}` : "");
+              }}
+            >
               Cancelar
             </Button>
             <Button onClick={() => crear.mutate()} disabled={crear.isPending}>
