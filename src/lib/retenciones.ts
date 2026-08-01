@@ -30,9 +30,9 @@ export const REGIMENES_TRIBUTARIOS = [
 // Clasificación del tipo de declarante de renta — dimensión independiente
 // de la responsabilidad de IVA.
 export const TIPOS_DECLARANTE_RENTA = [
+  { value: "ninguno", label: "Ninguno" },
   { value: "contribuyente", label: "Contribuyente" },
-  { value: "no_contribuyente", label: "No contribuyente" },
-  { value: "regimen_simple", label: "Régimen simple" },
+  { value: "no_contribuyente", label: "Entidad no contribuyente" },
   { value: "regimen_especial", label: "Régimen especial" },
 ];
 
