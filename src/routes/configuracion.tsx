@@ -29,7 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, Building2 } from "lucide-react";
+import { Plus, Trash2, Building2, Search } from "lucide-react";
 
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
@@ -55,10 +55,6 @@ function Conf() {
   const [monto, setMonto] = useState("");
   const [maximo, setMaximo] = useState("");
   const [cuentaBanco, setCuentaBanco] = useState("");
-  const [cuentaRetHotel, setCuentaRetHotel] = useState("");
-  const [cuentaRetServDecl, setCuentaRetServDecl] = useState("");
-  const [cuentaRetServNoDecl, setCuentaRetServNoDecl] = useState("");
-  const [cuentaRetFletes, setCuentaRetFletes] = useState("");
   const [limiteAlerta, setLimiteAlerta] = useState("");
   const [nombreAprobador, setNombreAprobador] = useState("");
   const [codigoRecibo, setCodigoRecibo] = useState("");
@@ -78,10 +74,6 @@ function Conf() {
       setMonto(String(q.data.monto_asignado));
       setMaximo(String(q.data.monto_maximo_gasto));
       setCuentaBanco(q.data.cuenta_banco);
-      setCuentaRetHotel(q.data.cuenta_retencion_hotel);
-      setCuentaRetServDecl(q.data.cuenta_retencion_servicios_declarante);
-      setCuentaRetServNoDecl(q.data.cuenta_retencion_servicios_no_declarante);
-      setCuentaRetFletes(q.data.cuenta_retencion_fletes);
       setLimiteAlerta(String(q.data.limite_alerta_reembolso_pct));
       setNombreAprobador(q.data.nombre_aprobador);
       setCodigoRecibo(q.data.codigo_recibo);
@@ -103,7 +95,7 @@ function Conf() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     empresa, nitEmpresa, responsable, identificacionResponsable, monto, maximo, cuentaBanco,
-    cuentaRetHotel, cuentaRetServDecl, cuentaRetServNoDecl, cuentaRetFletes, limiteAlerta,
+    limiteAlerta,
     nombreAprobador, codigoRecibo, versionRecibo, vigenciaRecibo, valorUvt,
   ]);
 
@@ -132,10 +124,6 @@ function Conf() {
           monto_asignado: Number(monto),
           monto_maximo_gasto: Number(maximo),
           cuenta_banco: cuentaBanco,
-          cuenta_retencion_hotel: cuentaRetHotel,
-          cuenta_retencion_servicios_declarante: cuentaRetServDecl,
-          cuenta_retencion_servicios_no_declarante: cuentaRetServNoDecl,
-          cuenta_retencion_fletes: cuentaRetFletes,
           limite_alerta_reembolso_pct: Number(limiteAlerta) || 80,
           nombre_aprobador: nombreAprobador,
           codigo_recibo: codigoRecibo,
@@ -247,37 +235,6 @@ function Conf() {
             </div>
           </div>
 
-          <div className="md:col-span-2 rounded-md border p-3 space-y-3">
-            <p className="text-sm font-medium">Cuentas de retención en la fuente por tarifa</p>
-            <p className="text-xs text-muted-foreground">
-              Cada tarifa que se elige en el recibo se contabiliza en su propia cuenta.
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Serv. hotel y restaurante (3.5%)</Label>
-                <Input value={cuentaRetHotel} onChange={(e) => setCuentaRetHotel(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Servicios generales declarante (4%)</Label>
-                <Input
-                  value={cuentaRetServDecl}
-                  onChange={(e) => setCuentaRetServDecl(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Servicios generales no declarante (6%)</Label>
-                <Input
-                  value={cuentaRetServNoDecl}
-                  onChange={(e) => setCuentaRetServNoDecl(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Fletes (1%)</Label>
-                <Input value={cuentaRetFletes} onChange={(e) => setCuentaRetFletes(e.target.value)} />
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <Label className="text-xs">% del fondo que dispara el aviso de reembolso</Label>
             <Input
@@ -363,7 +320,6 @@ function Conf() {
 
         <TabsContent value="reteica" className="space-y-6 mt-0">
           <ConceptosReteicaCard />
-          <CodigosCiiuCard />
           <BasesReteicaAgenciaCard />
           <TarifasReteicaCiudadCard />
         </TabsContent>
@@ -956,140 +912,6 @@ function ConceptosReteicaCard() {
   );
 }
 
-function CodigosCiiuCard() {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
-  const [codigo, setCodigo] = useState("");
-  const [nombre, setNombre] = useState("");
-
-  const crear = useMutation({
-    mutationFn: async () => {
-      if (!codigo.trim() || !nombre.trim()) throw new Error("Completa el código y el nombre");
-      const { error } = await supabase.from("codigos_ciiu").insert({
-        codigo: codigo.trim(),
-        nombre: nombre.trim(),
-      });
-      if (error) {
-        if (error.code === "23505") throw new Error("Ya existe ese código CIIU.");
-        throw error;
-      }
-    },
-    onSuccess: () => {
-      toast.success("Código agregado");
-      setCodigo("");
-      setNombre("");
-      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const toggleActivo = useMutation({
-    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
-      const { error } = await supabase.from("codigos_ciiu").update({ activo }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["codigos-ciiu"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const eliminar = useMutation({
-    mutationFn: async ({ id, codigo: valorCodigo }: { id: string; codigo: string }) => {
-      const [{ count: countProvs }, { count: countTarifas }] = await Promise.all([
-        supabase.from("proveedores").select("id", { count: "exact", head: true }).eq("codigo_ciiu", valorCodigo),
-        supabase
-          .from("tarifas_reteica_ciudad")
-          .select("id", { count: "exact", head: true })
-          .eq("codigo_ciiu", valorCodigo),
-      ]);
-      const total = (countProvs ?? 0) + (countTarifas ?? 0);
-      if (total > 0) {
-        throw new Error(
-          "No se puede eliminar: este código ya está en uso en proveedores o tarifas de ReteICA.",
-        );
-      }
-      const { error } = await supabase.from("codigos_ciiu").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Código eliminado");
-      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
-    },
-    onError: (e: Error) =>
-      toast.error("No se pudo eliminar (puede estar en uso en algún proveedor). " + e.message),
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Códigos CIIU (actividad económica)</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Lista de actividades económicas para elegir en cada proveedor (código - nombre). Agrega
-          las que necesites según los proveedores que manejes.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-          <Input placeholder="Código (ej. 4711)" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-          <Input
-            placeholder="Nombre de la actividad"
-            className="md:col-span-2"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && codigo.trim() && nombre.trim()) crear.mutate();
-            }}
-          />
-          <Button onClick={() => crear.mutate()} disabled={!codigo.trim() || !nombre.trim() || crear.isPending}>
-            <Plus className="h-4 w-4 mr-2" /> Agregar
-          </Button>
-        </div>
-
-        <div className="rounded-md border divide-y">
-          <Accordion type="single" collapsible>
-            <AccordionItem value="lista-ciiu" className="border-b-0">
-              <AccordionTrigger className="px-4 py-2.5 hover:no-underline">
-                <span className="text-sm text-muted-foreground">
-                  Ver lista completa ({q.data?.length ?? 0} código{(q.data?.length ?? 0) === 1 ? "" : "s"})
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="divide-y border-t max-h-96 overflow-y-auto">
-                  {q.data?.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Checkbox
-                          checked={c.activo}
-                          onCheckedChange={(v) => toggleActivo.mutate({ id: c.id, activo: v === true })}
-                        />
-                        <span className="text-sm font-mono text-muted-foreground shrink-0">{c.codigo}</span>
-                        <span className="text-sm truncate">{c.nombre}</span>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) eliminar.mutate({ id: c.id, codigo: c.codigo });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                  {(q.data?.length ?? 0) === 0 && (
-                    <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                      Aún no hay códigos CIIU configurados.
-                    </div>
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function BasesReteicaAgenciaCard() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
@@ -1259,6 +1081,71 @@ function TarifasReteicaCiudadCard() {
   const [codigoCiiu, setCodigoCiiu] = useState("");
   const [tarifa, setTarifa] = useState("");
   const [cuenta, setCuenta] = useState("");
+  const [mostrarNuevoCiiu, setMostrarNuevoCiiu] = useState(false);
+  const [nuevoCiiuCodigo, setNuevoCiiuCodigo] = useState("");
+  const [nuevoCiiuNombre, setNuevoCiiuNombre] = useState("");
+  const [busquedaTarifas, setBusquedaTarifas] = useState("");
+  const [busquedaCiiu, setBusquedaCiiu] = useState("");
+
+  const crearCodigoCiiu = useMutation({
+    mutationFn: async () => {
+      if (!nuevoCiiuCodigo.trim() || !nuevoCiiuNombre.trim()) {
+        throw new Error("Completa el código y el nombre de la actividad");
+      }
+      const { error } = await supabase.from("codigos_ciiu").insert({
+        codigo: nuevoCiiuCodigo.trim(),
+        nombre: nuevoCiiuNombre.trim(),
+      });
+      if (error) {
+        if (error.code === "23505") throw new Error("Ya existe ese código CIIU.");
+        throw error;
+      }
+      return nuevoCiiuCodigo.trim();
+    },
+    onSuccess: (codigoCreado) => {
+      toast.success("Código CIIU creado — ya lo tienes seleccionado. Se guardará al elegir Proveedores también.");
+      setCodigoCiiu(codigoCreado);
+      setNuevoCiiuCodigo("");
+      setNuevoCiiuNombre("");
+      setMostrarNuevoCiiu(false);
+      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const eliminarCodigoCiiu = useMutation({
+    mutationFn: async ({ id, codigo: valorCodigo }: { id: string; codigo: string }) => {
+      const [{ count: countProvs }, { count: countTarifas }] = await Promise.all([
+        supabase.from("proveedores").select("id", { count: "exact", head: true }).eq("codigo_ciiu", valorCodigo),
+        supabase
+          .from("tarifas_reteica_ciudad")
+          .select("id", { count: "exact", head: true })
+          .eq("codigo_ciiu", valorCodigo),
+      ]);
+      const total = (countProvs ?? 0) + (countTarifas ?? 0);
+      if (total > 0) {
+        throw new Error(
+          "No se puede eliminar: este código ya está en uso en proveedores o tarifas de ReteICA.",
+        );
+      }
+      const { error } = await supabase.from("codigos_ciiu").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Código CIIU eliminado");
+      qc.invalidateQueries({ queryKey: ["codigos-ciiu"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleActivoCiiu = useMutation({
+    mutationFn: async ({ id, activo }: { id: string; activo: boolean }) => {
+      const { error } = await supabase.from("codigos_ciiu").update({ activo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["codigos-ciiu"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const crear = useMutation({
     mutationFn: async () => {
@@ -1335,16 +1222,39 @@ function TarifasReteicaCiudadCard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const actualizarBase = useMutation({
+    mutationFn: async ({
+      agenciaId: aId,
+      conceptoId,
+      valor,
+    }: {
+      agenciaId: string;
+      conceptoId: string;
+      valor: number;
+    }) => {
+      const { error } = await supabase.from("bases_reteica_agencia").upsert(
+        { agencia_id: aId, concepto_reteica_id: conceptoId, base_uvt: valor },
+        { onConflict: "agencia_id,concepto_reteica_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Base actualizada");
+      qc.invalidateQueries({ queryKey: ["bases-reteica-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Tarifas de ReteICA por agencia / concepto / actividad (CIIU)</CardTitle>
         <p className="text-sm text-muted-foreground">
           El ICA varía por ciudad y por actividad económica. Configura aquí la tarifa por mil de
-          cada combinación agencia + concepto (+ CIIU opcional, tomado del catálogo de
-          "Códigos CIIU" — créalo ahí primero si no aparece en la lista). Elige "General" para
-          que sea la tarifa de toda esa agencia/concepto. La base mínima se configura arriba, en
-          "Bases de ReteICA por agencia".
+          cada combinación agencia + concepto (+ CIIU opcional). Los códigos CIIU se crean y
+          administran aquí mismo, y son los mismos que luego eliges al crear un proveedor. Elige
+          "General" para que sea la tarifa de toda esa agencia/concepto. La base mínima se
+          configura arriba, en "Bases de ReteICA por agencia".
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1373,7 +1283,16 @@ function TarifasReteicaCiudadCard() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={codigoCiiu || "general"} onValueChange={(v) => setCodigoCiiu(v === "general" ? "" : v)}>
+          <Select
+            value={codigoCiiu || "general"}
+            onValueChange={(v) => {
+              if (v === "nuevo") {
+                setMostrarNuevoCiiu(true);
+                return;
+              }
+              setCodigoCiiu(v === "general" ? "" : v);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="CIIU (opcional)" />
             </SelectTrigger>
@@ -1384,6 +1303,7 @@ function TarifasReteicaCiudadCard() {
                   {c.codigo} - {c.nombre}
                 </SelectItem>
               ))}
+              <SelectItem value="nuevo">+ Crear nuevo código CIIU...</SelectItem>
             </SelectContent>
           </Select>
           <Input
@@ -1395,6 +1315,50 @@ function TarifasReteicaCiudadCard() {
           />
           <Input placeholder="Cuenta" value={cuenta} onChange={(e) => setCuenta(e.target.value)} />
         </div>
+
+        {mostrarNuevoCiiu && (
+          <div className="rounded-md border p-3 space-y-2 bg-muted/30">
+            <p className="text-xs font-medium">Nuevo código CIIU</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <Input
+                placeholder="Código (ej. 4711)"
+                value={nuevoCiiuCodigo}
+                onChange={(e) => setNuevoCiiuCodigo(e.target.value)}
+              />
+              <Input
+                placeholder="Nombre de la actividad"
+                className="md:col-span-1"
+                value={nuevoCiiuNombre}
+                onChange={(e) => setNuevoCiiuNombre(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && nuevoCiiuCodigo.trim() && nuevoCiiuNombre.trim()) {
+                    crearCodigoCiiu.mutate();
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => crearCodigoCiiu.mutate()}
+                  disabled={!nuevoCiiuCodigo.trim() || !nuevoCiiuNombre.trim() || crearCodigoCiiu.isPending}
+                >
+                  Guardar código
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMostrarNuevoCiiu(false);
+                    setNuevoCiiuCodigo("");
+                    setNuevoCiiuNombre("");
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         <Button
           onClick={() => crear.mutate()}
           disabled={!agenciaId || !conceptoReteicaId || !tarifa || crear.isPending}
@@ -1402,8 +1366,93 @@ function TarifasReteicaCiudadCard() {
           <Plus className="h-4 w-4 mr-2" /> Agregar tarifa
         </Button>
 
+        <div className="rounded-md border">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="codigos-ciiu" className="border-b-0">
+              <AccordionTrigger className="px-4 py-2.5 hover:no-underline">
+                <span className="text-sm text-muted-foreground">
+                  Administrar códigos CIIU ({ciiuQ.data?.length ?? 0})
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="px-4 pt-2 pb-1 border-t">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      placeholder="Buscar por código o nombre..."
+                      value={busquedaCiiu}
+                      onChange={(e) => setBusquedaCiiu(e.target.value)}
+                      className="pl-8 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="divide-y max-h-72 overflow-y-auto">
+                  {ciiuQ.data
+                    ?.filter(
+                      (c) =>
+                        !busquedaCiiu.trim() ||
+                        c.codigo.toLowerCase().includes(busquedaCiiu.toLowerCase()) ||
+                        c.nombre.toLowerCase().includes(busquedaCiiu.toLowerCase()),
+                    )
+                    .map((c) => (
+                    <div key={c.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Checkbox
+                          checked={c.activo}
+                          onCheckedChange={(v) => toggleActivoCiiu.mutate({ id: c.id, activo: v === true })}
+                        />
+                        <span className="text-sm font-mono text-muted-foreground shrink-0">{c.codigo}</span>
+                        <span className="text-sm truncate">{c.nombre}</span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm(`¿Eliminar el código "${c.codigo} - ${c.nombre}"?`)) {
+                            eliminarCodigoCiiu.mutate({ id: c.id, codigo: c.codigo });
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(ciiuQ.data?.length ?? 0) === 0 && (
+                    <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                      Aún no hay códigos CIIU. Créalos con "+ Crear nuevo código CIIU..." arriba.
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por agencia, concepto o CIIU..."
+            value={busquedaTarifas}
+            onChange={(e) => setBusquedaTarifas(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+
         <div className="rounded-md border divide-y">
-          {q.data?.map((t) => (
+          {q.data
+            ?.filter((t) => {
+              if (!busquedaTarifas.trim()) return true;
+              const texto = busquedaTarifas.toLowerCase();
+              const agencia = agsQ.data?.find((a) => a.id === t.agencia_id);
+              const concepto = conceptosQ.data?.find((c) => c.id === t.concepto_reteica_id);
+              return (
+                agencia?.nombre.toLowerCase().includes(texto) ||
+                concepto?.nombre.toLowerCase().includes(texto) ||
+                (t.codigo_ciiu ?? "").toLowerCase().includes(texto) ||
+                ciiuQ.data?.find((c) => c.codigo === t.codigo_ciiu)?.nombre.toLowerCase().includes(texto)
+              );
+            })
+            .map((t) => (
             <div key={t.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 <Checkbox
