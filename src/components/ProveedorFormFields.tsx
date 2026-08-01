@@ -70,6 +70,32 @@ export function ProveedorFormFields({
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <F label={form.tipo_proveedor === "natural" ? "Número de identificación *" : "NIT *"}>
+          <Input
+            autoFocus
+            value={form.nit ?? ""}
+            onChange={(e) => {
+              const nit = e.target.value;
+              if (form.tipo_proveedor === "natural") {
+                setForm({ ...form, nit });
+              } else {
+                setForm({ ...form, nit });
+              }
+            }}
+          />
+        </F>
+        {form.tipo_proveedor !== "natural" && (
+          <F label="Dígito de verificación">
+            <Input
+              maxLength={1}
+              value={form.digito_verificacion ?? ""}
+              onChange={(e) => setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })}
+            />
+          </F>
+        )}
+      </div>
+
       <F label="Tipo de proveedor">
         <Select
           value={form.tipo_proveedor ?? "juridica"}
@@ -104,31 +130,6 @@ export function ProveedorFormFields({
           </Select>
         </F>
       ) : null}
-      <div className="grid grid-cols-2 gap-3">
-        <F label={form.tipo_proveedor === "natural" ? "Número de identificación *" : "NIT *"}>
-          <Input
-            autoFocus
-            value={form.nit ?? ""}
-            onChange={(e) => {
-              const nit = e.target.value;
-              if (form.tipo_proveedor === "natural") {
-                setForm({ ...form, nit });
-              } else {
-                setForm({ ...form, nit });
-              }
-            }}
-          />
-        </F>
-        {form.tipo_proveedor !== "natural" && (
-          <F label="Dígito de verificación">
-            <Input
-              maxLength={1}
-              value={form.digito_verificacion ?? ""}
-              onChange={(e) => setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })}
-            />
-          </F>
-        )}
-      </div>
       {duplicado && (
         <p className="text-xs text-warning -mt-2">
           Ya existe un proveedor con este número: <b>{duplicado}</b>. Ciérralo y búscalo en la
@@ -388,8 +389,7 @@ export function ProveedorFormFields({
               <SelectItem value="iva">IVA</SelectItem>
               <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
               <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
-              <SelectItem value="excluido">Excluido de IVA (ej. combustible)</SelectItem>
-              <SelectItem value="exento">Exento de IVA (tarifa 0%)</SelectItem>
+              <SelectItem value="sin_iva">Productos/servicios sin IVA</SelectItem>
             </SelectContent>
           </Select>
         </F>

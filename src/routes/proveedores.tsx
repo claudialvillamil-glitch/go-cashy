@@ -143,7 +143,6 @@ function Provs() {
       "Tipo de proveedor": p.tipo_proveedor === "natural" ? "Persona natural" : "Persona jurídica",
       "Tipo identificación": p.tipo_proveedor === "natural" ? p.tipo_identificacion : "NIT",
       Identificación: p.nit,
-      "Dígito verificación": p.digito_verificacion ?? "",
       Teléfono: p.telefono ?? "",
       Email: p.email ?? "",
       Dirección: p.direccion ?? "",
@@ -453,6 +452,27 @@ function Provs() {
                 <DialogTitle>{form.id ? "Editar proveedor" : "Nuevo proveedor"}</DialogTitle>
               </DialogHeader>
             <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <F label={form.tipo_proveedor === "natural" ? "Número de identificación *" : "NIT *"}>
+                  <Input
+                    autoFocus
+                    value={form.nit ?? ""}
+                    onChange={(e) => setForm({ ...form, nit: e.target.value })}
+                  />
+                </F>
+                {form.tipo_proveedor !== "natural" && (
+                  <F label="Dígito de verificación">
+                    <Input
+                      maxLength={1}
+                      value={form.digito_verificacion ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })
+                      }
+                    />
+                  </F>
+                )}
+              </div>
+
               <F label="Tipo de proveedor">
                 <Select
                   value={form.tipo_proveedor ?? "juridica"}
@@ -486,26 +506,6 @@ function Provs() {
                   </Select>
                 </F>
               ) : null}
-              <div className="grid grid-cols-2 gap-3">
-                <F label={form.tipo_proveedor === "natural" ? "Número de identificación *" : "NIT *"}>
-                  <Input
-                    autoFocus
-                    value={form.nit ?? ""}
-                    onChange={(e) => setForm({ ...form, nit: e.target.value })}
-                  />
-                </F>
-                {form.tipo_proveedor !== "natural" && (
-                  <F label="Dígito de verificación">
-                    <Input
-                      maxLength={1}
-                      value={form.digito_verificacion ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, digito_verificacion: e.target.value.slice(0, 1) })
-                      }
-                    />
-                  </F>
-                )}
-              </div>
               {duplicado && (
                 <p className="text-xs text-warning -mt-2">
                   Ya existe un proveedor con este número: <b>{duplicado}</b>. Ciérralo y búscalo
@@ -784,8 +784,7 @@ function Provs() {
                       <SelectItem value="iva">IVA</SelectItem>
                       <SelectItem value="impoconsumo">Impoconsumo (8%)</SelectItem>
                       <SelectItem value="ambos">IVA + Impoconsumo</SelectItem>
-                      <SelectItem value="excluido">Excluido de IVA (ej. combustible)</SelectItem>
-                      <SelectItem value="exento">Exento de IVA (tarifa 0%)</SelectItem>
+                      <SelectItem value="sin_iva">Productos/servicios sin IVA</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
