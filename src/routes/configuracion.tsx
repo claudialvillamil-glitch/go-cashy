@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/configuracion")({
@@ -65,6 +65,9 @@ function Conf() {
   const [versionRecibo, setVersionRecibo] = useState("");
   const [vigenciaRecibo, setVigenciaRecibo] = useState("");
   const [valorUvt, setValorUvt] = useState("");
+  const [huboCambio, setHuboCambio] = useState(false);
+  const [tabActiva, setTabActiva] = useState("general");
+  const cargadoRef = useRef(false);
 
   useEffect(() => {
     if (q.data) {
@@ -85,8 +88,36 @@ function Conf() {
       setVersionRecibo(q.data.version_recibo);
       setVigenciaRecibo(q.data.vigencia_recibo);
       setValorUvt(String(q.data.valor_uvt));
+      // Se marca "cargado" en el siguiente tick para no confundir esta
+      // carga inicial con un cambio hecho por el usuario.
+      setTimeout(() => {
+        cargadoRef.current = true;
+      }, 0);
     }
   }, [q.data]);
+
+  // Cualquier cambio en estos campos (después de la carga inicial) marca
+  // que hay cambios sin guardar en "Datos generales".
+  useEffect(() => {
+    if (cargadoRef.current) setHuboCambio(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    empresa, nitEmpresa, responsable, identificacionResponsable, monto, maximo, cuentaBanco,
+    cuentaRetHotel, cuentaRetServDecl, cuentaRetServNoDecl, cuentaRetFletes, limiteAlerta,
+    nombreAprobador, codigoRecibo, versionRecibo, vigenciaRecibo, valorUvt,
+  ]);
+
+  // Aviso del navegador si intenta cerrar/recargar la pestaña con cambios
+  // sin guardar.
+  useEffect(() => {
+    if (!huboCambio) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [huboCambio]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -117,6 +148,7 @@ function Conf() {
     },
     onSuccess: () => {
       toast.success("Configuración actualizada");
+      setHuboCambio(false);
       qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -131,7 +163,19 @@ function Conf() {
         </p>
       </header>
 
-      <Tabs defaultValue="general" className="space-y-6">
+      <Tabs
+        value={tabActiva}
+        onValueChange={(v) => {
+          if (huboCambio && tabActiva === "general") {
+            const continuar = confirm(
+              "Recuerda guardar los cambios realizados en Datos generales antes de salir. ¿Quieres salir sin guardar?",
+            );
+            if (!continuar) return;
+          }
+          setTabActiva(v);
+        }}
+        className="space-y-6"
+      >
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="agencias">Agencias y fondos</TabsTrigger>
@@ -142,7 +186,12 @@ function Conf() {
         <TabsContent value="general" className="space-y-6 mt-0">
           <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Datos generales</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base">Datos generales</CardTitle>
+            {huboCambio && (
+              <span className="text-xs text-warning font-normal">● Cambios sin guardar</span>
+            )}
+          </div>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             Guardar cambios
           </Button>
