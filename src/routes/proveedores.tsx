@@ -76,6 +76,7 @@ const empty = {
   es_declarante_renta: false,
   tipo_declarante_renta: "contribuyente",
   autorretenedor_renta: false,
+  es_gran_contribuyente: false,
   autorretenedor_ica: false,
   es_facturador_electronico: false,
   regimen_tributario: "responsable_iva",
@@ -129,8 +130,9 @@ function Provs() {
         Email: "contacto@alfombrando.com",
         Dirección: "Cra 10 # 20-30",
         "Responsable de IVA (Sí/No)": "Sí",
-        "Régimen (no_responsable_iva/responsable_iva/gran_contribuyente)": "responsable_iva",
+        "Régimen (no_responsable_iva/responsable_iva)": "responsable_iva",
         "Régimen Simple (Sí/No)": "No",
+        "Gran Contribuyente (Sí/No)": "No",
       },
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Proveedores");
@@ -152,6 +154,7 @@ function Provs() {
       Ciudad: p.ciudad ?? "",
       Régimen: REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ?? "",
       "Régimen Simple": p.pertenece_regimen_simple ? "Sí" : "No",
+      "Gran Contribuyente": p.es_gran_contribuyente ? "Sí" : "No",
       "Responsable de IVA": p.responsable_iva ? "Sí" : "No",
       "Impuesto que factura": p.tipo_impuesto === "impoconsumo" ? "Impoconsumo" : "IVA",
       "Aplica Rte. Fuente": p.aplica_retencion ? "Sí" : "No",
@@ -183,6 +186,7 @@ function Provs() {
         responsable_iva: boolean;
         regimen_tributario: string;
         pertenece_regimen_simple: boolean;
+        es_gran_contribuyente: boolean;
       }> = [];
       let omitidos = 0;
 
@@ -203,29 +207,26 @@ function Provs() {
           .toLowerCase();
         const pertenece_regimen_simple = ["si", "sí", "s", "true", "yes"].includes(regimenSimpleRaw);
         const regimenRaw = String(
-          row["Régimen (no_responsable_iva/responsable_iva/gran_contribuyente)"] ??
-            row["Régimen"] ??
-            "responsable_iva",
+          row["Régimen (no_responsable_iva/responsable_iva)"] ?? row["Régimen"] ?? "responsable_iva",
         )
           .trim()
           .toLowerCase();
         // Compatibilidad con nombres de régimen antiguos, por si se importa
-        // un archivo exportado antes de este cambio.
-        const regimenNormalizado =
-          regimenRaw === "comun"
-            ? "responsable_iva"
-            : regimenRaw === "autorretenedor"
-              ? "gran_contribuyente"
-              : regimenRaw === "simple"
-                ? "responsable_iva"
-                : regimenRaw;
-        const regimen_tributario = ["no_responsable_iva", "responsable_iva", "gran_contribuyente"].includes(
-          regimenNormalizado,
-        )
+        // un archivo exportado antes de este cambio. "gran_contribuyente" y
+        // "autorretenedor" ya no son un régimen — se marcan como Gran
+        // Contribuyente aparte.
+        const esGranContribuyenteImportado = ["gran_contribuyente", "autorretenedor"].includes(regimenRaw);
+        const regimenNormalizado = regimenRaw === "comun" || regimenRaw === "simple" ? "responsable_iva" : regimenRaw;
+        const regimen_tributario = ["no_responsable_iva", "responsable_iva"].includes(regimenNormalizado)
           ? regimenNormalizado
           : "responsable_iva";
         const respIvaRaw = String(
           row["Responsable de IVA (Sí/No)"] ?? row["Responsable de IVA"] ?? "",
+        )
+          .trim()
+          .toLowerCase();
+        const granContribuyenteRaw = String(
+          row["Gran Contribuyente (Sí/No)"] ?? row["Gran Contribuyente"] ?? "",
         )
           .trim()
           .toLowerCase();
@@ -243,6 +244,9 @@ function Provs() {
             : responsableIvaSegunRegimen(regimen_tributario),
           regimen_tributario,
           pertenece_regimen_simple,
+          es_gran_contribuyente: granContribuyenteRaw
+            ? ["si", "sí", "s", "true", "yes"].includes(granContribuyenteRaw)
+            : esGranContribuyenteImportado,
         });
       }
 
@@ -292,6 +296,7 @@ function Provs() {
         es_facturador_electronico: form.es_facturador_electronico ?? false,
         tipo_declarante_renta: form.tipo_declarante_renta || "contribuyente",
         autorretenedor_renta: form.autorretenedor_renta ?? false,
+        es_gran_contribuyente: form.es_gran_contribuyente ?? false,
         autorretenedor_ica: form.autorretenedor_ica ?? false,
         regimen_tributario: form.regimen_tributario || "responsable_iva",
         tipo_impuesto: form.tipo_impuesto || "iva",
@@ -693,8 +698,10 @@ function Provs() {
                         ...form,
                         pertenece_regimen_simple: v === true,
                         // En régimen simple no aplica retención en la fuente ni ReteICA;
-                        // el ReteIVA sí puede aplicar si supera la base de retención.
-                        ...(v === true ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                        // el ReteIVA sí aplica siempre (se activa solo), sujeto a la base mínima.
+                        ...(v === true
+                          ? { aplica_retencion: false, aplica_reteica: false, aplica_reteiva: true }
+                          : {}),
                       })
                     }
                   />
@@ -719,6 +726,16 @@ function Provs() {
                     </SelectContent>
                   </Select>
                 </F>
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="prov-gran-contribuyente"
+                    checked={form.es_gran_contribuyente ?? false}
+                    onCheckedChange={(v) => setForm({ ...form, es_gran_contribuyente: v === true })}
+                  />
+                  <Label htmlFor="prov-gran-contribuyente" className="text-sm font-normal cursor-pointer">
+                    Es Gran Contribuyente
+                  </Label>
+                </div>
                 <div className="flex items-center gap-2 pt-1">
                   <Checkbox
                     id="prov-autorret-renta"
@@ -805,7 +822,7 @@ function Provs() {
                     automáticamente). El ReteIVA sí aplica si el monto supera la cuantía mínima.
                   </p>
                 )}
-                {form.regimen_tributario === "gran_contribuyente" && (
+                {form.es_gran_contribuyente && (
                   <p className="text-xs text-warning">
                     Los grandes contribuyentes generalmente no llevan retención en la fuente
                     normal — verifica antes de aplicarla.
@@ -958,6 +975,7 @@ function Provs() {
                       {REGIMENES_TRIBUTARIOS.find((r) => r.value === p.regimen_tributario)?.label ??
                         "—"}
                       {p.pertenece_regimen_simple && " · Régimen Simple"}
+                      {p.es_gran_contribuyente && " · Gran Contribuyente"}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Factura:{" "}
@@ -1011,15 +1029,20 @@ function Provs() {
                         size="icon"
                         variant="ghost"
                         onClick={() => {
-                          const regimenValidos = ["no_responsable_iva", "responsable_iva", "gran_contribuyente"];
+                          const regimenValidos = ["no_responsable_iva", "responsable_iva"];
                           const regimenNormalizado = regimenValidos.includes(p.regimen_tributario)
                             ? p.regimen_tributario
-                            : p.regimen_tributario === "simple"
-                              ? "responsable_iva"
-                              : p.regimen_tributario === "autorretenedor"
-                                ? "gran_contribuyente"
-                                : "responsable_iva";
-                          setForm({ ...p, regimen_tributario: regimenNormalizado });
+                            : "responsable_iva";
+                          // Compatibilidad con datos viejos donde "gran_contribuyente" o
+                          // "autorretenedor" vivían dentro del régimen tributario.
+                          const yaEraGranContribuyente =
+                            p.regimen_tributario === "gran_contribuyente" ||
+                            p.regimen_tributario === "autorretenedor";
+                          setForm({
+                            ...p,
+                            regimen_tributario: regimenNormalizado,
+                            es_gran_contribuyente: p.es_gran_contribuyente || yaEraGranContribuyente,
+                          });
                           const listaCiudades = CIUDADES_POR_DEPARTAMENTO[p.departamento ?? ""] ?? [];
                           setCiudadManual(!!p.ciudad && !listaCiudades.includes(p.ciudad));
                           setPrimerNombre("");

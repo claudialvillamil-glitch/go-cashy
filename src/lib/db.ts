@@ -24,6 +24,7 @@ export type Proveedor = {
   tipo_declarante_renta: string;
   autorretenedor_renta: boolean;
   autorretenedor_ica: boolean;
+  es_gran_contribuyente: boolean;
   es_facturador_electronico: boolean;
   aplica_reteica: boolean;
   concepto_reteica: string;

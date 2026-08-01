@@ -1043,12 +1043,6 @@ function Nuevo() {
                   {proveedorSel.autorretenedor_ica && " · Autorretenedor ICA"}
                 </p>
               )}
-              {proveedorSel && proveedorSel.pertenece_regimen_simple && (
-                <p className="text-xs text-warning mt-0.5">
-                  Régimen simple: no aplica retención en la fuente ni ReteICA (quedaron
-                  deshabilitadas). El ReteIVA sí aplica si el monto supera la cuantía mínima.
-                </p>
-              )}
               {proveedorSel && !proveedorSel.pertenece_regimen_simple && proveedorSel.autorretenedor_renta && (
                 <p className="text-xs text-warning mt-0.5">
                   Autorretenedor de renta: no aplica retención en la fuente (quedó deshabilitada).
@@ -1059,7 +1053,7 @@ function Nuevo() {
                   Autorretenedor de ICA: no aplica ReteICA (quedó deshabilitada).
                 </p>
               )}
-              {proveedorSel && proveedorSel.regimen_tributario === "gran_contribuyente" && (
+              {proveedorSel && proveedorSel.es_gran_contribuyente && (
                 <p className="text-xs text-warning mt-0.5">
                   Este proveedor generalmente no lleva retención en la fuente normal — verifica
                   antes de aplicarla.
@@ -1220,6 +1214,12 @@ function Nuevo() {
                     El monto no supera la cuantía mínima (4 UVT ={" "}
                     {fmtMoney(cuantiaMinimaGeneral)}), la misma base que la retención en la
                     fuente, así que el ReteIVA queda bloqueado para este gasto.
+                  </p>
+                )}
+                {proveedorSel?.pertenece_regimen_simple && (
+                  <p className="text-xs text-warning">
+                    Régimen simple: Aplica Reteiva si el monto supera la base de retención en la
+                    fuente y es responsable de IVA.
                   </p>
                 )}
               </div>

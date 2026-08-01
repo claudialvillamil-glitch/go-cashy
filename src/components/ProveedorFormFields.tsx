@@ -300,7 +300,9 @@ export function ProveedorFormFields({
               setForm({
                 ...form,
                 pertenece_regimen_simple: v === true,
-                ...(v === true ? { aplica_retencion: false, aplica_reteica: false } : {}),
+                ...(v === true
+                  ? { aplica_retencion: false, aplica_reteica: false, aplica_reteiva: true }
+                  : {}),
               })
             }
           />
@@ -325,6 +327,16 @@ export function ProveedorFormFields({
             </SelectContent>
           </Select>
         </F>
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="pff-gran-contribuyente"
+            checked={form.es_gran_contribuyente ?? false}
+            onCheckedChange={(v) => setForm({ ...form, es_gran_contribuyente: v === true })}
+          />
+          <Label htmlFor="pff-gran-contribuyente" className="text-sm font-normal cursor-pointer">
+            Es Gran Contribuyente
+          </Label>
+        </div>
         <div className="flex items-center gap-2 pt-1">
           <Checkbox
             id="pff-autorret-renta"

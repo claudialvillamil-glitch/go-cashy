@@ -22,7 +22,6 @@ export const RETEICA_CONCEPTOS = [
 export const REGIMENES_TRIBUTARIOS = [
   { value: "no_responsable_iva", label: "No responsable de IVA" },
   { value: "responsable_iva", label: "Responsable de IVA" },
-  { value: "gran_contribuyente", label: "Gran contribuyente" },
 ];
 
 // Clasificación del tipo de declarante de renta — dimensión independiente
@@ -37,7 +36,7 @@ export const TIPOS_DECLARANTE_RENTA = [
 // Ya no se pregunta aparte si es "Responsable de IVA" — se deriva
 // directamente de la categoría elegida arriba.
 export function responsableIvaSegunRegimen(regimen: string): boolean {
-  return regimen === "responsable_iva" || regimen === "gran_contribuyente";
+  return regimen === "responsable_iva";
 }
 
 export const TIPOS_IDENTIFICACION = [

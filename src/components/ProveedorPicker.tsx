@@ -41,6 +41,7 @@ const formVacio = {
   es_declarante_renta: false,
   tipo_declarante_renta: "contribuyente",
   autorretenedor_renta: false,
+  es_gran_contribuyente: false,
   autorretenedor_ica: false,
   es_facturador_electronico: false,
   regimen_tributario: "responsable_iva",

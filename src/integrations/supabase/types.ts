@@ -706,6 +706,7 @@ export type Database = {
           autorretenedor_ica: boolean
           autorretenedor_renta: boolean
           es_facturador_electronico: boolean
+          es_gran_contribuyente: boolean
           estado_validacion: string
           pertenece_regimen_simple: boolean
           id: string
@@ -742,6 +743,7 @@ export type Database = {
           autorretenedor_ica?: boolean
           autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
+          es_gran_contribuyente?: boolean
           estado_validacion?: string
           pertenece_regimen_simple?: boolean
           id?: string
@@ -778,6 +780,7 @@ export type Database = {
           autorretenedor_ica?: boolean
           autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
+          es_gran_contribuyente?: boolean
           estado_validacion?: string
           pertenece_regimen_simple?: boolean
           id?: string
