@@ -1183,6 +1183,7 @@ function TarifasReteicaCiudadCard() {
   const conceptosQ = useQuery({ queryKey: ["conceptos-reteica"], queryFn: getConceptosReteica });
   const basesQ = useQuery({ queryKey: ["bases-reteica-agencia"], queryFn: getBasesReteicaAgencia });
   const fondoQ = useQuery({ queryKey: ["fondo"], queryFn: getFondo });
+  const ciiuQ = useQuery({ queryKey: ["codigos-ciiu"], queryFn: getCodigosCiiu });
   const uvtValor = Number(fondoQ.data?.valor_uvt ?? 0);
   const [agenciaId, setAgenciaId] = useState("");
   const [conceptoReteicaId, setConceptoReteicaId] = useState("");
@@ -1271,8 +1272,9 @@ function TarifasReteicaCiudadCard() {
         <CardTitle className="text-base">Tarifas de ReteICA por agencia / concepto / actividad (CIIU)</CardTitle>
         <p className="text-sm text-muted-foreground">
           El ICA varía por ciudad y por actividad económica. Configura aquí la tarifa por mil de
-          cada combinación agencia + concepto (+ CIIU opcional). Deja el CIIU en blanco para que
-          sea la tarifa general de esa agencia/concepto. La base mínima se configura arriba, en
+          cada combinación agencia + concepto (+ CIIU opcional, tomado del catálogo de
+          "Códigos CIIU" — créalo ahí primero si no aparece en la lista). Elige "General" para
+          que sea la tarifa de toda esa agencia/concepto. La base mínima se configura arriba, en
           "Bases de ReteICA por agencia".
         </p>
       </CardHeader>
@@ -1302,11 +1304,19 @@ function TarifasReteicaCiudadCard() {
               ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder="CIIU (opcional)"
-            value={codigoCiiu}
-            onChange={(e) => setCodigoCiiu(e.target.value)}
-          />
+          <Select value={codigoCiiu || "general"} onValueChange={(v) => setCodigoCiiu(v === "general" ? "" : v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="CIIU (opcional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="general">General (sin CIIU específico)</SelectItem>
+              {ciiuQ.data?.filter((c) => c.activo).map((c) => (
+                <SelectItem key={c.id} value={c.codigo}>
+                  {c.codigo} - {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             type="number"
             step="0.01"

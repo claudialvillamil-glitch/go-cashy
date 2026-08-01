@@ -426,12 +426,19 @@ export function ProveedorFormFields({
           <Checkbox
             id="pff-reteiva"
             checked={form.aplica_reteiva ?? false}
+            disabled={!!form.pertenece_regimen_simple}
             onCheckedChange={(v) => setForm({ ...form, aplica_reteiva: v === true })}
           />
           <Label htmlFor="pff-reteiva" className="text-sm font-normal cursor-pointer">
             Aplica ReteIVA (15% del IVA)
           </Label>
         </div>
+        {form.pertenece_regimen_simple && (
+          <p className="text-xs text-muted-foreground">
+            Se activa automáticamente y no se puede desmarcar porque el proveedor pertenece al
+            Régimen Simple.
+          </p>
+        )}
       </div>
     </div>
   );
