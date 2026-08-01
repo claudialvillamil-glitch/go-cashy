@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -122,7 +123,7 @@ function Conf() {
   });
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Configuración del fondo</h1>
         <p className="text-sm text-muted-foreground">
@@ -130,7 +131,16 @@ function Conf() {
         </p>
       </header>
 
-      <Card>
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="agencias">Agencias y fondos</TabsTrigger>
+          <TabsTrigger value="retencion">Retención en la fuente</TabsTrigger>
+          <TabsTrigger value="reteica">ReteICA</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="space-y-6 mt-0">
+          <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Datos generales</CardTitle>
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
@@ -290,15 +300,25 @@ function Conf() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      <AgenciasCard />
-      <ConceptosRetencionRentaCard />
-      <TarifasRetencionCard />
-      <ConceptosReteicaCard />
-      <CodigosCiiuCard />
-      <BasesReteicaAgenciaCard />
-      <TarifasReteicaCiudadCard />
-      <FondosAgenciaCard />
+        <TabsContent value="agencias" className="space-y-6 mt-0">
+          <AgenciasCard />
+          <FondosAgenciaCard />
+        </TabsContent>
+
+        <TabsContent value="retencion" className="space-y-6 mt-0">
+          <ConceptosRetencionRentaCard />
+          <TarifasRetencionCard />
+        </TabsContent>
+
+        <TabsContent value="reteica" className="space-y-6 mt-0">
+          <ConceptosReteicaCard />
+          <CodigosCiiuCard />
+          <BasesReteicaAgenciaCard />
+          <TarifasReteicaCiudadCard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
