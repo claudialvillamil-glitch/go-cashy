@@ -882,7 +882,7 @@ function buildReciboDoc(
   doc.line(x0 + colW * 2 + 4, yF + 10, x0 + w - 4, yF + 10);
   doc.setFontSize(9);
   doc.setTextColor(20, 20, 20);
-  doc.text(fondo.nombre_aprobador || "", x0 + colW / 2, yF + 8, { align: "center" });
+  doc.text(mov.fondos_agencia?.nombre_aprobador || fondo.nombre_aprobador || "", x0 + colW / 2, yF + 8, { align: "center" });
   doc.text(mov.fondos_agencia?.responsable || fondo.responsable || "", x0 + colW + colW / 2, yF + 8, { align: "center" });
   doc.setFontSize(8);
   doc.setTextColor(...AZUL);

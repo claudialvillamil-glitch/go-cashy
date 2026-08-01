@@ -57,8 +57,6 @@ function Conf() {
   const [cuentaRetServDecl, setCuentaRetServDecl] = useState("");
   const [cuentaRetServNoDecl, setCuentaRetServNoDecl] = useState("");
   const [cuentaRetFletes, setCuentaRetFletes] = useState("");
-  const [cuentaReteicaServicios, setCuentaReteicaServicios] = useState("");
-  const [cuentaReteicaCompras, setCuentaReteicaCompras] = useState("");
   const [limiteAlerta, setLimiteAlerta] = useState("");
   const [nombreAprobador, setNombreAprobador] = useState("");
   const [codigoRecibo, setCodigoRecibo] = useState("");
@@ -79,8 +77,6 @@ function Conf() {
       setCuentaRetServDecl(q.data.cuenta_retencion_servicios_declarante);
       setCuentaRetServNoDecl(q.data.cuenta_retencion_servicios_no_declarante);
       setCuentaRetFletes(q.data.cuenta_retencion_fletes);
-      setCuentaReteicaServicios(q.data.cuenta_reteica_servicios);
-      setCuentaReteicaCompras(q.data.cuenta_reteica_compras);
       setLimiteAlerta(String(q.data.limite_alerta_reembolso_pct));
       setNombreAprobador(q.data.nombre_aprobador);
       setCodigoRecibo(q.data.codigo_recibo);
@@ -107,8 +103,6 @@ function Conf() {
           cuenta_retencion_servicios_declarante: cuentaRetServDecl,
           cuenta_retencion_servicios_no_declarante: cuentaRetServNoDecl,
           cuenta_retencion_fletes: cuentaRetFletes,
-          cuenta_reteica_servicios: cuentaReteicaServicios,
-          cuenta_reteica_compras: cuentaReteicaCompras,
           limite_alerta_reembolso_pct: Number(limiteAlerta) || 80,
           nombre_aprobador: nombreAprobador,
           codigo_recibo: codigoRecibo,
@@ -217,29 +211,6 @@ function Conf() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Fletes (1%)</Label>
                 <Input value={cuentaRetFletes} onChange={(e) => setCuentaRetFletes(e.target.value)} />
-              </div>
-            </div>
-          </div>
-
-          <div className="md:col-span-2 rounded-md border p-3 space-y-3">
-            <p className="text-sm font-medium">Cuentas de ReteICA por concepto</p>
-            <p className="text-xs text-muted-foreground">
-              El concepto (Servicios/Compras) se elige en el recibo; cada uno tiene su propia cuenta.
-            </p>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">ReteICA — Servicios</Label>
-                <Input
-                  value={cuentaReteicaServicios}
-                  onChange={(e) => setCuentaReteicaServicios(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">ReteICA — Compras</Label>
-                <Input
-                  value={cuentaReteicaCompras}
-                  onChange={(e) => setCuentaReteicaCompras(e.target.value)}
-                />
               </div>
             </div>
           </div>
@@ -1427,6 +1398,7 @@ function FondosAgenciaCard() {
   const [montoMaximoGasto, setMontoMaximoGasto] = useState("");
   const [responsable, setResponsable] = useState("");
   const [identificacionResponsable, setIdentificacionResponsable] = useState("");
+  const [nombreAprobador, setNombreAprobador] = useState("");
   const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
@@ -1440,6 +1412,7 @@ function FondosAgenciaCard() {
         monto_maximo_gasto: Number(montoMaximoGasto) || 0,
         responsable: responsable.trim() || null,
         identificacion_responsable: identificacionResponsable.trim() || null,
+        nombre_aprobador: nombreAprobador.trim() || null,
         prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
@@ -1452,6 +1425,7 @@ function FondosAgenciaCard() {
       setMontoMaximoGasto("");
       setResponsable("");
       setIdentificacionResponsable("");
+      setNombreAprobador("");
       setPrefijo("");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
@@ -1500,6 +1474,21 @@ function FondosAgenciaCard() {
     },
     onSuccess: () => {
       toast.success("Responsable actualizado");
+      qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actualizarAprobador = useMutation({
+    mutationFn: async ({ id, valor }: { id: string; valor: string }) => {
+      const { error } = await supabase
+        .from("fondos_agencia")
+        .update({ nombre_aprobador: valor.trim() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Aprobador actualizado");
       qc.invalidateQueries({ queryKey: ["fondos-agencia"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1600,6 +1589,11 @@ function FondosAgenciaCard() {
             onChange={(e) => setIdentificacionResponsable(e.target.value)}
           />
           <Input
+            placeholder="Nombre de quien autoriza"
+            value={nombreAprobador}
+            onChange={(e) => setNombreAprobador(e.target.value)}
+          />
+          <Input
             placeholder="Prefijo (ej. ARG)"
             value={prefijo}
             onChange={(e) => setPrefijo(e.target.value)}
@@ -1671,7 +1665,7 @@ function FondosAgenciaCard() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 pl-6">
+              <div className="grid grid-cols-4 gap-2 pl-6">
                 <Input
                   placeholder="Responsable del fondo"
                   defaultValue={f.responsable ?? ""}
@@ -1699,6 +1693,17 @@ function FondosAgenciaCard() {
                         responsable: f.responsable ?? "",
                         identificacion: valor,
                       });
+                    }
+                  }}
+                />
+                <Input
+                  placeholder="Nombre de quien autoriza"
+                  defaultValue={f.nombre_aprobador ?? ""}
+                  className="h-8 text-sm"
+                  onBlur={(e) => {
+                    const valor = e.target.value;
+                    if (valor !== (f.nombre_aprobador ?? "")) {
+                      actualizarAprobador.mutate({ id: f.id, valor });
                     }
                   }}
                 />

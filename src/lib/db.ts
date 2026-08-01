@@ -336,6 +336,7 @@ export type FondoAgencia = {
   activo: boolean;
   responsable: string | null;
   identificacion_responsable: string | null;
+  nombre_aprobador: string | null;
   prefijo: string | null;
 };
 
