@@ -14,33 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      bases_reteica_agencia: {
-        Row: {
-          agencia_id: string
-          base: number
-          base_uvt: number
-          concepto_reteica_id: string
-          created_at: string
-          id: string
-        }
-        Insert: {
-          agencia_id: string
-          base?: number
-          base_uvt?: number
-          concepto_reteica_id: string
-          created_at?: string
-          id?: string
-        }
-        Update: {
-          agencia_id?: string
-          base?: number
-          base_uvt?: number
-          concepto_reteica_id?: string
-          created_at?: string
-          id?: string
-        }
-        Relationships: []
-      }
       agencias: {
         Row: {
           codigo: number | null
@@ -68,9 +41,77 @@ export type Database = {
         }
         Relationships: []
       }
+      bases_reteica_agencia: {
+        Row: {
+          agencia_id: string
+          base: number
+          base_uvt: number
+          concepto_reteica_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          agencia_id: string
+          base?: number
+          base_uvt?: number
+          concepto_reteica_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          agencia_id?: string
+          base?: number
+          base_uvt?: number
+          concepto_reteica_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bases_reteica_agencia_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bases_reteica_agencia_concepto_reteica_id_fkey"
+            columns: ["concepto_reteica_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_reteica"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      codigos_ciiu: {
+        Row: {
+          activo: boolean
+          codigo: string
+          created_at: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          created_at?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          created_at?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       conceptos: {
         Row: {
           activo: boolean
+          concepto_reteica_id: string | null
+          concepto_retencion_renta_id: string | null
           created_at: string
           cuenta_contrapartida: string
           cuenta_gasto: string
@@ -78,8 +119,6 @@ export type Database = {
           cuenta_iva: string | null
           cuenta_reteica: string | null
           cuenta_reteiva: string | null
-          concepto_reteica_id: string | null
-          concepto_retencion_renta_id: string | null
           cuenta_retencion: string | null
           id: string
           nombre: string
@@ -92,6 +131,8 @@ export type Database = {
         }
         Insert: {
           activo?: boolean
+          concepto_reteica_id?: string | null
+          concepto_retencion_renta_id?: string | null
           created_at?: string
           cuenta_contrapartida?: string
           cuenta_gasto: string
@@ -99,8 +140,6 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
-          concepto_reteica_id?: string | null
-          concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
           nombre: string
@@ -113,6 +152,8 @@ export type Database = {
         }
         Update: {
           activo?: boolean
+          concepto_reteica_id?: string | null
+          concepto_retencion_renta_id?: string | null
           created_at?: string
           cuenta_contrapartida?: string
           cuenta_gasto?: string
@@ -120,8 +161,6 @@ export type Database = {
           cuenta_iva?: string | null
           cuenta_reteica?: string | null
           cuenta_reteiva?: string | null
-          concepto_reteica_id?: string | null
-          concepto_retencion_renta_id?: string | null
           cuenta_retencion?: string | null
           id?: string
           nombre?: string
@@ -131,6 +170,45 @@ export type Database = {
           porcentaje_reteica?: number
           porcentaje_reteiva?: number
           porcentaje_retencion?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conceptos_concepto_reteica_id_fkey"
+            columns: ["concepto_reteica_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_reteica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conceptos_concepto_retencion_renta_id_fkey"
+            columns: ["concepto_retencion_renta_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_retencion_renta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conceptos_reteica: {
+        Row: {
+          activo: boolean
+          created_at: string
+          cuenta: string | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          cuenta?: string | null
+          id?: string
+          nombre?: string
         }
         Relationships: []
       }
@@ -164,54 +242,6 @@ export type Database = {
           nombre?: string
           tarifa_declarante?: number
           tarifa_no_declarante?: number
-        }
-        Relationships: []
-      }
-      codigos_ciiu: {
-        Row: {
-          activo: boolean
-          codigo: string
-          created_at: string
-          id: string
-          nombre: string
-        }
-        Insert: {
-          activo?: boolean
-          codigo: string
-          created_at?: string
-          id?: string
-          nombre: string
-        }
-        Update: {
-          activo?: boolean
-          codigo?: string
-          created_at?: string
-          id?: string
-          nombre?: string
-        }
-        Relationships: []
-      }
-      conceptos_reteica: {
-        Row: {
-          activo: boolean
-          created_at: string
-          cuenta: string | null
-          id: string
-          nombre: string
-        }
-        Insert: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          nombre: string
-        }
-        Update: {
-          activo?: boolean
-          created_at?: string
-          cuenta?: string | null
-          id?: string
-          nombre?: string
         }
         Relationships: []
       }
@@ -330,11 +360,11 @@ export type Database = {
           identificacion_responsable?: string | null
           monto_asignado?: number
           monto_maximo_gasto?: number
-          prefijo?: string | null
-          responsable?: string | null
           nombre?: string
           nombre_aprobador?: string | null
           porcentaje_alerta_gasto?: number
+          prefijo?: string | null
+          responsable?: string | null
         }
         Relationships: [
           {
@@ -440,6 +470,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "movimiento_items_concepto_retencion_renta_id_fkey"
+            columns: ["concepto_retencion_renta_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_retencion_renta"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "movimiento_items_movimiento_id_fkey"
             columns: ["movimiento_id"]
             isOneToOne: false
@@ -504,12 +541,12 @@ export type Database = {
           factura_url: string | null
           fecha: string
           fondo_agencia_id: string | null
-          numero_fondo: number | null
           id: string
           impoconsumo: number
           iva: number
           multi_soporte: boolean
           numero_factura: string | null
+          numero_fondo: number | null
           observaciones: string | null
           prioridad: string
           proveedor_id: string
@@ -549,12 +586,12 @@ export type Database = {
           factura_url?: string | null
           fecha?: string
           fondo_agencia_id?: string | null
-          numero_fondo?: number | null
           id?: string
           impoconsumo?: number
           iva?: number
           multi_soporte?: boolean
           numero_factura?: string | null
+          numero_fondo?: number | null
           observaciones?: string | null
           prioridad?: string
           proveedor_id: string
@@ -594,12 +631,12 @@ export type Database = {
           factura_url?: string | null
           fecha?: string
           fondo_agencia_id?: string | null
-          numero_fondo?: number | null
           id?: string
           impoconsumo?: number
           iva?: number
           multi_soporte?: boolean
           numero_factura?: string | null
+          numero_fondo?: number | null
           observaciones?: string | null
           prioridad?: string
           proveedor_id?: string
@@ -643,6 +680,13 @@ export type Database = {
             columns: ["concepto_reteica_id"]
             isOneToOne: false
             referencedRelation: "conceptos_reteica"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_concepto_retencion_renta_id_fkey"
+            columns: ["concepto_retencion_renta_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_retencion_renta"
             referencedColumns: ["id"]
           },
           {
@@ -721,6 +765,13 @@ export type Database = {
             referencedRelation: "agencias"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_fondo_agencia_id_fkey"
+            columns: ["fondo_agencia_id"]
+            isOneToOne: false
+            referencedRelation: "fondos_agencia"
+            referencedColumns: ["id"]
+          },
         ]
       }
       proveedores: {
@@ -729,6 +780,8 @@ export type Database = {
           aplica_reteica: boolean
           aplica_reteiva: boolean
           aplica_retencion: boolean
+          autorretenedor_ica: boolean
+          autorretenedor_renta: boolean
           ciudad: string | null
           codigo_ciiu: string | null
           concepto_reteica: string
@@ -739,16 +792,14 @@ export type Database = {
           direccion: string | null
           email: string | null
           es_declarante_renta: boolean
-          autorretenedor_ica: boolean
-          autorretenedor_renta: boolean
           es_facturador_electronico: boolean
           es_gran_contribuyente: boolean
           estado_validacion: string
-          pertenece_regimen_simple: boolean
           id: string
           nit: string
           nombre: string
           pais: string
+          pertenece_regimen_simple: boolean
           regimen_tributario: string
           responsable_iva: boolean
           tarifa_reteica: number
@@ -766,6 +817,8 @@ export type Database = {
           aplica_reteica?: boolean
           aplica_reteiva?: boolean
           aplica_retencion?: boolean
+          autorretenedor_ica?: boolean
+          autorretenedor_renta?: boolean
           ciudad?: string | null
           codigo_ciiu?: string | null
           concepto_reteica?: string
@@ -776,16 +829,14 @@ export type Database = {
           direccion?: string | null
           email?: string | null
           es_declarante_renta?: boolean
-          autorretenedor_ica?: boolean
-          autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
           es_gran_contribuyente?: boolean
           estado_validacion?: string
-          pertenece_regimen_simple?: boolean
           id?: string
           nit: string
           nombre: string
           pais?: string
+          pertenece_regimen_simple?: boolean
           regimen_tributario?: string
           responsable_iva?: boolean
           tarifa_reteica?: number
@@ -803,6 +854,8 @@ export type Database = {
           aplica_reteica?: boolean
           aplica_reteiva?: boolean
           aplica_retencion?: boolean
+          autorretenedor_ica?: boolean
+          autorretenedor_renta?: boolean
           ciudad?: string | null
           codigo_ciiu?: string | null
           concepto_reteica?: string
@@ -813,16 +866,14 @@ export type Database = {
           direccion?: string | null
           email?: string | null
           es_declarante_renta?: boolean
-          autorretenedor_ica?: boolean
-          autorretenedor_renta?: boolean
           es_facturador_electronico?: boolean
           es_gran_contribuyente?: boolean
           estado_validacion?: string
-          pertenece_regimen_simple?: boolean
           id?: string
           nit?: string
           nombre?: string
           pais?: string
+          pertenece_regimen_simple?: boolean
           regimen_tributario?: string
           responsable_iva?: boolean
           tarifa_reteica?: number
@@ -910,7 +961,29 @@ export type Database = {
           total_gastos_momento?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reembolsos_agencia_id_fkey"
+            columns: ["agencia_id"]
+            isOneToOne: false
+            referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reembolsos_aprobado_por_fkey"
+            columns: ["aprobado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reembolsos_fondo_agencia_id_fkey"
+            columns: ["fondo_agencia_id"]
+            isOneToOne: false
+            referencedRelation: "fondos_agencia"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tarifas_reteica_ciudad: {
         Row: {
@@ -952,6 +1025,13 @@ export type Database = {
             columns: ["agencia_id"]
             isOneToOne: false
             referencedRelation: "agencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarifas_reteica_ciudad_concepto_reteica_id_fkey"
+            columns: ["concepto_reteica_id"]
+            isOneToOne: false
+            referencedRelation: "conceptos_reteica"
             referencedColumns: ["id"]
           },
         ]
