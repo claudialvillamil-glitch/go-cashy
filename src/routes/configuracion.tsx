@@ -327,7 +327,6 @@ function AgenciasCard() {
   const q = useQuery({ queryKey: ["agencias"], queryFn: getAgencias });
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
-  const [montoAsignado, setMontoAsignado] = useState("");
   const [prefijo, setPrefijo] = useState("");
 
   const crear = useMutation({
@@ -335,7 +334,6 @@ function AgenciasCard() {
       const { error } = await supabase.from("agencias").insert({
         nombre: nombre.trim(),
         codigo: codigo ? Number(codigo) : null,
-        monto_asignado: Number(montoAsignado) || 0,
         prefijo: prefijo.trim().toUpperCase() || null,
       });
       if (error) throw error;
@@ -344,20 +342,7 @@ function AgenciasCard() {
       toast.success("Agencia creada");
       setNombre("");
       setCodigo("");
-      setMontoAsignado("");
       setPrefijo("");
-      qc.invalidateQueries({ queryKey: ["agencias"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const actualizarMonto = useMutation({
-    mutationFn: async ({ id, monto }: { id: string; monto: number }) => {
-      const { error } = await supabase.from("agencias").update({ monto_asignado: monto }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Monto asignado actualizado");
       qc.invalidateQueries({ queryKey: ["agencias"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -427,14 +412,6 @@ function AgenciasCard() {
             value={prefijo}
             onChange={(e) => setPrefijo(e.target.value)}
           />
-          <Input
-            placeholder="Monto asignado"
-            type="number"
-            min="0"
-            className="w-40"
-            value={montoAsignado}
-            onChange={(e) => setMontoAsignado(e.target.value)}
-          />
           <Button onClick={() => crear.mutate()} disabled={!nombre.trim() || crear.isPending}>
             <Plus className="h-4 w-4 mr-2" /> Agregar
           </Button>
@@ -458,18 +435,6 @@ function AgenciasCard() {
                     const valor = e.target.value;
                     if (valor.toUpperCase() !== (a.prefijo ?? "")) {
                       actualizarPrefijo.mutate({ id: a.id, valor });
-                    }
-                  }}
-                />
-                <Input
-                  type="number"
-                  min="0"
-                  defaultValue={a.monto_asignado}
-                  className="w-36 h-8 text-sm"
-                  onBlur={(e) => {
-                    const monto = Number(e.target.value) || 0;
-                    if (monto !== Number(a.monto_asignado)) {
-                      actualizarMonto.mutate({ id: a.id, monto });
                     }
                   }}
                 />
