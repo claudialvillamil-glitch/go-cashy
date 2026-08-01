@@ -387,7 +387,7 @@ export function ProveedorFormFields({
             onCheckedChange={(v) => setForm({ ...form, es_facturador_electronico: v === true })}
           />
           <Label htmlFor="pff-facturador-elec" className="text-sm font-normal cursor-pointer">
-            Obligatorio factura electrónica como soporte de pago
+            Facturador electrónico (Obligatorio factura electrónica como soporte de pago)
           </Label>
         </div>
         <F label="Código CIIU (actividad económica)">
